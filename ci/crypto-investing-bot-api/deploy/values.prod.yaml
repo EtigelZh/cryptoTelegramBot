@@ -1,0 +1,17 @@
+service:
+  type: ClusterIP
+  port: 3333
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: crypto-investing-bot-api.meteora.pro
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: crypto-investing-bot-api-meteora-pro-tls
+      hosts:
+        - crypto-investing-bot-api.meteora.pro

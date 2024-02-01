@@ -1,0 +1,105 @@
+.default-crypto-investing-bot-ui-variables: &default-crypto-investing-bot-ui-variables
+  APP_NAME: "crypto-investing-bot-ui"
+  HELM_CHART: oci://registry.gitlab.com/meteora-pro/common-ci/gitlab-ci-helm-werf-templates/frontend-app
+
+.only-crypto-investing-bot-ui-changes: &only-crypto-investing-bot-ui-changes
+  changes:
+    - apps/crypto-investing-bot-ui/**/*
+    - ci/crypto-investing-bot-ui/**/*
+    - .gitlab-ci.yml
+
+run-unit-tests-crypto-investing-bot-ui:
+  only:
+    <<: *only-crypto-investing-bot-ui-changes
+  extends: .run-verify
+  script:
+    - pnpm run test:crypto-investing-bot-ui:unit
+
+compute-version-crypto-investing-bot-ui:
+  only:
+    <<: *only-crypto-investing-bot-ui-changes
+  variables:
+    <<: *default-crypto-investing-bot-ui-variables
+  extends: .compute-version
+
+build-crypto-investing-bot-ui:
+  extends: .docker-build
+  only:
+    <<: *only-crypto-investing-bot-ui-changes
+  variables:
+    <<: *default-crypto-investing-bot-ui-variables
+    BUILD_TARGET: $APP_NAME
+  needs: ["compute-version-crypto-investing-bot-ui"]
+
+deploy-prod-crypto-investing-bot-ui:
+  extends: .helm-deploy
+  when: manual
+  needs: ["compute-version-crypto-investing-bot-ui", "build-crypto-investing-bot-ui"]
+  only:
+    refs:
+      - main
+    <<: *only-crypto-investing-bot-ui-changes
+  except:
+    - schedules
+    - tags
+  variables:
+    VALUES_PATH: ci/crypto-investing-bot-ui/deploy/values.prod.yaml
+    BASE64_KUBE_CONFIG: ${production_config}
+    <<: *default-crypto-investing-bot-ui-variables
+  environment:
+    name: crypto-investing-bot-ui-prod
+    url: https://crypto-investing-bot-ui.meteora.pro
+
+deploy-test-crypto-investing-bot-ui:
+  extends: .helm-deploy
+  needs: ["compute-version-crypto-investing-bot-ui", "build-crypto-investing-bot-ui"]
+  only:
+    refs:
+      - main
+    <<: *only-crypto-investing-bot-ui-changes
+  variables:
+    VALUES_PATH: ci/crypto-investing-bot-ui/deploy/values.test.yaml
+    BASE64_KUBE_CONFIG: ${staging_config}
+    <<: *default-crypto-investing-bot-ui-variables
+  environment:
+    name: crypto-investing-bot-ui-test
+    url: https://crypto-investing-bot-ui.dev.meteora.pro
+
+deploy-review-crypto-investing-bot-ui:
+  extends: .helm-deploy
+  needs: ["compute-version-crypto-investing-bot-ui", "build-crypto-investing-bot-ui"]
+  only:
+    <<: *only-crypto-investing-bot-ui-changes
+  except:
+    - main
+    - tags
+  variables:
+    VALUES_PATH: ci/crypto-investing-bot-ui/deploy/values.review.yaml
+    BASE64_KUBE_CONFIG: ${staging_config}
+    <<: *default-crypto-investing-bot-ui-variables
+  environment:
+    name: review-crypto-investing-bot-ui-$CI_BUILD_REF_NAME
+    url: https://$CI_BUILD_REF_SLUG.app-review.dev.meteora.pro/
+    on_stop: stop-review-crypto-investing-bot-ui
+    auto_stop_in: 7 days
+
+stop-review-crypto-investing-bot-ui:
+  extends: .helm-deploy
+  only:
+    <<: *only-crypto-investing-bot-ui-changes
+  except:
+    - main
+    - tags
+  script:
+    - helm del -n $NAMESPACE $APP_NAME
+    - kubectl delete namespace $NAMESPACE
+  variables:
+    VALUES_PATH: ci/crypto-investing-bot-api/deploy/values.review.yaml
+    BASE64_KUBE_CONFIG: ${staging_config}
+    <<: *default-crypto-investing-bot-ui-variables
+  when: manual
+  environment:
+    name: review-crypto-investing-bot-ui-$CI_BUILD_REF_NAME
+    action: stop
+
+  
