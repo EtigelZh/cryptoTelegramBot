@@ -1,0 +1,58 @@
+{
+  "name": "crypto-investing-bot",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/crypto-investing-bot/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/webpack:webpack",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "defaultConfiguration": "production",
+      "options": {
+        "target": "node",
+        "compiler": "tsc",
+        "outputPath": "dist/apps/crypto-investing-bot",
+        "main": "apps/crypto-investing-bot/src/main.ts",
+        "tsConfig": "apps/crypto-investing-bot/tsconfig.app.json",
+        "assets": [
+          "apps/crypto-investing-bot/src/assets"
+        ],
+        "webpackConfig": "apps/crypto-investing-bot/webpack.config.js"
+      },
+      "configurations": {
+        "development": {},
+        "production": {}
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "crypto-investing-bot:build"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "crypto-investing-bot:build:development"
+        },
+        "production": {
+          "buildTarget": "crypto-investing-bot:build:production"
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ],
+      "options": {
+        "jestConfig": "apps/crypto-investing-bot/jest.config.ts"
+      }
+    }
+  },
+  "tags": []
+}
