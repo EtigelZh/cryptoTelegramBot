@@ -1,0 +1,20 @@
+stages:
+  - verify
+  - build
+  - deploy
+  - cleanup
+
+variables:
+  CI_REGISTRY_USER: $REGISTRY_ACCESS_USERNAME
+  CI_REGISTRY_PASSWORD: $WERF_REGISTRY_ACCESS_TOKEN
+  NAMESPACE: $CI_ENVIRONMENT_SLUG
+  IMAGE_REPO: $CI_REGISTRY_IMAGE
+  KUBECONFIG_DIR: "/root/.kube"
+  KUBECONFIG: "${KUBECONFIG_DIR}/config"
+  PNPM_VERSION: "7.30.0"
+  GIT_SUBMODULE_STRATEGY: recursive
+
+include:
+  - remote: 'https://gitlab.com/meteora-public/common-ci/-/raw/main/ci-templates/.gitlab-ci.base-templates.yml'
+  # - local: /ci/crypto-investing-ui/.gitlab-ci.yml
+  - local: /ci/crypto-investing-bot/.gitlab-ci.yml

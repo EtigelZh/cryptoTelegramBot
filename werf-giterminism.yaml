@@ -1,0 +1,12 @@
+giterminismConfigVersion: 1 
+cli:
+  allowCustomTags: true
+config:
+  goTemplateRendering:
+    allowEnvVariables:
+      - BUILD_TARGET
+  stapel:
+    mount:
+      allowBuildDir: true
+      allowFromPaths:
+        - build_dir

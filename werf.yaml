@@ -1,0 +1,7 @@
+configVersion: 1
+project: crypto-investing
+---
+image: crypto-investing-bot
+context: .
+dockerfile: ci/crypto-investing-bot/Dockerfile
+---

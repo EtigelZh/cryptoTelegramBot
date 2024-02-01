@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "start": "nx serve crypto-investing-bot"
+    "start": "nx serve crypto-investing-bot",
+    "build": "nx build crypto-investing-bot --configuration=production",
+    "build:crypto-investing-bot": "nx build crypto-investing-bot --configuration=production"
   },
   "private": true,
   "dependencies": {

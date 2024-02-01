@@ -7,11 +7,11 @@ ingress:
     kubernetes.io/ingress.class: nginx
     kubernetes.io/tls-acme: "true"
   hosts:
-    - host: crypto-investing-bot-api.dev.meteora.pro
+    - host: crypto-investing-bot.meteora.pro
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: crypto-investing-bot-api-dev-meteora-pro-tls
+    - secretName: crypto-investing-bot-meteora-pro-tls
       hosts:
-        - crypto-investing-bot-api.dev.meteora.pro
+        - crypto-investing-bot.meteora.pro
