@@ -1,0 +1,3 @@
+[submodule ".werf"]
+	path = .werf
+	url = https://gitlab.com/meteora-public/common-ci.git
