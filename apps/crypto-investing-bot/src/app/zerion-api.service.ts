@@ -246,7 +246,6 @@ export class ZerionApiService implements OnModuleDestroy {
     if (typeof this.currentThrottlerResolver === 'function') {
       this.currentThrottlerResolver(null);
     }
-    console.log('Resetting requests per minute');
     this.currentThrottlerPromise = new Promise((resolve) => {
       this.currentThrottlerResolver = resolve;
     });
