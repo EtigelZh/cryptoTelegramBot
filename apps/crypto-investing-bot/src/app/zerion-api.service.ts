@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { AppConfig } from './app.config';
 import axios, { AxiosError } from 'axios';
 
@@ -13,7 +13,7 @@ export type ResponseWithErrorList<T = unknown, E extends RowError = RowError> = 
   data: T;
 }
 
-export type CsvProcessingResponse = ResponseWithErrorList<string>;
+export type CsvProcessingResponse = ResponseWithErrorList<string[]>;
 
 type ZerionResponse = {
   links: {
@@ -202,12 +202,8 @@ function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
         txHash,
         link,
         attributes.mined_at,
-        JSON.stringify(
-          attributes.transfers.filter((t) => t.direction === 'in')
-        ),
-        JSON.stringify(
-          attributes.transfers.filter((t) => t.direction === 'out')
-        ),
+        '',
+        '',
       ].join('\t');
     } catch (error) {
       console.error('Failed to process transaction', transaction, error);
@@ -217,7 +213,7 @@ function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
   });
 
   return {
-    data: [header, ...transactions.filter((t) => t)].join('\n'),
+    data: [header, ...transactions.filter((t) => t)],
     errors,
   }
 }
@@ -227,8 +223,38 @@ function createFromUserPass(user: string, pass: string): string {
 }
 
 @Injectable()
-export class ZerionApiService {
-  constructor(private readonly config: AppConfig) {}
+export class ZerionApiService implements OnModuleDestroy {
+  private currentThrottlerPromise: Promise<void> = Promise.resolve();
+  private currentThrottlerResolver: (args:unknown) => void;
+  readonly maxRequestsPerMinute = 59;
+  private currentRequestsPerMinute = 0;
+  interval: NodeJS.Timeout = setInterval(() => this.renewMinuteThrottler(), 60000);
+
+  readonly maxRequestsPerDay = 5000;
+  private currentRequestsPerDay = 0;
+  dayInterval: NodeJS.Timeout = setInterval(() => {
+    this.currentRequestsPerDay = 0;
+    console.log('Resetting requests per day');
+  }, 24 * 60 * 60 * 1000);
+
+  constructor(private readonly config: AppConfig) {
+    this.renewMinuteThrottler();
+  }
+
+  private renewMinuteThrottler() {
+    this.currentRequestsPerMinute = 0;
+    if (typeof this.currentThrottlerResolver === 'function') {
+      this.currentThrottlerResolver(null);
+    }
+    console.log('Resetting requests per minute');
+    this.currentThrottlerPromise = new Promise((resolve) => {
+      this.currentThrottlerResolver = resolve;
+    });
+  }
+  onModuleDestroy() {
+    clearInterval(this.interval);
+    clearInterval(this.dayInterval);
+  }
 
   async getCsvTransactions(
     transactions: ZerionResponse['data']
@@ -242,7 +268,7 @@ export class ZerionApiService {
     }
   }
 
-  async getTransactions(walletId: string, take = 0): Promise<ZerionResponse> {
+  async getTransactions(walletId: string, onNextRequest: (minuteRequests: number, dayRequests: number, maxRequestsPerMinute: number, data: Transaction[]) => Promise<void>, take = 0): Promise<ZerionResponse> {
     const authHeader = createFromUserPass(this.config.zerionApiKey, '');
     const options = {
       headers: {
@@ -258,7 +284,14 @@ export class ZerionApiService {
 
     try {
       while (url) {
-        console.log(`Fetching transactions from ${url}`);
+        console.log(`Fetching transactions from ${url} currentRequestsPerMinute: ${this.currentRequestsPerMinute} ${this.currentRequestsPerDay}`);
+        this.currentRequestsPerMinute++;
+        this.currentRequestsPerDay++;
+        await onNextRequest(this.currentRequestsPerMinute, this.currentRequestsPerDay, this.maxRequestsPerMinute, allTransactions);
+        if (this.currentRequestsPerMinute >= this.maxRequestsPerMinute) {
+          await this.currentThrottlerPromise;
+        }
+        
         const response = await axios.get<ZerionResponse>(url, options);
         allTransactions = allTransactions.concat(response.data.data);
 
