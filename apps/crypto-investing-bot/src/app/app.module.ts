@@ -6,11 +6,10 @@ import { AppConfigModule } from './app.config';
 import { ZerionApiService } from './zerion-api.service';
 import { XlsxService } from './xlsx.service';
 import { TelegramBotService } from './telegram-bot.service';
-import { GoogleSheetModule } from 'nest-google-sheet-connector';
-import { GS_CREDENTIALS } from './google-sheet/credentials.consts';
+import { GoogleSheetsModule } from './google-sheet/google-sheets.module';
 
 @Module({
-  imports: [AppConfigModule, GoogleSheetModule.register(GS_CREDENTIALS)],
+  imports: [AppConfigModule, GoogleSheetsModule],
   controllers: [AppController],
   providers: [AppService, ZerionApiService, XlsxService, TelegramBotService],
 })
