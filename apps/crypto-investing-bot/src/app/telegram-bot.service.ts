@@ -1,11 +1,12 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Telegraf } from 'telegraf';
+import { Context, Telegraf } from 'telegraf';
 import { AppConfig } from './app.config';
 import { XlsxService } from './xlsx.service';
 import { RequestErrorData, ZerionApiService } from './zerion-api.service';
 import { AxiosError } from 'axios';
 import { inspect } from 'util';
 import { message } from 'telegraf/filters';
+import { MountMap } from 'telegraf/typings/telegram-types';
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example = '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
 @Injectable()
@@ -34,7 +35,7 @@ export class TelegramBotService implements OnModuleInit {
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
 
-  private async handlePossibleWalletHash(ctx): Promise<void> {
+  private async handlePossibleWalletHash(ctx: Context<MountMap['text']>): Promise<unknown> {
     const messageText = ctx.message.text;
 
     // Check if the message looks like a wallet hash
@@ -54,7 +55,7 @@ export class TelegramBotService implements OnModuleInit {
     );
   }
 
-  private async handleTransactionsCommand(ctx): Promise<void> {
+  private async handleTransactionsCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<unknown> {
     if (!this.isAdminUser(ctx.from?.id)) {
       return ctx.reply('Работа бота доступна только для избранных.');
     }
@@ -85,10 +86,10 @@ export class TelegramBotService implements OnModuleInit {
             
             if (lastApiCallMessageId) {
               await ctx.telegram.editMessageText(ctx.chat.id, lastApiCallMessageId, null, 
-                `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции:${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
+                `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции: ${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
             } else {
               const sentMessage = await ctx.reply(
-                `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции:${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
+                `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции: ${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
               lastApiCallMessageId = sentMessage.message_id;
             }
           }
@@ -134,7 +135,7 @@ export class TelegramBotService implements OnModuleInit {
     // Implement error-specific handling logic if needed
   }
 
-  private isAdminUser(userId: string): boolean {
+  private isAdminUser(userId: string | number): boolean {
     return this.appConfig.adminChatIds.includes(String(userId));
   }
 
