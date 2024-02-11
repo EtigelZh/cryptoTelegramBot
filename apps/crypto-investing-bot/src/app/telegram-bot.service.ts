@@ -81,17 +81,14 @@ export class TelegramBotService implements OnModuleInit {
             if (data.length === 0) {
               return;
             }
-            if (minuteRequests >= maxRequestsPerMinute) {
-              const sentMessage = await ctx.reply(
-                `Превышен лимит запросов к API в минуту. Ожидаем сброса таймера. API: ${minuteRequests}/${maxRequestsPerMinute}. API calls current day: ${dayRequests}`);
-              lastApiCallMessageId = sentMessage.message_id;
-            }
+            const prefix = minuteRequests >= maxRequestsPerMinute && lastApiCallMessageId ? '⚠️Превышен лимит запросов к API в минуту.\nОжидаем сброса таймера. ' : '';
+            
             if (lastApiCallMessageId) {
               await ctx.telegram.editMessageText(ctx.chat.id, lastApiCallMessageId, null, 
-                `Скачано ${data.length} транзакций. Дата последней скачанной транзакции:${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)} Запросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
+                `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции:${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
             } else {
               const sentMessage = await ctx.reply(
-                `Скачано ${data.length} транзакций. Дата последней скачанной транзакции:${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)} Запросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
+                `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции:${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
               lastApiCallMessageId = sentMessage.message_id;
             }
           }

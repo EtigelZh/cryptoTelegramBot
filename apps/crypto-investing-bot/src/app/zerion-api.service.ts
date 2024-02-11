@@ -226,7 +226,7 @@ function createFromUserPass(user: string, pass: string): string {
 export class ZerionApiService implements OnModuleDestroy {
   private currentThrottlerPromise: Promise<void> = Promise.resolve();
   private currentThrottlerResolver: (args:unknown) => void;
-  readonly maxRequestsPerMinute = 59;
+  readonly maxRequestsPerMinute = 50;
   private currentRequestsPerMinute = 0;
   interval: NodeJS.Timeout = setInterval(() => this.renewMinuteThrottler(), 60000);
 
@@ -285,16 +285,17 @@ export class ZerionApiService implements OnModuleDestroy {
     try {
       while (url) {
         console.log(`Fetching transactions from ${url} currentRequestsPerMinute: ${this.currentRequestsPerMinute} ${this.currentRequestsPerDay}`);
-        this.currentRequestsPerMinute++;
-        this.currentRequestsPerDay++;
-        await onNextRequest(this.currentRequestsPerMinute, this.currentRequestsPerDay, this.maxRequestsPerMinute, allTransactions);
+        
         if (this.currentRequestsPerMinute >= this.maxRequestsPerMinute) {
           await this.currentThrottlerPromise;
         }
-        
         const response = await axios.get<ZerionResponse>(url, options);
         allTransactions = allTransactions.concat(response.data.data);
 
+        this.currentRequestsPerMinute++;
+        this.currentRequestsPerDay++;
+        await onNextRequest(this.currentRequestsPerMinute, this.currentRequestsPerDay, this.maxRequestsPerMinute, allTransactions);
+        
         // Check if there's a next page
         url = response.data.links.next ? response.data.links.next : '';
 
