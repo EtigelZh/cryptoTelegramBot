@@ -22,7 +22,7 @@ export class GoogleConnectorService {
   }
 
   public getDriveConnect(): drive_v3.Drive {
-    return google.drive({ version: 'v4', auth: this._jwtClient });
+    return google.drive({ version: 'v3', auth: this._jwtClient });
   }
 
   private getClient() {

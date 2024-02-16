@@ -8,6 +8,6 @@ import { GoogleConnectorModule } from './google-connector/google-connector.modul
     GoogleConnectorModule.register(GS_CREDENTIALS)
   ],
   providers: [GoogleSheetsService],
-  exports: [GoogleSheetsService],
+  exports: [GoogleSheetsService, GoogleConnectorModule],
 })
 export class GoogleSheetsModule {}

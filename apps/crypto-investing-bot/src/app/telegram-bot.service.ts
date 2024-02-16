@@ -7,6 +7,8 @@ import { AxiosError } from 'axios';
 import { inspect } from 'util';
 import { message } from 'telegraf/filters';
 import { MountMap } from 'telegraf/typings/telegram-types';
+import { GoogleSheetsService } from './google-sheet/google-sheets.service';
+import { GoogleConnectorService } from './google-sheet/google-connector/google-connector.service';
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example = '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
 @Injectable()
@@ -16,7 +18,9 @@ export class TelegramBotService implements OnModuleInit {
   constructor(
     private readonly appConfig: AppConfig,
     private readonly zerionService: ZerionApiService,
-    private readonly xlsxService: XlsxService
+    private readonly xlsxService: XlsxService,
+    private readonly googleDrive: GoogleSheetsService,
+    private readonly googleSheets: GoogleConnectorService,
   ) {
     this.bot = new Telegraf(this.appConfig.telegramBotToken);
   }
@@ -32,6 +36,10 @@ export class TelegramBotService implements OnModuleInit {
   private initializeBotCommands(): void {
     this.bot.command('start', this.handleStartCommand.bind(this));
     this.bot.command('transactions', this.handleTransactionsCommand.bind(this));
+    this.bot.command('google_sheets', async (ctx) => {
+      const newDocumentId = await this.googleDrive.copySpreadsheet('1F9whkSvSs8lI62u4SO8ZS_OxmJDjrRyv6aIqboG6pMI');
+      ctx.reply('Google Sheets command ' + newDocumentId);
+    });
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
 
