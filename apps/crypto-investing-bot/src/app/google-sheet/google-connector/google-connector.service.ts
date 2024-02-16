@@ -7,6 +7,7 @@ import { JWT } from 'google-auth-library';
 export class GoogleConnectorService {
 
   private readonly SCOPE_SPREADSHEETS: string;
+  private readonly SCOPE_DRIVE: string;
   private readonly _jwtClient: JWT;
 
   constructor(
@@ -14,6 +15,7 @@ export class GoogleConnectorService {
     private readonly _credentials: GoogleSheetConnectorDto
   ) {
     this.SCOPE_SPREADSHEETS = 'https://www.googleapis.com/auth/spreadsheets';
+    this.SCOPE_DRIVE = 'https://www.googleapis.com/auth/drive';
     this._jwtClient = this.getClient();
   }
 
@@ -31,7 +33,7 @@ export class GoogleConnectorService {
     return new google.auth.JWT({
       email,
       key,
-      scopes: [this.SCOPE_SPREADSHEETS],
+      scopes: [this.SCOPE_SPREADSHEETS, this.SCOPE_DRIVE],
     });
   }
 

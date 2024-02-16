@@ -18,7 +18,7 @@ export class GoogleSheetsService {
   async copySpreadsheet(spreadsheetId: string, destinationFolderId?: string): Promise<string> {
     try {
       const drive = this.connector.getDriveConnect();
-      
+
       const copyRequest = await drive.files.copy({
         fileId: spreadsheetId,
         requestBody: {

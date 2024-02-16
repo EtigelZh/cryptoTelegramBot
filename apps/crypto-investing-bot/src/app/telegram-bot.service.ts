@@ -37,7 +37,7 @@ export class TelegramBotService implements OnModuleInit {
     this.bot.command('start', this.handleStartCommand.bind(this));
     this.bot.command('transactions', this.handleTransactionsCommand.bind(this));
     this.bot.command('google_sheets', async (ctx) => {
-      const newDocumentId = await this.googleDrive.copySpreadsheet('1F9whkSvSs8lI62u4SO8ZS_OxmJDjrRyv6aIqboG6pMI');
+      const newDocumentId = await this.googleDrive.copySpreadsheet('1F9whkSvSs8lI62u4SO8ZS_OxmJDjrRyv6aIqboG6pMI', 'test');
       ctx.reply('Google Sheets command ' + newDocumentId);
     });
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
@@ -91,9 +91,9 @@ export class TelegramBotService implements OnModuleInit {
               return;
             }
             const prefix = minuteRequests >= maxRequestsPerMinute && lastApiCallMessageId ? '⚠️Превышен лимит запросов к API в минуту.\nОжидаем сброса таймера. ' : '';
-            
+
             if (lastApiCallMessageId) {
-              await ctx.telegram.editMessageText(ctx.chat.id, lastApiCallMessageId, null, 
+              await ctx.telegram.editMessageText(ctx.chat.id, lastApiCallMessageId, null,
                 `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции: ${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
             } else {
               const sentMessage = await ctx.reply(
