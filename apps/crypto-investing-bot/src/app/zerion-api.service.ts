@@ -13,7 +13,7 @@ export type ResponseWithErrorList<T = unknown, E extends RowError = RowError> = 
   data: T;
 }
 
-export type CsvProcessingResponse = ResponseWithErrorList<string[]>;
+export type CsvProcessingResponse = ResponseWithErrorList<string[][]>;
 
 type ZerionResponse = {
   links: {
@@ -141,7 +141,7 @@ function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
     'Timestamp',
     'Incoming Transfers JSON',
     'Outgoing Transfers JSON',
-  ].join('\t');
+  ];
   const errors = [];
   const transactions = data.map((transaction, rowIndex) => {
     try {
@@ -204,16 +204,16 @@ function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
         attributes.mined_at,
         '',
         '',
-      ].join('\t');
+      ] as string[];
     } catch (error) {
       console.error('Failed to process transaction', transaction, error);
       errors.push({ rowIndex, message: error.message });
-      return ''; // Return an empty string for transactions that fail to process
+      return []; // Return an empty string for transactions that fail to process
     }
   });
 
   return {
-    data: [header, ...transactions.filter((t) => t)],
+    data: [header, ...transactions],
     errors,
   }
 }

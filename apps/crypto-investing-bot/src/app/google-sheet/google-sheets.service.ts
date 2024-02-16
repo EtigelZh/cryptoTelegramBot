@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { GoogleConnectorService } from './google-connector/google-connector.service';
 import { inspect } from 'util';
+import { drive_v3 } from 'googleapis';
 
 @Injectable()
 export class GoogleSheetsService {
@@ -15,7 +16,7 @@ export class GoogleSheetsService {
     return inspect(files);
   }
 
-  async copySpreadsheet(spreadsheetId: string, destinationFolderId?: string): Promise<string> {
+  async copySpreadsheet(spreadsheetId: string, destinationFolderId?: string): Promise<drive_v3.Schema$File> {
     try {
       const drive = this.connector.getDriveConnect();
 
@@ -27,7 +28,7 @@ export class GoogleSheetsService {
         },
       });
 
-      return copyRequest.data.id; // Возвращает ID скопированного файла
+      return copyRequest.data; // Возвращает ID скопированного файла
     } catch (error) {
       console.error('The API returned an error: ' + inspect(error));
       throw new Error('Failed to copy spreadsheet');

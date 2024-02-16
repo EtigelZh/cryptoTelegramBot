@@ -9,7 +9,7 @@ async function insertCsvDataIntoXlsxSheet(
   const workbook = XLSX.utils.book_new();
 
   // Преобразование всех данных CSV в формат, совместимый с XLSX, один раз
-  const rows = csvData.data.map((row) => row.split('\t'));
+  const rows = csvData.data.map((row) => row);
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
 
   // Добавление листа в книгу

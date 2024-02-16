@@ -37,9 +37,81 @@ export class TelegramBotService implements OnModuleInit {
     this.bot.command('start', this.handleStartCommand.bind(this));
     this.bot.command('transactions', this.handleTransactionsCommand.bind(this));
     this.bot.command('google_sheets', async (ctx) => {
-      const newDocumentId = await this.googleDrive.copySpreadsheet('16j9ouBFq64xG7gB2qnmuHfEJIS8iVUjZm8WglY8b1ws', '1CgiJ2_vuTPjOvpcsEUzQu98YJoRd1fSo');
-      const url = `https://docs.google.com/spreadsheets/d/${newDocumentId}/edit`;
-      ctx.reply(`Создан новый документ: ${url}`);
+      const document = await this.googleDrive.copySpreadsheet('16j9ouBFq64xG7gB2qnmuHfEJIS8iVUjZm8WglY8b1ws', '1CgiJ2_vuTPjOvpcsEUzQu98YJoRd1fSo');
+      const url = `https://docs.google.com/spreadsheets/d/${document.id}/edit`;
+
+      const sheetsApi = this.googleSheets.getSheetConnect();
+      const sheetObj = await sheetsApi.spreadsheets.get({ spreadsheetId: document.id });
+      const matchedHash = ctx.message.text.match(walletHashRegex);
+
+      for (const walletHash of matchedHash) {
+        const index = matchedHash.indexOf(walletHash);
+        let suffix = '';
+        if (matchedHash.length > 1) {
+          suffix = `(${index + 1} из ${matchedHash.length})`;
+        }
+        ctx.reply(`Скачиваю транзакции для кошелька ${walletHash}. ${suffix}`);
+        try {
+          let lastApiCallMessageId = null;
+          const transactions = await this.zerionService.getTransactions(
+            walletHash,
+            async (minuteRequests, dayRequests, maxRequestsPerMinute, data) => {
+              if (data.length === 0) {
+                return;
+              }
+              const prefix = minuteRequests >= maxRequestsPerMinute && lastApiCallMessageId ? '⚠️Превышен лимит запросов к API в минуту.\nОжидаем сброса таймера. ' : '';
+  
+              if (lastApiCallMessageId) {
+                await ctx.telegram.editMessageText(ctx.chat.id, lastApiCallMessageId, null,
+                  `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции: ${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
+              } else {
+                const sentMessage = await ctx.reply(
+                  `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции: ${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
+                lastApiCallMessageId = sentMessage.message_id;
+              }
+            }
+          );
+          if (transactions.error) {
+            await ctx.reply(
+              `Ошибка при скачивании транзакций: ${this.formatErrorMessage(
+                transactions.error
+              )}`
+            );
+          }
+          const csvData = await this.zerionService.getCsvTransactions(
+            transactions.data
+          );
+          if (csvData.errors.length) {
+            const errorMessages = csvData.errors
+              .map((error) => `Строка ${error.rowIndex}: ${error.message}`)
+              .join('\n');
+            return ctx.reply(
+              `Ошибка при скачивании транзакций: ${errorMessages}`
+            );
+          }
+          
+          await sheetsApi.spreadsheets.values.append({
+            spreadsheetId: document.id,
+            range: 'Исходник!A1',
+            valueInputOption: 'USER_ENTERED',
+            requestBody: {
+              values: csvData.data.slice(1),
+            },
+          });
+       
+          ctx.reply(`Создан новый документ: ${url}`);
+        } catch (error) {
+          Logger.error(
+            `Error fetching transactions for wallet ${walletHash}: ${error}`
+          );
+          ctx.reply(
+            `Ошибка при скачивании транзакций: ${this.formatErrorMessage(error)}`
+          );
+        }
+      }
+
+
+      
     });
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
