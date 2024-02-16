@@ -37,8 +37,9 @@ export class TelegramBotService implements OnModuleInit {
     this.bot.command('start', this.handleStartCommand.bind(this));
     this.bot.command('transactions', this.handleTransactionsCommand.bind(this));
     this.bot.command('google_sheets', async (ctx) => {
-      const newDocumentId = await this.googleDrive.copySpreadsheet('1F9whkSvSs8lI62u4SO8ZS_OxmJDjrRyv6aIqboG6pMI', 'test');
-      ctx.reply('Google Sheets command ' + newDocumentId);
+      const newDocumentId = await this.googleDrive.copySpreadsheet('16j9ouBFq64xG7gB2qnmuHfEJIS8iVUjZm8WglY8b1ws', '1CgiJ2_vuTPjOvpcsEUzQu98YJoRd1fSo');
+      const url = `https://docs.google.com/spreadsheets/d/${newDocumentId}/edit`;
+      ctx.reply(`Создан новый документ: ${url}`);
     });
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
