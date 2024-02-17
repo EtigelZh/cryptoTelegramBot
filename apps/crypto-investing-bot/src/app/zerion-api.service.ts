@@ -348,12 +348,15 @@ export class ZerionApiService implements OnModuleDestroy {
           zerionResponse = response.data;
           this.cacheMap.set(url, zerionResponse);
           this.saveCache();
+          this.currentRequestsPerMinute++;
+          this.currentRequestsPerDay++;
+        } else {
+          console.log(`Cache hit`);
         }
 
         allTransactions = allTransactions.concat(zerionResponse.data);
 
-        this.currentRequestsPerMinute++;
-        this.currentRequestsPerDay++;
+
         await onNextRequest(
           this.currentRequestsPerMinute,
           this.currentRequestsPerDay,
