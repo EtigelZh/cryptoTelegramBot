@@ -1,19 +1,24 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { AppConfig } from './app.config';
 import axios, { AxiosError } from 'axios';
+import { promises as fs } from 'fs';
+import { resolve } from 'path';
 
 export type RequestErrorData = {
   errors: string[];
 };
 
-export type RowError = { message: string, rowIndex: number };
+export type RowError = { message: string; rowIndex: number };
 
-export type ResponseWithErrorList<T = unknown, E extends RowError = RowError> = {
+export type ResponseWithErrorList<
+  T = unknown,
+  E extends RowError = RowError
+> = {
   errors: E[];
   data: T;
-}
+};
 
-export type CsvProcessingResponse = ResponseWithErrorList<string[]>;
+export type CsvProcessingResponse = ResponseWithErrorList<string[][]>;
 
 type ZerionResponse = {
   links: {
@@ -141,7 +146,7 @@ function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
     'Timestamp',
     'Incoming Transfers JSON',
     'Outgoing Transfers JSON',
-  ].join('\t');
+  ];
   const errors = [];
   const transactions = data.map((transaction, rowIndex) => {
     try {
@@ -204,41 +209,85 @@ function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
         attributes.mined_at,
         '',
         '',
-      ].join('\t');
+      ] as string[];
     } catch (error) {
       console.error('Failed to process transaction', transaction, error);
       errors.push({ rowIndex, message: error.message });
-      return ''; // Return an empty string for transactions that fail to process
+      return []; // Return an empty string for transactions that fail to process
     }
   });
 
   return {
-    data: [header, ...transactions.filter((t) => t)],
+    data: [header, ...transactions],
     errors,
-  }
+  };
 }
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
 }
 
+const cachePath = resolve(__dirname, 'cache.json');
+
 @Injectable()
 export class ZerionApiService implements OnModuleDestroy {
   private currentThrottlerPromise: Promise<void> = Promise.resolve();
-  private currentThrottlerResolver: (args:unknown) => void;
+  private currentThrottlerResolver: (args: unknown) => void;
   readonly maxRequestsPerMinute = 50;
   private currentRequestsPerMinute = 0;
-  interval: NodeJS.Timeout = setInterval(() => this.renewMinuteThrottler(), 60000);
+  interval: NodeJS.Timeout = setInterval(
+    () => this.renewMinuteThrottler(),
+    60000
+  );
+
+  readonly cacheMap = new Map<string, ZerionResponse>();
 
   readonly maxRequestsPerDay = 5000;
   private currentRequestsPerDay = 0;
+  private cacheHitsToday = 0;
+  private cacheSaving = false;
   dayInterval: NodeJS.Timeout = setInterval(() => {
     this.currentRequestsPerDay = 0;
+    this.cacheHitsToday = 0;
     console.log('Resetting requests per day');
+    this.cacheMap.clear();
+    this.saveCache();
   }, 24 * 60 * 60 * 1000);
 
   constructor(private readonly config: AppConfig) {
     this.renewMinuteThrottler();
+    this.loadCache().then(() => {
+      this.saveCache();
+    });
+  }
+
+  async loadCache() {
+    try {
+      const data = await fs.readFile(cachePath, 'utf-8');
+      const entries = JSON.parse(data);
+      for (const [key, value] of entries) {
+        this.cacheMap.set(key, value);
+      }
+      console.log('Loaded cache', this.cacheMap.size, 'entries')
+    } catch (error) {
+      console.error('Failed to initialize ZerionApiService', error);
+    }
+  }
+  async saveCache() {
+    if (!this.cacheSaving) {
+      this.cacheSaving = true;
+      try {
+        await fs.writeFile(
+          cachePath,
+          JSON.stringify([...this.cacheMap.entries()])
+        );
+        console.log('Saved cache', this.cacheMap.size, 'entries');
+      } catch (error) {
+        console.error('Failed to save cache', error);
+      } finally {
+        this.cacheSaving = false;
+      }
+    }
   }
 
   private renewMinuteThrottler() {
@@ -267,7 +316,17 @@ export class ZerionApiService implements OnModuleDestroy {
     }
   }
 
-  async getTransactions(walletId: string, onNextRequest: (minuteRequests: number, dayRequests: number, maxRequestsPerMinute: number, data: Transaction[]) => Promise<void>, take = 0): Promise<ZerionResponse> {
+  async getTransactions(
+    walletId: string,
+    onNextRequest: (
+      minuteRequests: number,
+      dayRequests: number,
+      maxRequestsPerMinute: number,
+      cacheHitsToday: number,
+      data: Transaction[]
+    ) => Promise<void>,
+    take = 0
+  ): Promise<ZerionResponse> {
     const authHeader = createFromUserPass(this.config.zerionApiKey, '');
     const options = {
       headers: {
@@ -283,20 +342,38 @@ export class ZerionApiService implements OnModuleDestroy {
 
     try {
       while (url) {
-        console.log(`Fetching transactions from ${url} currentRequestsPerMinute: ${this.currentRequestsPerMinute} ${this.currentRequestsPerDay}`);
-        
+        console.log(
+          `Fetching transactions from ${url} currentRequestsPerMinute: ${this.currentRequestsPerMinute} ${this.currentRequestsPerDay}`
+        );
+
         if (this.currentRequestsPerMinute >= this.maxRequestsPerMinute) {
           await this.currentThrottlerPromise;
         }
-        const response = await axios.get<ZerionResponse>(url, options);
-        allTransactions = allTransactions.concat(response.data.data);
+        let zerionResponse = this.cacheMap.get(url);
+        if (!zerionResponse) {
+          const response = await axios.get<ZerionResponse>(url, options);
+          zerionResponse = response.data;
+          this.cacheMap.set(url, zerionResponse);
+          this.saveCache();
+          this.currentRequestsPerMinute++;
+          this.currentRequestsPerDay++;
+        } else {
+          this.cacheHitsToday++;
+        }
 
-        this.currentRequestsPerMinute++;
-        this.currentRequestsPerDay++;
-        await onNextRequest(this.currentRequestsPerMinute, this.currentRequestsPerDay, this.maxRequestsPerMinute, allTransactions);
-        
+        allTransactions = allTransactions.concat(zerionResponse.data);
+
+
+        await onNextRequest(
+          this.currentRequestsPerMinute,
+          this.currentRequestsPerDay,
+          this.maxRequestsPerMinute,
+          this.cacheHitsToday,
+          allTransactions
+        );
+
         // Check if there's a next page
-        url = response.data.links.next ? response.data.links.next : '';
+        url = zerionResponse.links.next ? zerionResponse.links.next : '';
 
         if (take && allTransactions.length >= take) {
           break;

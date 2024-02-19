@@ -37,6 +37,10 @@ export class AppConfig {
   coinmarketCupApiKey: string = process.env.COINMARKETCUP_API_KEY || '';
   zerionApiKey: string = process.env.ZERION_API_KEY || '';
 
+  summaryWalletsSheetId: string = process.env.SUMMARY_WALLETS_SHEET_ID || '11QeRNXnL-JGnj-RDLG4rkVKI3r1LUVUi9hh39j7LSu4';
+  templateGoogleSheetId: string = process.env.TEMPLATE_GOOGLE_SHEET_ID || '1SJyMtCuvH_CO5crB91hBY3ljXz05qxSIGakvlcgFtbs';
+  targetGoogleSheetDirectoryId: string = process.env.TARGET_GOOGLE_SHEET_DIRECTORY_ID || '1CgiJ2_vuTPjOvpcsEUzQu98YJoRd1fSo';
+
   adminChatIds: string[] = (
     process.env.ADMINS_CHAT_ID || '-4039511820,254372545,341786440'
   )?.split(',');

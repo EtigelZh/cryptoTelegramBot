@@ -7,8 +7,12 @@ import { AxiosError } from 'axios';
 import { inspect } from 'util';
 import { message } from 'telegraf/filters';
 import { MountMap } from 'telegraf/typings/telegram-types';
+import { GoogleDriveService } from './google-sheet/google-drive.service';
+import { GoogleSheetsService } from './google-sheet/google-sheets/google-sheets.service';
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
-const example = '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
+const example =
+  '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
+
 @Injectable()
 export class TelegramBotService implements OnModuleInit {
   private readonly bot: Telegraf;
@@ -16,7 +20,9 @@ export class TelegramBotService implements OnModuleInit {
   constructor(
     private readonly appConfig: AppConfig,
     private readonly zerionService: ZerionApiService,
-    private readonly xlsxService: XlsxService
+    private readonly xlsxService: XlsxService,
+    private readonly googleDrive: GoogleDriveService,
+    private readonly googleSheets: GoogleSheetsService
   ) {
     this.bot = new Telegraf(this.appConfig.telegramBotToken);
   }
@@ -35,7 +41,9 @@ export class TelegramBotService implements OnModuleInit {
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
 
-  private async handlePossibleWalletHash(ctx: Context<MountMap['text']>): Promise<unknown> {
+  private async handlePossibleWalletHash(
+    ctx: Context<MountMap['text']>
+  ): Promise<unknown> {
     const messageText = ctx.message.text;
 
     // Check if the message looks like a wallet hash
@@ -55,7 +63,9 @@ export class TelegramBotService implements OnModuleInit {
     );
   }
 
-  private async handleTransactionsCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<unknown> {
+  private async handleTransactionsCommand(
+    ctx: Context<MountMap['text'] & MountMap['message']>
+  ): Promise<unknown> {
     if (!this.isAdminUser(ctx.from?.id)) {
       return ctx.reply('Работа бота доступна только для избранных.');
     }
@@ -63,10 +73,9 @@ export class TelegramBotService implements OnModuleInit {
     const matchedHash = ctx.message.text.match(walletHashRegex);
     console.log('matchedHash', matchedHash, ctx.message.text);
     if (!matchedHash?.length) {
-      return ctx.reply(
-        `Не указан ни один hash кошелька. ${example}`
-      );
+      return ctx.reply(`Не указан ни один hash кошелька. ${example}`);
     }
+    let summarySheetUpdated = false;
     for (const walletHash of matchedHash) {
       const index = matchedHash.indexOf(walletHash);
       let suffix = '';
@@ -78,18 +87,46 @@ export class TelegramBotService implements OnModuleInit {
         let lastApiCallMessageId = null;
         const transactions = await this.zerionService.getTransactions(
           walletHash,
-          async (minuteRequests, dayRequests, maxRequestsPerMinute, data) => {
+          async (
+            minuteRequests,
+            dayRequests,
+            maxRequestsPerMinute,
+            cacheHitsToday,
+            data
+          ) => {
             if (data.length === 0) {
               return;
             }
-            const prefix = minuteRequests >= maxRequestsPerMinute && lastApiCallMessageId ? '⚠️Превышен лимит запросов к API в минуту.\nОжидаем сброса таймера. ' : '';
-            
+            const prefix =
+              minuteRequests >= maxRequestsPerMinute && lastApiCallMessageId
+                ? '⚠️Превышен лимит запросов к API в минуту.\nОжидаем сброса таймера. '
+                : '';
+
             if (lastApiCallMessageId) {
-              await ctx.telegram.editMessageText(ctx.chat.id, lastApiCallMessageId, null, 
-                `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции: ${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
+              await ctx.telegram.editMessageText(
+                ctx.chat.id,
+                lastApiCallMessageId,
+                null,
+                `${prefix}Скачано ${
+                  data.length
+                } транзакций.\nДата последней скачанной транзакции: ${data[
+                  data.length - 1
+                ]?.attributes?.mined_at?.substring(
+                  0,
+                  10
+                )}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000\nПопаданий в кеш: ${cacheHitsToday}`
+              );
             } else {
               const sentMessage = await ctx.reply(
-                `${prefix}Скачано ${data.length} транзакций.\nДата последней скачанной транзакции: ${data[data.length - 1]?.attributes?.mined_at?.substring(0, 10)}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000`);
+                `${prefix}Скачано ${
+                  data.length
+                } транзакций.\nДата последней скачанной транзакции: ${data[
+                  data.length - 1
+                ]?.attributes?.mined_at?.substring(
+                  0,
+                  10
+                )}\nЗапросов в минуту: ${minuteRequests}/${maxRequestsPerMinute}. Запросов сегодня: ${dayRequests}/5000\nПопаданий в кеш: ${cacheHitsToday}`
+              );
               lastApiCallMessageId = sentMessage.message_id;
             }
           }
@@ -112,13 +149,35 @@ export class TelegramBotService implements OnModuleInit {
             `Ошибка при скачивании транзакций: ${errorMessages}`
           );
         }
-        const xlsxBuffer = await this.xlsxService.addDataToWalletParser(
-          csvData
+        const startTransactionDate = (transactions.data[transactions.data.length - 1]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
+        const endTransactionDate = (transactions.data[0]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
+        const document = await this.googleDrive.copySpreadsheet(
+          this.appConfig.templateGoogleSheetId,
+          `с ${startTransactionDate} по ${endTransactionDate} ${walletHash}`,
+          this.appConfig.targetGoogleSheetDirectoryId
         );
-        ctx.replyWithDocument({
-          source: xlsxBuffer,
-          filename: `transactions-${walletHash}.xlsx`,
+        const url = `https://docs.google.com/spreadsheets/d/${document.id}/edit`;
+
+        const sheetsApi = this.googleSheets.getSheetConnect();
+     
+        const updatingData = csvData.data.slice(1);
+
+        await sheetsApi.spreadsheets.values.update({
+          spreadsheetId: document.id,
+          range: 'Исходник!A2',
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: updatingData,
+          },
         });
+        ctx.reply(`Создан новый документ: ${url}\n`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const summary7days = await this.googleSheets.fillFinanceDataFromSheets(document.id, walletHash, 'Анализ 7 дней', sheetsApi);
+        const summary30days = await this.googleSheets.fillFinanceDataFromSheets(document.id, walletHash, 'Анализ 30 дней', sheetsApi);
+        
+        await this.googleSheets.updateOrAddWallet(this.appConfig.summaryWalletsSheetId, walletHash, [summary7days, summary30days], sheetsApi);
+        summarySheetUpdated = true;
+        
       } catch (error) {
         Logger.error(
           `Error fetching transactions for wallet ${walletHash}: ${error}`
@@ -127,6 +186,9 @@ export class TelegramBotService implements OnModuleInit {
           `Ошибка при скачивании транзакций: ${this.formatErrorMessage(error)}`
         );
       }
+    }
+    if (summarySheetUpdated) {
+      ctx.reply(`Обновлены данные в общей таблице https://docs.google.com/spreadsheets/d/${this.appConfig.summaryWalletsSheetId}/edit`);
     }
   }
 
@@ -163,4 +225,6 @@ export class TelegramBotService implements OnModuleInit {
       (error as AxiosError<RequestErrorData>)?.response?.data?.errors
     );
   }
+
+  
 }
