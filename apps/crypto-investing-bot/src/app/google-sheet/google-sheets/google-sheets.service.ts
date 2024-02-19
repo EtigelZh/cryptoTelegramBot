@@ -7,29 +7,29 @@ export type FinanceData = {
   sourceDocumentId: string;
   sourceLink: string;
   walletHash: string;
-  medianEntry: number;
+  medianEntry: string;
   avgLose: string;
   avgWin: string;
-  medianPurchaseCount: number;
+  medianPurchaseCount: string;
   RR: string;
-  averageEntry: number;
+  averageEntry: string;
   medianLose: string;
   medianWin: string;
-  tradedCoins: number;
+  tradedCoins: string;
   wallet: {
     lastTransactionDate: string;
-    tripleTransaction: number;
-    lastXDays: number;
+    tripleTransaction: string;
+    lastXDays: string;
     winRateR: string;
     PLR: string;
-    averageTermDays: number;
+    averageTermDays: string;
     annualYieldR: string;
-    commissions: number;
+    commissions: string;
     winRateTotal: string;
     PLTotal: string;
-    riskProfile: number;
+    riskProfile: string;
     annualYield: string;
-    averageCommission: number;
+    averageCommission: string;
   };
 };
 
@@ -119,6 +119,10 @@ export class GoogleSheetsService {
           valueRange.values && valueRange.values[0] && valueRange.values[0][0]
             ? valueRange.values[0][0]
             : null;
+
+        if (acc[key] === '#DIV/0!' || acc[key] === '#NUM!' || acc[key] === '#REF!' || acc[key] === 'NaN') {
+          acc[key] = '';
+        }
         return acc;
       },
       {} as Range
@@ -129,29 +133,29 @@ export class GoogleSheetsService {
       sourceDocumentId: spreadsheetId,
       sourceLink: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
       walletHash,
-      medianEntry: parseFloat(valuesMap.medianEntry),
+      medianEntry: valuesMap.medianEntry,
       avgLose: valuesMap.avgLose,
       avgWin: valuesMap.avgWin,
-      medianPurchaseCount: parseInt(valuesMap.medianPurchaseCount, 10),
+      medianPurchaseCount: valuesMap.medianPurchaseCount,
       RR: valuesMap.RR,
-      averageEntry: parseFloat(valuesMap.averageEntry),
+      averageEntry: valuesMap.averageEntry,
       medianLose: valuesMap.medianLose,
       medianWin: valuesMap.medianWin,
-      tradedCoins: parseInt(valuesMap.tradedCoins, 10),
+      tradedCoins: valuesMap.tradedCoins,
       wallet: {
         lastTransactionDate: valuesMap.lastTransactionDate,
-        tripleTransaction: parseInt(valuesMap.tripleTransaction, 10),
-        lastXDays: parseInt(valuesMap.lastXDays, 10),
+        tripleTransaction: valuesMap.tripleTransaction,
+        lastXDays: valuesMap.lastXDays,
         winRateR: valuesMap.winRateR,
         PLR: valuesMap.PLR,
-        averageTermDays: parseFloat(valuesMap.averageTermDays),
+        averageTermDays: valuesMap.averageTermDays,
         annualYieldR: valuesMap.annualYieldR,
-        commissions: parseFloat(valuesMap.commissions),
+        commissions: valuesMap.commissions,
         winRateTotal: valuesMap.winRateTotal,
         PLTotal: valuesMap.PLTotal,
-        riskProfile: parseFloat(valuesMap.riskProfile),
+        riskProfile: valuesMap.riskProfile,
         annualYield: valuesMap.annualYield,
-        averageCommission: parseFloat(valuesMap.averageCommission),
+        averageCommission: valuesMap.averageCommission,
       },
     };
 
@@ -161,7 +165,6 @@ export class GoogleSheetsService {
   private mapItems(summary7days: FinanceData, summary30days: FinanceData): string[] {
     // Кошелек	Дата анализа	Последняя транзакция	Отслеживать?	Последнее обновление	Монет проторговано	Медианное кол-во покупок	Профиль риска	Доходность годовых, R	Доходность годовых	Средний срок, д	Медианный вход	Средний вход	Ср.комиссия	Win Rate Total	Win Rate R	RR, %	P&L R	P&L Total	Avg loss	Median loss	Avg profit	Median profit	Комиссий всего	Монет проторговано	Медианное кол-во покупок	Профиль риска	Доходность годовых, R	Доходность годовых	Средний срок, д	Медианный вход	Средний вход	Ср.комиссия	Win Rate Total	Win Rate R	RR, %	P&L R	P&L Total	Avg loss	Median loss	Avg profit	Median profit	Комиссий всего
     const now = new Date();
-    console.log(summary7days.wallet.lastTransactionDate, summary30days.wallet.lastTransactionDate);
     const lastTransactionDate = new Date(summary7days.wallet.lastTransactionDate || summary30days.wallet.lastTransactionDate || now.toISOString());
     const analyzeDate = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear().toString().padStart(2, '0')}`;
     

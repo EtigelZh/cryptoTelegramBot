@@ -129,7 +129,8 @@ export class TelegramBotService implements OnModuleInit {
               );
               lastApiCallMessageId = sentMessage.message_id;
             }
-          }
+          },
+          1000
         );
         if (transactions.error) {
           await ctx.reply(
