@@ -13,6 +13,7 @@ RUN npm i
 COPY libs /usr/src/app/libs
 COPY apps/crypto-investing-bot /usr/src/app/apps/crypto-investing-bot
 
+ENV NX_DAEMON false
 # Build app
 RUN npm run build:crypto-investing-bot
 
