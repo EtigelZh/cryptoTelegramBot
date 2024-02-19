@@ -8,7 +8,7 @@ COPY nx.json .
 COPY tsconfig.base.json .
 
 COPY package-lock.json .
-RUN npm ci
+RUN npm i
 
 COPY libs /usr/src/app/libs
 COPY apps/crypto-investing-bot /usr/src/app/apps/crypto-investing-bot
