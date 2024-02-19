@@ -155,7 +155,7 @@ export class TelegramBotService implements OnModuleInit {
         const now = new Date().toISOString().substr(0, 16).replace('T', ' ');
         const document = await this.googleDrive.copySpreadsheet(
           this.appConfig.templateGoogleSheetId,
-          `${now}  (${startTransactionDate} ${endTransactionDate}) ${walletHash}`,
+          `выгрузка от ${now} транзакции с ${startTransactionDate} по ${endTransactionDate} кошелек - ${walletHash}`,
           this.appConfig.targetGoogleSheetDirectoryId
         );
         const url = `https://docs.google.com/spreadsheets/d/${document.id}/edit`;
