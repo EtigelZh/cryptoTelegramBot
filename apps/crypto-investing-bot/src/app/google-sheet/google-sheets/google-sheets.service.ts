@@ -120,7 +120,7 @@ export class GoogleSheetsService {
             ? valueRange.values[0][0]
             : null;
 
-        if (acc[key] === '#DIV/0!' || acc[key] === '#NUM!' || acc[key] === '#REF!' || acc[key] === 'NaN') {
+        if (acc[key] === '#DIV/0!' || acc[key] === '#N/A' || acc[key] === '#NUM!' || acc[key] === '#REF!' || acc[key] === 'NaN') {
           acc[key] = '';
         }
         return acc;
