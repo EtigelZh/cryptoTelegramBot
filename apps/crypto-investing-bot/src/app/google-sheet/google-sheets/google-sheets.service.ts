@@ -165,7 +165,7 @@ export class GoogleSheetsService {
   private mapItems(summary7days: FinanceData, summary30days: FinanceData): string[] {
     // Кошелек	Дата анализа	Последняя транзакция	Отслеживать?	Последнее обновление	Монет проторговано	Медианное кол-во покупок	Профиль риска	Доходность годовых, R	Доходность годовых	Средний срок, д	Медианный вход	Средний вход	Ср.комиссия	Win Rate Total	Win Rate R	RR, %	P&L R	P&L Total	Avg loss	Median loss	Avg profit	Median profit	Комиссий всего	Монет проторговано	Медианное кол-во покупок	Профиль риска	Доходность годовых, R	Доходность годовых	Средний срок, д	Медианный вход	Средний вход	Ср.комиссия	Win Rate Total	Win Rate R	RR, %	P&L R	P&L Total	Avg loss	Median loss	Avg profit	Median profit	Комиссий всего
     const now = new Date();
-    const lastTransactionDate = new Date(summary7days.wallet.lastTransactionDate || summary30days.wallet.lastTransactionDate || now.toISOString());
+    const lastTransactionDate = new Date(summary30days.wallet.lastTransactionDate || summary7days.wallet.lastTransactionDate || now.toISOString());
     const analyzeDate = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear().toString().padStart(2, '0')}`;
     
     const lastTransactionDateStr = (typeof summary7days.wallet.lastTransactionDate === 'string' && summary7days.wallet.lastTransactionDate) ? summary7days.wallet.lastTransactionDate : `${lastTransactionDate.getDate().toString().padStart(2, '0')}.${(lastTransactionDate.getMonth() + 1).toString().padStart(2, '0')}.${lastTransactionDate.getFullYear().toString().padStart(2, '0')}`;
