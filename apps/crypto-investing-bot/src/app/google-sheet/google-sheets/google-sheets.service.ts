@@ -168,7 +168,7 @@ export class GoogleSheetsService {
     const lastTransactionDate = new Date(summary30days.wallet.lastTransactionDate || summary7days.wallet.lastTransactionDate || now.toISOString());
     const analyzeDate = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear().toString().padStart(2, '0')}`;
     
-    const lastTransactionDateStr = (typeof summary7days.wallet.lastTransactionDate === 'string' && summary7days.wallet.lastTransactionDate) ? summary7days.wallet.lastTransactionDate : `${lastTransactionDate.getDate().toString().padStart(2, '0')}.${(lastTransactionDate.getMonth() + 1).toString().padStart(2, '0')}.${lastTransactionDate.getFullYear().toString().padStart(2, '0')}`;
+    const lastTransactionDateStr = (typeof summary30days.wallet.lastTransactionDate === 'string' && summary30days.wallet.lastTransactionDate) ? summary7days.wallet.lastTransactionDate : `${lastTransactionDate.getDate().toString().padStart(2, '0')}.${(lastTransactionDate.getMonth() + 1).toString().padStart(2, '0')}.${lastTransactionDate.getFullYear().toString().padStart(2, '0')}`;
     
     return [
       summary7days.walletHash,
