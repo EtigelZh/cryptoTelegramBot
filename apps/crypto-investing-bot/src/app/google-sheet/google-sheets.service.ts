@@ -16,7 +16,7 @@ export class GoogleSheetsService {
     return inspect(files);
   }
 
-  async copySpreadsheet(spreadsheetId: string, destinationFolderId?: string): Promise<drive_v3.Schema$File> {
+  async copySpreadsheet(spreadsheetId: string, name: string, destinationFolderId?: string): Promise<drive_v3.Schema$File> {
     try {
       const drive = this.connector.getDriveConnect();
 
@@ -25,6 +25,7 @@ export class GoogleSheetsService {
         requestBody: {
           parents: destinationFolderId ? [destinationFolderId] : undefined,
           // Можно указать дополнительные параметры, например, имя нового файла
+          name
         },
       });
 

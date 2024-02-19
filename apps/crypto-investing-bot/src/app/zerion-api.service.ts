@@ -244,17 +244,21 @@ export class ZerionApiService implements OnModuleDestroy {
 
   readonly maxRequestsPerDay = 5000;
   private currentRequestsPerDay = 0;
+  private cacheHitsToday = 0;
   private cacheSaving = false;
   dayInterval: NodeJS.Timeout = setInterval(() => {
     this.currentRequestsPerDay = 0;
+    this.cacheHitsToday = 0;
     console.log('Resetting requests per day');
     this.cacheMap.clear();
+    this.saveCache();
   }, 24 * 60 * 60 * 1000);
 
   constructor(private readonly config: AppConfig) {
     this.renewMinuteThrottler();
-    this.loadCache();
-    this.saveCache();
+    this.loadCache().then(() => {
+      this.saveCache();
+    });
   }
 
   async loadCache() {
@@ -264,6 +268,7 @@ export class ZerionApiService implements OnModuleDestroy {
       for (const [key, value] of entries) {
         this.cacheMap.set(key, value);
       }
+      console.log('Loaded cache', this.cacheMap.size, 'entries')
     } catch (error) {
       console.error('Failed to initialize ZerionApiService', error);
     }
@@ -276,6 +281,7 @@ export class ZerionApiService implements OnModuleDestroy {
           cachePath,
           JSON.stringify([...this.cacheMap.entries()])
         );
+        console.log('Saved cache', this.cacheMap.size, 'entries');
       } catch (error) {
         console.error('Failed to save cache', error);
       } finally {
@@ -316,6 +322,7 @@ export class ZerionApiService implements OnModuleDestroy {
       minuteRequests: number,
       dayRequests: number,
       maxRequestsPerMinute: number,
+      cacheHitsToday: number,
       data: Transaction[]
     ) => Promise<void>,
     take = 0
@@ -351,7 +358,7 @@ export class ZerionApiService implements OnModuleDestroy {
           this.currentRequestsPerMinute++;
           this.currentRequestsPerDay++;
         } else {
-          console.log(`Cache hit`);
+          this.cacheHitsToday++;
         }
 
         allTransactions = allTransactions.concat(zerionResponse.data);
@@ -361,6 +368,7 @@ export class ZerionApiService implements OnModuleDestroy {
           this.currentRequestsPerMinute,
           this.currentRequestsPerDay,
           this.maxRequestsPerMinute,
+          this.cacheHitsToday,
           allTransactions
         );
 

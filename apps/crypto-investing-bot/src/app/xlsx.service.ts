@@ -35,4 +35,8 @@ export class XlsxService {
       throw new Error('Failed to insert data into XLSX');
     }
   }
+
+  convertToCsvFile(data: CsvProcessingResponse): Buffer {
+    return Buffer.from(data.data.map((row) => row.join('\t')).join('\n'), 'utf-8');
+  }
 }
