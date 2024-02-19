@@ -6,10 +6,10 @@ import { AppConfigModule } from './app.config';
 import { ZerionApiService } from './zerion-api.service';
 import { XlsxService } from './xlsx.service';
 import { TelegramBotService } from './telegram-bot.service';
-import { GoogleSheetsModule } from './google-sheet/google-sheets.module';
+import { GoogleDriveModule } from './google-sheet/google-drive.module';
 
 @Module({
-  imports: [AppConfigModule, GoogleSheetsModule],
+  imports: [AppConfigModule, GoogleDriveModule],
   controllers: [AppController],
   providers: [AppService, ZerionApiService, XlsxService, TelegramBotService],
 })

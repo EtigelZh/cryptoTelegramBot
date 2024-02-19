@@ -1,27 +1,27 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import GoogleSheetConnectorDto from './dto/google-sheet-connector.dto';
 import AsyncGoogleSheetConnectorDto from './dto/async.google-sheet-connector.dto';
-import { GoogleConnectorService } from './google-connector.service';
+import { GoogleSheetsService } from './google-sheets.service';
 
 @Module({})
-export class GoogleConnectorModule {
+export class GoogleSheetsModule {
   static register(options: GoogleSheetConnectorDto): DynamicModule {
     return {
-      module: GoogleConnectorModule,
+      module: GoogleSheetsModule,
       providers: [
         {
           provide: 'GOOGLE_SHEET_CONNECTOR',
           useValue: options,
         },
-        GoogleConnectorService,
+        GoogleSheetsService,
       ],
       imports: [],
-      exports: [GoogleConnectorService],
+      exports: [GoogleSheetsService],
     };
   }
   static registerAsync(options: AsyncGoogleSheetConnectorDto): DynamicModule {
     return {
-      module: GoogleConnectorModule,
+      module: GoogleSheetsModule,
       imports: options.imports,
       providers: [
         {
@@ -29,9 +29,9 @@ export class GoogleConnectorModule {
           useFactory: options.useFactory,
           inject: options.inject,
         },
-        GoogleConnectorService,
+        GoogleSheetsService,
       ],
-      exports: [GoogleConnectorService],
+      exports: [GoogleSheetsService],
     };
   }
 }

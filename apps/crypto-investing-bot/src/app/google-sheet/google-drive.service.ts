@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleConnectorService } from './google-connector/google-connector.service';
+import { GoogleSheetsService } from './google-sheets/google-sheets.service';
 import { inspect } from 'util';
 import { drive_v3 } from 'googleapis';
 
 @Injectable()
-export class GoogleSheetsService {
+export class GoogleDriveService {
 
-  constructor(private connector: GoogleConnectorService) {
+  constructor(private connector: GoogleSheetsService) {
   }
 
   async getFiles(fileId: string) {
