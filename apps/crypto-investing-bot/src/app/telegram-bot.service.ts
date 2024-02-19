@@ -152,9 +152,10 @@ export class TelegramBotService implements OnModuleInit {
         }
         const startTransactionDate = (transactions.data[transactions.data.length - 1]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
         const endTransactionDate = (transactions.data[0]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
+        const now = new Date().toISOString().substr(0, 16).replace('T', ' ');
         const document = await this.googleDrive.copySpreadsheet(
           this.appConfig.templateGoogleSheetId,
-          `с ${startTransactionDate} по ${endTransactionDate} ${walletHash}`,
+          `${now}  (${startTransactionDate} ${endTransactionDate}) ${walletHash}`,
           this.appConfig.targetGoogleSheetDirectoryId
         );
         const url = `https://docs.google.com/spreadsheets/d/${document.id}/edit`;
