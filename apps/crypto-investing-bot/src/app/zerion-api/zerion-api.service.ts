@@ -21,13 +21,13 @@ export type ResponseWithErrorList<
 
 export type CsvProcessingResponse = ResponseWithErrorList<string[][]>;
 
-type ZerionResponse = {
+type ZerionResponse<T = Transaction> = {
   links: {
     self: string;
     next: string;
   };
   error?: AxiosError<RequestErrorData>;
-  data: Transaction[];
+  data: T[];
 };
 
 type Transaction = {
@@ -74,16 +74,6 @@ type Transfer = {
   recipient: string;
 };
 
-type FungibleInfo = {
-  name: string;
-  symbol: string;
-  icon: Icon | null;
-  flags: {
-    verified: boolean;
-  };
-  implementations: Implementation[];
-};
-
 type Icon = {
   url: string;
 };
@@ -120,6 +110,91 @@ type Quantity = {
   float: number;
   numeric: string;
 };
+
+type Changes = {
+  absolute_1d: number;
+  percent_1d: number;
+};
+
+type FungibleInfo = {
+  name: string;
+  symbol: string;
+  icon: Icon | null;
+  flags: {
+    verified: boolean;
+  };
+  implementations: Implementation[];
+};
+
+type PositionAttributes = {
+  parent: null | string;
+  protocol: null | string;
+  name: string;
+  position_type: string;
+  quantity: Quantity;
+  value: number;
+  price: number;
+  changes: Changes;
+  fungible_info: FungibleInfo;
+  flags: {
+      displayable: boolean;
+      is_trash: boolean;
+  };
+  updated_at: string;
+  updated_at_block: number;
+};
+
+type FungiblePosition = {
+  type: string;
+  id: string;
+  attributes: PositionAttributes;
+  relationships: {
+    chain: ChainRelationship;
+  };
+};
+
+function convertFungiblePositionsToCsvEntries(positions: FungiblePosition[]): string[][] {
+  const csvRows: string[][] = [
+    //['Type','ID','Name','Position Type','Quantity Numeric','Value','Price','Absolute Change 1D','Percent Change 1D','Fungible Info Name','Fungible Info Symbol','Updated At']
+  ]; 
+
+  positions.forEach((position) => {
+      const {
+          type,
+          id,
+          attributes: {
+              name,
+              position_type,
+              quantity,
+              value,
+              price,
+              changes,
+              fungible_info,
+              updated_at,
+          } = {},
+      } = position;
+
+      const csvRow = [
+          type,
+          id,
+          name,
+          position_type,
+          quantity?.numeric,
+          value,
+          price,
+          changes?.absolute_1d,
+          changes?.percent_1d,
+          fungible_info?.name,
+          fungible_info?.symbol,
+          updated_at,
+      ] as string[];
+
+      csvRows.push(csvRow);
+  });
+
+  return csvRows;
+}
+
 
 function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
   const header = [
@@ -241,7 +316,7 @@ export class ZerionApiService implements OnModuleDestroy {
     60000
   );
 
-  readonly cacheMap = new Map<string, ZerionResponse>();
+  readonly cacheMap = new Map<string, ZerionResponse<unknown>>();
 
   readonly maxRequestsPerDay = 5000;
   private currentRequestsPerDay = 0;
@@ -318,18 +393,25 @@ export class ZerionApiService implements OnModuleDestroy {
     }
   }
 
+  async getFungiblePositionsCsv(walletId: string): Promise<string[][]> {
+    const fungiblePositions = await this.getTransactions<FungiblePosition>(walletId, () => Promise.resolve(), 1000, (walletId) => `https://api.zerion.io/v1/wallets/${walletId}/positions/?currency=usd&filter%5Btrash%5D=only_non_trash&sort=value`);
+  
+    return convertFungiblePositionsToCsvEntries(fungiblePositions.data);
+  }
+
   @WithSentryPerformance('Get transactions')
-  async getTransactions(
+  async getTransactions<T = Transaction>(
     walletId: string,
     onNextRequest: (
       minuteRequests: number,
       dayRequests: number,
       maxRequestsPerMinute: number,
       cacheHitsToday: number,
-      data: Transaction[]
+      data: T[]
     ) => Promise<void>,
-    take = 0
-  ): Promise<ZerionResponse> {
+    take = 0,
+    urlTemplate: (walletId: string, perPage: number) => string = (walletId, perPage) => `https://api.zerion.io/v1/wallets/${walletId}/transactions/?currency=usd&page[size]=${perPage}&filter[trash]=only_non_trash`
+  ): Promise<ZerionResponse<T>> {
     const authHeader = createFromUserPass(this.config.zerionApiKey, '');
     const options = {
       headers: {
@@ -340,8 +422,8 @@ export class ZerionApiService implements OnModuleDestroy {
 
     const perPage = Math.min(take || 100, 100);
 
-    let allTransactions: Transaction[] = [];
-    let url = `https://api.zerion.io/v1/wallets/${walletId}/transactions/?currency=usd&page[size]=${perPage}&filter[trash]=only_non_trash`;
+    let allTransactions: T[] = [];
+    let url = urlTemplate(walletId, perPage);
 
     try {
       while (url) {
@@ -357,7 +439,7 @@ export class ZerionApiService implements OnModuleDestroy {
         }
         let zerionResponse = this.cacheMap.get(url);
         if (!zerionResponse) {
-          const response = await axios.get<ZerionResponse>(url, options);
+          const response = await axios.get<ZerionResponse<T>>(url, options);
           zerionResponse = response.data;
           this.cacheMap.set(url, zerionResponse);
           this.saveCache();
@@ -367,7 +449,7 @@ export class ZerionApiService implements OnModuleDestroy {
           this.cacheHitsToday++;
         }
 
-        allTransactions = allTransactions.concat(zerionResponse.data);
+        allTransactions = allTransactions.concat(zerionResponse.data as T[]);
 
 
         await onNextRequest(

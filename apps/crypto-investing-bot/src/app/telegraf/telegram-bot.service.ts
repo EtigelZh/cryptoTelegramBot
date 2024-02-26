@@ -160,6 +160,18 @@ export class TelegramBotService implements OnModuleInit {
 
           continue;
         }
+        let fungiblePositionsCsv = [];
+        try {
+          fungiblePositionsCsv = await this.zerionService.getFungiblePositionsCsv(walletHash);
+        } catch (error) {
+          Logger.error(
+            `Error fetching transactions for wallet ${walletHash}: ${error}`
+          );
+          ctx.reply(
+            `Ошибка при скачивании текущего потфеля: ${this.formatErrorMessage(error)}`
+          );
+        }
+
         const startTransactionDate = (transactions.data[transactions.data.length - 1]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
         const endTransactionDate = (transactions.data[0]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
         const now = new Date().toISOString().substr(0, 16).replace('T', ' ');
@@ -182,6 +194,17 @@ export class TelegramBotService implements OnModuleInit {
             values: updatingData,
           },
         });
+
+        if (fungiblePositionsCsv.length) {
+          await sheetsApi.spreadsheets.values.update({
+            spreadsheetId: document.id,
+            range: 'Портфель исходник!A2',
+            valueInputOption: 'USER_ENTERED',
+            requestBody: {
+              values: fungiblePositionsCsv,
+            },
+          });
+        }
         ctx.reply(`Создан новый документ: ${url}\n`);
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const summary7days = await this.googleSheets.fillFinanceDataFromSheets(document.id, walletHash, 'Анализ 7 дней', sheetsApi);

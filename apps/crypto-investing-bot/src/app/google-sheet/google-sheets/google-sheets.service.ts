@@ -16,6 +16,7 @@ export type FinanceData = {
   medianLose: string;
   medianWin: string;
   tradedCoins: string;
+  balance: string;
   wallet: {
     lastTransactionDate: string;
     tripleTransaction: string;
@@ -34,6 +35,8 @@ export type FinanceData = {
 };
 
 const ranges = {
+  balance: 'H2', // Остаток
+
   medianEntry: 'H3', // "Медианный вход"
   avgLose: 'J3', // "Avg lose"
   avgWin: 'L3', // "Avg win"
@@ -130,6 +133,7 @@ export class GoogleSheetsService {
 
     // Заполнение объекта FinanceData с использованием данных из valuesMap
     const data: FinanceData = {
+      balance: valuesMap.balance,
       sourceDocumentId: spreadsheetId,
       sourceLink: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
       walletHash,
@@ -176,6 +180,7 @@ export class GoogleSheetsService {
       analyzeDate,
       lastTransactionDateStr,
       '',
+      summary30days.balance,
       // format dd.mm.yyyy
       analyzeDate,
       summary7days.tradedCoins.toString(),
