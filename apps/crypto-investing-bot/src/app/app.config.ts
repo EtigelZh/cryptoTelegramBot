@@ -2,6 +2,10 @@ import { Injectable, Module, Logger } from '@nestjs/common';
 import { resolve } from 'path';
 import * as dotenv from 'dotenv';
 import { dataSourceOptions } from '../data-source.options';
+import { init, captureException } from '@sentry/node';
+import { ProfilingIntegration } from "@sentry/profiling-node";
+
+import { inspect } from 'util';
 
 let defaultEnvPath = resolve(__dirname, 'assets', 'config', 'default.env');
 let privateEnvPath = resolve(__dirname, 'assets', 'config', 'private.env');
@@ -26,6 +30,36 @@ for (const key in allEnvs) {
   }
 }
 
+if (allEnvs.SENTRY_DSN) {
+  Logger.verbose('Sentry initialized');
+} else {
+  Logger.verbose('Sentry not initialized, empty SENTRY_DSN');
+}
+
+init({
+  dsn: allEnvs.SENTRY_DSN,
+  tracesSampleRate: 1.0,
+  profilesSampleRate: 1.0,
+  enabled: !!allEnvs.SENTRY_DSN,
+  environment: allEnvs.SENTRY_ENV,
+  integrations: [
+    // Add profiling integration to list of integrations
+    new ProfilingIntegration(),
+  ],
+});
+process.on('uncaughtException', (err) => {
+  Logger.error(`Uncaught exception: ${err}`);
+  captureException(err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  Logger.error(`Unhandled rejection: ${reason}`);
+  captureException(reason, {
+    extra: {
+      promise: inspect(promise),
+    },
+  });
+});
+
 @Injectable()
 export class AppConfig {
   minioEndpoint: string = process.env.MINIO_ENDPOINT || '';
@@ -37,9 +71,15 @@ export class AppConfig {
   coinmarketCupApiKey: string = process.env.COINMARKETCUP_API_KEY || '';
   zerionApiKey: string = process.env.ZERION_API_KEY || '';
 
-  summaryWalletsSheetId: string = process.env.SUMMARY_WALLETS_SHEET_ID || '11QeRNXnL-JGnj-RDLG4rkVKI3r1LUVUi9hh39j7LSu4';
-  templateGoogleSheetId: string = process.env.TEMPLATE_GOOGLE_SHEET_ID || '1SJyMtCuvH_CO5crB91hBY3ljXz05qxSIGakvlcgFtbs';
-  targetGoogleSheetDirectoryId: string = process.env.TARGET_GOOGLE_SHEET_DIRECTORY_ID || '1CgiJ2_vuTPjOvpcsEUzQu98YJoRd1fSo';
+  summaryWalletsSheetId: string =
+    process.env.SUMMARY_WALLETS_SHEET_ID ||
+    '11QeRNXnL-JGnj-RDLG4rkVKI3r1LUVUi9hh39j7LSu4';
+  templateGoogleSheetId: string =
+    process.env.TEMPLATE_GOOGLE_SHEET_ID ||
+    '1SJyMtCuvH_CO5crB91hBY3ljXz05qxSIGakvlcgFtbs';
+  targetGoogleSheetDirectoryId: string =
+    process.env.TARGET_GOOGLE_SHEET_DIRECTORY_ID ||
+    '1CgiJ2_vuTPjOvpcsEUzQu98YJoRd1fSo';
 
   adminChatIds: string[] = (
     process.env.ADMINS_CHAT_ID || '-4039511820,254372545,341786440'

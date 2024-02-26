@@ -1,38 +1,43 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Context, Telegraf } from 'telegraf';
-import { AppConfig } from './app.config';
-import { XlsxService } from './xlsx.service';
-import { RequestErrorData, ZerionApiService } from './zerion-api.service';
+import { AppConfig } from '../app.config';
+import { RequestErrorData, ZerionApiService } from '../zerion-api/zerion-api.service';
 import { AxiosError } from 'axios';
 import { inspect } from 'util';
 import { message } from 'telegraf/filters';
 import { MountMap } from 'telegraf/typings/telegram-types';
-import { GoogleDriveService } from './google-sheet/google-drive.service';
-import { GoogleSheetsService } from './google-sheet/google-sheets/google-sheets.service';
+import { GoogleDriveService } from '../google-sheet/google-drive.service';
+import { GoogleSheetsService } from '../google-sheet/google-sheets/google-sheets.service';
+import { WithSentryPerformance } from '../utils/sentry-performance';
+import { TELEGRAF } from './telegraf.token';
+
+
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
   '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
 
 @Injectable()
 export class TelegramBotService implements OnModuleInit {
-  private readonly bot: Telegraf;
+  
 
   constructor(
     private readonly appConfig: AppConfig,
     private readonly zerionService: ZerionApiService,
-    private readonly xlsxService: XlsxService,
     private readonly googleDrive: GoogleDriveService,
+    @Inject(TELEGRAF)
+    private readonly bot: Telegraf,
     private readonly googleSheets: GoogleSheetsService
   ) {
-    this.bot = new Telegraf(this.appConfig.telegramBotToken);
+    
   }
 
   onModuleInit() {
     this.initializeBotCommands();
-    this.bot.launch().catch((error) => {
-      Logger.error(`Failed to launch the bot: ${error}`);
-    });
     this.bot.catch(this.handleBotError);
+  }
+
+  getMe() {
+    return this.bot.telegram.getMe();
   }
 
   private initializeBotCommands(): void {
@@ -63,6 +68,7 @@ export class TelegramBotService implements OnModuleInit {
     );
   }
 
+  @WithSentryPerformance('Handle transactions command')
   private async handleTransactionsCommand(
     ctx: Context<MountMap['text'] & MountMap['message']>
   ): Promise<unknown> {
@@ -138,6 +144,8 @@ export class TelegramBotService implements OnModuleInit {
               transactions.error
             )}`
           );
+          
+          return;
         }
         const csvData = await this.zerionService.getCsvTransactions(
           transactions.data
@@ -146,9 +154,11 @@ export class TelegramBotService implements OnModuleInit {
           const errorMessages = csvData.errors
             .map((error) => `Строка ${error.rowIndex}: ${error.message}`)
             .join('\n');
-          return ctx.reply(
-            `Ошибка при скачивании транзакций: ${errorMessages}`
+          ctx.reply(
+            `Ошибка при трансформации csv транзакций: ${errorMessages}`
           );
+
+          return;
         }
         const startTransactionDate = (transactions.data[transactions.data.length - 1]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
         const endTransactionDate = (transactions.data[0]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
@@ -196,6 +206,7 @@ export class TelegramBotService implements OnModuleInit {
 
   private handleBotError(err: Error, ctx): void {
     Logger.error(`Telegraf bot error: ${err} Context: ${ctx}`);
+    
     // Implement error-specific handling logic if needed
   }
 

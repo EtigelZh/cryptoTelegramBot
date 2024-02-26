@@ -9,14 +9,4 @@ export class AppController {
   getData() {
     return this.appService.getData();
   }
-
-  @Get('readiness')
-  rediness() {
-    return 'OK';
-  }
-
-  @Get('liveness')
-  liveness() {
-    return 'OK';
-  }
 }

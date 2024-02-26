@@ -1,8 +1,9 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { AppConfig } from './app.config';
+import { AppConfig } from '../app.config';
 import axios, { AxiosError } from 'axios';
 import { promises as fs } from 'fs';
 import { resolve } from 'path';
+import { WithSentryPerformance } from '../utils/sentry-performance';
 
 export type RequestErrorData = {
   errors: string[];
@@ -304,6 +305,7 @@ export class ZerionApiService implements OnModuleDestroy {
     clearInterval(this.dayInterval);
   }
 
+  @WithSentryPerformance('Get CSV transactions')
   async getCsvTransactions(
     transactions: ZerionResponse['data']
   ): Promise<CsvProcessingResponse> {
@@ -316,6 +318,7 @@ export class ZerionApiService implements OnModuleDestroy {
     }
   }
 
+  @WithSentryPerformance('Get transactions')
   async getTransactions(
     walletId: string,
     onNextRequest: (
@@ -347,7 +350,10 @@ export class ZerionApiService implements OnModuleDestroy {
         );
 
         if (this.currentRequestsPerMinute >= this.maxRequestsPerMinute) {
-          await this.currentThrottlerPromise;
+          await Promise.race([
+            this.currentThrottlerPromise,
+            new Promise((resolve) => setTimeout(resolve, 60_000)),
+          ]);
         }
         let zerionResponse = this.cacheMap.get(url);
         if (!zerionResponse) {
