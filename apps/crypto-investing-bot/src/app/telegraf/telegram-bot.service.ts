@@ -145,7 +145,7 @@ export class TelegramBotService implements OnModuleInit {
             )}`
           );
           
-          return;
+          continue;
         }
         const csvData = await this.zerionService.getCsvTransactions(
           transactions.data
@@ -158,7 +158,7 @@ export class TelegramBotService implements OnModuleInit {
             `Ошибка при трансформации csv транзакций: ${errorMessages}`
           );
 
-          return;
+          continue;
         }
         const startTransactionDate = (transactions.data[transactions.data.length - 1]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
         const endTransactionDate = (transactions.data[0]?.attributes?.mined_at || new Date().toISOString()).substring(0, 10);
