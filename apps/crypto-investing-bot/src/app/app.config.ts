@@ -73,13 +73,13 @@ export class AppConfig {
 
   summaryWalletsSheetId: string =
     process.env.SUMMARY_WALLETS_SHEET_ID ||
-    '11QeRNXnL-JGnj-RDLG4rkVKI3r1LUVUi9hh39j7LSu4';
+    '10hUgmGxMU6r-s8vGBvLN9Kn018v_dXIKiomFTTJopdQ';
   templateGoogleSheetId: string =
     process.env.TEMPLATE_GOOGLE_SHEET_ID ||
-    '1SJyMtCuvH_CO5crB91hBY3ljXz05qxSIGakvlcgFtbs';
+    '1eK8MiKcSbDup0nghJ5_TI5Bd19B5ZpD784yoyP71gEk';
   targetGoogleSheetDirectoryId: string =
     process.env.TARGET_GOOGLE_SHEET_DIRECTORY_ID ||
-    '1CgiJ2_vuTPjOvpcsEUzQu98YJoRd1fSo';
+    '1wmv8C1oS2L8D9stREL5-DZ2EoNFcaGu9';
 
   adminChatIds: string[] = (
     process.env.ADMINS_CHAT_ID || '-4039511820,254372545,341786440'
