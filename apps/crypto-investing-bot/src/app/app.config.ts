@@ -108,8 +108,8 @@ export class AppConfig {
   }
 
   public getRedisUrl() {
-    const { host, port, password } = this.getRedisConfig();
-    return `redis://default:${password}@${host}:${port}/8`;
+    const { host, port } = this.getRedisConfig();
+    return `redis://${host}:${port}/8`;
   }
 
   public getBullConfig(): QueueOptions {

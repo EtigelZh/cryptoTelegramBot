@@ -13,6 +13,7 @@ import { redisStore } from 'cache-manager-redis-store';
       useFactory: async (appConfig: AppConfig) => {
         const store = await redisStore({
             url: appConfig.getRedisUrl(),
+            password: appConfig.getRedisConfig().password,
             ttl: 60*60*24,
         });
         return {
