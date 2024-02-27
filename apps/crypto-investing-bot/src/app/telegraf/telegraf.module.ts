@@ -6,24 +6,35 @@ import { TelegramBotService } from './telegram-bot.service';
 import { ZerionApiModule } from '../zerion-api/zerion-api.module';
 import { GoogleDriveModule } from '../google-sheet/google-drive.module';
 import { inspect } from 'util';
+import { ProcessingWalletsConsumer } from './processing-wallets.consumer';
+import { BullModule } from '@nestjs/bull';
 
 @Module({})
 export class TelegrafModule {
-  static forRootAsync() {
+  static register() {
     return {
-      imports: [AppConfigModule, ZerionApiModule, GoogleDriveModule],
+      imports: [
+        AppConfigModule,
+        ZerionApiModule,
+        GoogleDriveModule,
+        BullModule.registerQueue({
+          name: 'processingWallet',
+        }),
+      ],
       providers: [
         {
           provide: TELEGRAF,
           inject: [AppConfig],
           useFactory: async (appConfig: AppConfig) => {
             const bot = new Telegraf(appConfig.telegramBotToken);
-            bot.launch().catch((e) => Logger.error(`Bot launch error: ${inspect(e)}`));
-            const result = await bot.telegram.getMe();
-            Logger.log(`Bot started ${inspect(result)}`);
+            bot
+              .launch()
+              .catch((e) => Logger.error(`Bot launch error: ${inspect(e)}`));
+            await bot.telegram.getMe();
             return bot;
           },
         },
+        ProcessingWalletsConsumer,
         TelegramBotService,
       ],
       exports: [TelegramBotService],

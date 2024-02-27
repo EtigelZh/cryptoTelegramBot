@@ -1,10 +1,11 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { AppConfig } from '../app.config';
 import axios, { AxiosError } from 'axios';
-import { promises as fs } from 'fs';
-import { resolve } from 'path';
 import { WithSentryPerformance } from '../utils/sentry-performance';
+import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
+import { createMD5Hash } from '../utils/hash';
 
+const ONE_DAY = 24 * 60 * 60 * 1000;
 export type RequestErrorData = {
   errors: string[];
 };
@@ -137,8 +138,8 @@ type PositionAttributes = {
   changes: Changes;
   fungible_info: FungibleInfo;
   flags: {
-      displayable: boolean;
-      is_trash: boolean;
+    displayable: boolean;
+    is_trash: boolean;
   };
   updated_at: string;
   updated_at_block: number;
@@ -153,48 +154,49 @@ type FungiblePosition = {
   };
 };
 
-function convertFungiblePositionsToCsvEntries(positions: FungiblePosition[]): string[][] {
+function convertFungiblePositionsToCsvEntries(
+  positions: FungiblePosition[]
+): string[][] {
   const csvRows: string[][] = [
     //['Type','ID','Name','Position Type','Quantity Numeric','Value','Price','Absolute Change 1D','Percent Change 1D','Fungible Info Name','Fungible Info Symbol','Updated At']
-  ]; 
+  ];
 
   positions.forEach((position) => {
-      const {
-          type,
-          id,
-          attributes: {
-              name,
-              position_type,
-              quantity,
-              value,
-              price,
-              changes,
-              fungible_info,
-              updated_at,
-          } = {},
-      } = position;
+    const {
+      type,
+      id,
+      attributes: {
+        name,
+        position_type,
+        quantity,
+        value,
+        price,
+        changes,
+        fungible_info,
+        updated_at,
+      } = {},
+    } = position;
 
-      const csvRow = [
-          type,
-          id,
-          name,
-          position_type,
-          quantity?.numeric,
-          value,
-          price,
-          changes?.absolute_1d,
-          changes?.percent_1d,
-          fungible_info?.name,
-          fungible_info?.symbol,
-          updated_at,
-      ] as string[];
+    const csvRow = [
+      type,
+      id,
+      name,
+      position_type,
+      quantity?.numeric,
+      value,
+      price,
+      changes?.absolute_1d,
+      changes?.percent_1d,
+      fungible_info?.name,
+      fungible_info?.symbol,
+      updated_at,
+    ] as string[];
 
-      csvRows.push(csvRow);
+    csvRows.push(csvRow);
   });
 
   return csvRows;
 }
-
 
 function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
   const header = [
@@ -303,20 +305,16 @@ function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
 }
 
-const cachePath = resolve(__dirname, 'cache.json');
-
 @Injectable()
 export class ZerionApiService implements OnModuleDestroy {
   private currentThrottlerPromise: Promise<void> = Promise.resolve();
   private currentThrottlerResolver: (args: unknown) => void;
-  readonly maxRequestsPerMinute = 50;
+  readonly maxRequestsPerMinute = 55;
   private currentRequestsPerMinute = 0;
   interval: NodeJS.Timeout = setInterval(
     () => this.renewMinuteThrottler(),
     60000
   );
-
-  readonly cacheMap = new Map<string, ZerionResponse<unknown>>();
 
   readonly maxRequestsPerDay = 5000;
   private currentRequestsPerDay = 0;
@@ -325,45 +323,30 @@ export class ZerionApiService implements OnModuleDestroy {
   dayInterval: NodeJS.Timeout = setInterval(() => {
     this.currentRequestsPerDay = 0;
     this.cacheHitsToday = 0;
-    console.log('Resetting requests per day');
-    this.cacheMap.clear();
-    this.saveCache();
-  }, 24 * 60 * 60 * 1000);
+    this.cacheManager.reset();
+  }, ONE_DAY);
 
-  constructor(private readonly config: AppConfig) {
+  constructor(
+    private readonly config: AppConfig,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache
+  ) {
     this.renewMinuteThrottler();
-    this.loadCache().then(() => {
-      this.saveCache();
-    });
+    this.loadCounters();
   }
 
-  async loadCache() {
-    try {
-      const data = await fs.readFile(cachePath, 'utf-8');
-      const entries = JSON.parse(data);
-      for (const [key, value] of entries) {
-        this.cacheMap.set(key, value);
-      }
-      console.log('Loaded cache', this.cacheMap.size, 'entries')
-    } catch (error) {
-      console.error('Failed to initialize ZerionApiService', error);
+  async saveCounters() {
+    if (this.cacheSaving) {
+      this.cacheSaving = true;
+      await this.cacheManager.set('requestsPerDay', this.currentRequestsPerDay, ONE_DAY);
+      await this.cacheManager.set('cacheHitsToday', this.cacheHitsToday, ONE_DAY);
+      this.cacheSaving = false;
     }
   }
-  async saveCache() {
-    if (!this.cacheSaving) {
-      this.cacheSaving = true;
-      try {
-        await fs.writeFile(
-          cachePath,
-          JSON.stringify([...this.cacheMap.entries()])
-        );
-        console.log('Saved cache', this.cacheMap.size, 'entries');
-      } catch (error) {
-        console.error('Failed to save cache', error);
-      } finally {
-        this.cacheSaving = false;
-      }
-    }
+
+  async loadCounters() {
+    this.currentRequestsPerDay =
+      (await this.cacheManager.get('requestsPerDay')) || 0;
+    this.cacheHitsToday = (await this.cacheManager.get('cacheHitsToday')) || 0;
   }
 
   private renewMinuteThrottler() {
@@ -374,6 +357,7 @@ export class ZerionApiService implements OnModuleDestroy {
     this.currentThrottlerPromise = new Promise((resolve) => {
       this.currentThrottlerResolver = resolve;
     });
+    this.saveCounters();
   }
   onModuleDestroy() {
     clearInterval(this.interval);
@@ -394,8 +378,14 @@ export class ZerionApiService implements OnModuleDestroy {
   }
 
   async getFungiblePositionsCsv(walletId: string): Promise<string[][]> {
-    const fungiblePositions = await this.getTransactions<FungiblePosition>(walletId, () => Promise.resolve(), 1000, (walletId) => `https://api.zerion.io/v1/wallets/${walletId}/positions/?currency=usd&filter%5Btrash%5D=only_non_trash&sort=value`);
-  
+    const fungiblePositions = await this.getTransactions<FungiblePosition>(
+      walletId,
+      () => Promise.resolve(),
+      1000,
+      (walletId) =>
+        `https://api.zerion.io/v1/wallets/${walletId}/positions/?currency=usd&filter%5Btrash%5D=only_non_trash&sort=value`
+    );
+
     return convertFungiblePositionsToCsvEntries(fungiblePositions.data);
   }
 
@@ -410,7 +400,11 @@ export class ZerionApiService implements OnModuleDestroy {
       data: T[]
     ) => Promise<void>,
     take = 0,
-    urlTemplate: (walletId: string, perPage: number) => string = (walletId, perPage) => `https://api.zerion.io/v1/wallets/${walletId}/transactions/?currency=usd&page[size]=${perPage}&filter[trash]=only_non_trash`
+    urlTemplate: (walletId: string, perPage: number) => string = (
+      walletId,
+      perPage
+    ) =>
+      `https://api.zerion.io/v1/wallets/${walletId}/transactions/?currency=usd&page[size]=${perPage}&filter[trash]=only_non_trash`
   ): Promise<ZerionResponse<T>> {
     const authHeader = createFromUserPass(this.config.zerionApiKey, '');
     const options = {
@@ -437,20 +431,30 @@ export class ZerionApiService implements OnModuleDestroy {
             new Promise((resolve) => setTimeout(resolve, 60_000)),
           ]);
         }
-        let zerionResponse = this.cacheMap.get(url);
+        let zerionResponse = null;
+        const urlCacheKey = createMD5Hash(url);
+        try {
+          const zerionResponseRaw = await this.cacheManager.get(urlCacheKey);
+          if (typeof zerionResponseRaw === 'string') {
+            zerionResponse = JSON.parse(zerionResponseRaw as string);
+          } else {
+            zerionResponse = zerionResponseRaw;
+          }
+        } catch (e) {
+          Logger.error(`Failed to parse cache key ${e}`);
+        }
+
         if (!zerionResponse) {
           const response = await axios.get<ZerionResponse<T>>(url, options);
           zerionResponse = response.data;
-          this.cacheMap.set(url, zerionResponse);
-          this.saveCache();
+          this.cacheManager.set(urlCacheKey, zerionResponse, ONE_DAY);
           this.currentRequestsPerMinute++;
           this.currentRequestsPerDay++;
         } else {
           this.cacheHitsToday++;
         }
-
+        this.saveCounters();
         allTransactions = allTransactions.concat(zerionResponse.data as T[]);
-
 
         await onNextRequest(
           this.currentRequestsPerMinute,

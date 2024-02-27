@@ -4,7 +4,9 @@ import { HealthService } from "./health.service";
 import { TelegrafModule } from "../telegraf/telegraf.module";
 
 @Module({
-    imports: [TelegrafModule.forRootAsync()],
+    imports: [
+        TelegrafModule.register(),
+    ],
     providers: [HealthService],
     controllers: [HealthController]
 })

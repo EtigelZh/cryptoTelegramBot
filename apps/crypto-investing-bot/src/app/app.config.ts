@@ -6,6 +6,7 @@ import { init, captureException } from '@sentry/node';
 import { ProfilingIntegration } from "@sentry/profiling-node";
 
 import { inspect } from 'util';
+import { QueueOptions } from 'bull';
 
 let defaultEnvPath = resolve(__dirname, 'assets', 'config', 'default.env');
 let privateEnvPath = resolve(__dirname, 'assets', 'config', 'private.env');
@@ -70,6 +71,8 @@ export class AppConfig {
   etherscanApiKey: string = process.env.ETHERSCAN_API_KEY || '';
   coinmarketCupApiKey: string = process.env.COINMARKETCUP_API_KEY || '';
   zerionApiKey: string = process.env.ZERION_API_KEY || '';
+  cacheTTL: number = +(process.env.CACHE_TTL || 60_000 * 60 * 24);
+  walletProcessorConcurrency: number = +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4);
 
   summaryWalletsSheetId: string =
     process.env.SUMMARY_WALLETS_SHEET_ID ||
@@ -93,6 +96,26 @@ export class AppConfig {
       password: process.env.POSTGRES_PASSWORD,
       database: process.env.DB_NAME,
     });
+  }
+
+  public getRedisConfig() {
+    const conf = {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: +(process.env.REDIS_PORT || 6379),
+      password: process.env.REDIS_PASSWORD || 'asfsaw123dsj',
+    };
+    return conf;
+  }
+
+  public getRedisUrl() {
+    const { host, port, password } = this.getRedisConfig();
+    return `redis://default:${password}@${host}:${port}/8`;
+  }
+
+  public getBullConfig(): QueueOptions {
+    return {
+      redis: this.getRedisConfig(),
+    };
   }
 }
 
