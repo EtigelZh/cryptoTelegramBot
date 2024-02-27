@@ -335,7 +335,7 @@ export class ZerionApiService implements OnModuleDestroy {
   }
 
   async saveCounters() {
-    if (this.cacheSaving) {
+    if (!this.cacheSaving) {
       this.cacheSaving = true;
       await this.cacheManager.set('requestsPerDay', this.currentRequestsPerDay, ONE_DAY);
       await this.cacheManager.set('cacheHitsToday', this.cacheHitsToday, ONE_DAY);

@@ -74,7 +74,6 @@ export class TelegramBotService implements OnModuleInit {
     }
 
     const matchedHash = ctx.message.text.match(walletHashRegex);
-    console.log('matchedHash', matchedHash, ctx.message.text);
     if (!matchedHash?.length) {
       return ctx.reply(`Не указан ни один hash кошелька. ${example}`);
     }
@@ -85,8 +84,18 @@ export class TelegramBotService implements OnModuleInit {
       if (matchedHash.length > 1) {
         suffix = `(${index + 1} из ${matchedHash.length})`;
       }
+      // Таймаут что бы не получать 429 ошибку от API телеграмма
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      let parentMessageId = null;
+      try {
+        const message = await ctx.reply(`Кошелек ${walletHash} добавлен в очередь ${suffix}`);
+        parentMessageId = message.message_id;
+      } catch (e) {
+        Logger.log(`Error sending message: ${e}`);
+      }
+      
       const job = await this.processingWalletQueue.add('process', {
-        walletHash, chatId: ctx.chat.id, suffix,
+        walletHash, chatId: ctx.chat.id, suffix, parentMessageId
       }, { removeOnComplete: true });
       jobResults.push(job.finished());
     }
