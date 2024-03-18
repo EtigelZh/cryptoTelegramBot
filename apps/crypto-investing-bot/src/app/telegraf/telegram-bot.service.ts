@@ -8,9 +8,12 @@ import { TELEGRAF } from './telegraf.token';
 import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { walletQueueName } from './queues';
-import { GetOldWalletsArgs, googleSheetsApiQueueName } from './google-sheets.consumer';
+import {
+  GetOldWalletsArgs,
+  googleSheetsApiQueueName,
+} from './google-sheets.consumer';
 import { ZerionApiService } from '../zerion-api/zerion-api.service';
-
+import { Cron } from '@nestjs/schedule';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -18,15 +21,13 @@ const example =
 
 @Injectable()
 export class TelegramBotService implements OnModuleInit {
-  
-
   constructor(
     private readonly appConfig: AppConfig,
     @Inject(TELEGRAF)
     private readonly bot: Telegraf,
     @InjectQueue(walletQueueName) private _processingWalletQueue: Queue,
     @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
-    private _zerionApi: ZerionApiService,
+    private _zerionApi: ZerionApiService
   ) {}
 
   onModuleInit() {
@@ -41,27 +42,40 @@ export class TelegramBotService implements OnModuleInit {
   private initializeBotCommands(): void {
     this.bot.command('start', this.handleStartCommand.bind(this));
     this.bot.command('transactions', this.handleTransactionsCommand.bind(this));
-    this.bot.command('update_old_wallets', this.handleUpdateOldWalletsCommand.bind(this));
+    this.bot.command(
+      'update_old_wallets',
+      this.handleUpdateOldWalletsCommand.bind(this)
+    );
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
 
-  private async handleUpdateOldWalletsCommand(ctx: Context<MountMap['text']>): Promise<void> {
+  private async handleUpdateOldWalletsCommand(
+    ctx: Context<MountMap['text']>
+  ): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await ctx.reply('Работа бота доступна только для избранных.');
     }
-    const numberOfWalletsToUpdate = this._zerionApi.getEstimateAvailableProcessingWallets();
-    await ctx.reply(`Получаем кошельки для обработки. Всего можем обновить кошельков сегодня: ${numberOfWalletsToUpdate}`);
-    const job = await this._googleSheetsQueue.add('getOldWallets', <GetOldWalletsArgs>{
-      spreadsheetId: this.appConfig.summaryWalletsSheetId,
-      numberOfWalletsToUpdate, 
-    }, { removeOnComplete: true });
+    const numberOfWalletsToUpdate =
+      this._zerionApi.getEstimateAvailableProcessingWallets();
+    await ctx.reply(
+      `Получаем кошельки для обработки. Всего можем обновить кошельков сегодня: ${numberOfWalletsToUpdate}`
+    );
+    const job = await this._googleSheetsQueue.add(
+      'getOldWallets',
+      <GetOldWalletsArgs>{
+        spreadsheetId: this.appConfig.summaryWalletsSheetId,
+        numberOfWalletsToUpdate,
+      },
+      { removeOnComplete: true }
+    );
     const oldWallets = await job.finished();
-    
-    await ctx.reply(`Добавлены кошельки в очередь на обработку. Всего кошельков: ${oldWallets.length}`);
+
+    await ctx.reply(
+      `Добавлены кошельки в очередь на обработку. Всего кошельков: ${oldWallets.length}`
+    );
 
     await this._processWallets(oldWallets, ctx);
   }
-
 
   private async handlePossibleWalletHash(
     ctx: Context<MountMap['text']>
@@ -81,11 +95,9 @@ export class TelegramBotService implements OnModuleInit {
     }
 
     ctx.reply(
-      `Отправь мне команду /transactions <hash_кошелька>, <hash_кошелька> чтобы я отправил аналитику по транзакциям. ${example}`
+      `[${ctx.from?.id}] Отправь мне команду /transactions <hash_кошелька>, <hash_кошелька> чтобы я отправил аналитику по транзакциям. ${example}`
     );
   }
-
-  
 
   @WithSentryPerformance('Handle transactions command')
   private async handleTransactionsCommand(
@@ -100,10 +112,59 @@ export class TelegramBotService implements OnModuleInit {
       return ctx.reply(`Не указан ни один hash кошелька. ${example}`);
     }
     await this._processWallets(matchedHash, ctx);
-    
   }
 
-  private async _processWallets(matchedHash: string[], ctx: Context<MountMap['text'] & MountMap['message']>) {
+  @Cron('0 22 * * *')
+  async updateOldWallets() {
+    const numberOfWalletsToUpdate = Math.floor(
+      this._zerionApi.getEstimateAvailableProcessingWallets() / 2
+    );
+    const job = await this._googleSheetsQueue.add(
+      'getOldWallets',
+      <GetOldWalletsArgs>{
+        spreadsheetId: this.appConfig.summaryWalletsSheetId,
+        numberOfWalletsToUpdate,
+      },
+      { removeOnComplete: true }
+    );
+    const oldWallets = await job.finished();
+
+    for (const walletHash of oldWallets) {
+      const index = oldWallets.indexOf(walletHash);
+      let suffix = '';
+      if (oldWallets.length > 1) {
+        suffix = `(${index + 1} из ${oldWallets.length})`;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      let parentMessageId = null;
+      try {
+        const message = await this.bot.telegram.sendMessage(
+          this.appConfig.dailyUpdateReportChatId,
+          `Кошелек ${walletHash} добавлен в очередь ${suffix}`
+        );
+        parentMessageId = message.message_id;
+      } catch (e) {
+        Logger.log(`Error sending message: ${e}`);
+      }
+
+      await this._processingWalletQueue.add(
+        'process',
+        {
+          walletHash,
+          chatId: this.appConfig.dailyUpdateReportChatId,
+          suffix,
+          parentMessageId,
+        },
+        { removeOnComplete: true }
+      );
+    }
+  }
+
+  private async _processWallets(
+    matchedHash: string[],
+    ctx: Context<MountMap['text'] & MountMap['message']>
+  ) {
     const jobResults = [];
     for (const walletHash of matchedHash) {
       const index = matchedHash.indexOf(walletHash);
@@ -115,27 +176,41 @@ export class TelegramBotService implements OnModuleInit {
       await new Promise((resolve) => setTimeout(resolve, 500));
       let parentMessageId = null;
       try {
-        const message = await ctx.reply(`Кошелек ${walletHash} добавлен в очередь ${suffix}`);
+        const message = await ctx.reply(
+          `Кошелек ${walletHash} добавлен в очередь ${suffix}`
+        );
         parentMessageId = message.message_id;
       } catch (e) {
         Logger.log(`Error sending message: ${e}`);
       }
-      
-      const job = await this._processingWalletQueue.add('process', {
-        walletHash, chatId: ctx.chat.id, suffix, parentMessageId
-      }, { removeOnComplete: true });
+
+      const job = await this._processingWalletQueue.add(
+        'process',
+        {
+          walletHash,
+          chatId: ctx.chat.id,
+          suffix,
+          parentMessageId,
+        },
+        { removeOnComplete: true }
+      );
       jobResults.push(job.finished());
     }
     const summarySheetUpdatedResults = await Promise.allSettled(jobResults);
-    const summarySheetUpdated = summarySheetUpdatedResults.some(res => res.status === 'fulfilled' && res.value?.summarySheetUpdated === true);
+    const summarySheetUpdated = summarySheetUpdatedResults.some(
+      (res) =>
+        res.status === 'fulfilled' && res.value?.summarySheetUpdated === true
+    );
     if (summarySheetUpdated) {
-      ctx.reply(`Обновлены данные в общей таблице https://docs.google.com/spreadsheets/d/${this.appConfig.summaryWalletsSheetId}/edit`);
+      ctx.reply(
+        `Обновлены данные в общей таблице https://docs.google.com/spreadsheets/d/${this.appConfig.summaryWalletsSheetId}/edit`
+      );
     }
   }
 
   private handleBotError(err: Error, ctx): void {
     Logger.error(`Telegraf bot error: ${err} Context: ${ctx}`);
-    
+
     // Implement error-specific handling logic if needed
   }
 

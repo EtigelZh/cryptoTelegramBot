@@ -87,6 +87,9 @@ export class AppConfig {
   adminChatIds: string[] = (
     process.env.ADMINS_CHAT_ID || '-4039511820,254372545,341786440'
   )?.split(',');
+
+  dailyUpdateReportChatId: string = process.env.DAILY_UPDATE_REPORT_CHAT_ID || '254372545';
+
   devPrefix: string = process.env.DEV_MESSAGE_PREFIX || '';
   public async getDbConfig() {
     return dataSourceOptions({

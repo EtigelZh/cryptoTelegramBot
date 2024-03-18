@@ -15,6 +15,7 @@ import { GoogleDriveConsumer, googleDriveQueueName } from './google-drive.consum
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-store';
 import type { RedisClientOptions } from 'redis';
+import { ScheduleModule } from '@nestjs/schedule';
 @Module({})
 export class TelegrafModule {
   static register() {
@@ -74,6 +75,7 @@ export class TelegrafModule {
           },
           inject: [AppConfig],
         }),
+        ScheduleModule.forRoot(),
       ],
       providers: [
         {
