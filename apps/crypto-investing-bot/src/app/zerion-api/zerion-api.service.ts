@@ -323,7 +323,7 @@ export class ZerionApiService implements OnModuleDestroy {
   dayInterval: NodeJS.Timeout = setInterval(() => {
     this.currentRequestsPerDay = 0;
     this.cacheHitsToday = 0;
-    this.cacheManager.reset();
+    this.saveCounters();
   }, ONE_DAY);
 
   constructor(
@@ -332,6 +332,10 @@ export class ZerionApiService implements OnModuleDestroy {
   ) {
     this.renewMinuteThrottler();
     this.loadCounters();
+  }
+
+  getEstimateAvailableProcessingWallets(): number {
+    return Math.max(Math.floor(((this.maxRequestsPerDay - this.currentRequestsPerDay) / 10) - 10), 0);
   }
 
   async saveCounters() {
@@ -351,7 +355,7 @@ export class ZerionApiService implements OnModuleDestroy {
 
   private renewMinuteThrottler() {
     this.currentRequestsPerMinute = 0;
-    if (typeof this.currentThrottlerResolver === 'function') {
+    if (typeof this.currentThrottlerResolver === 'function' && this.currentRequestsPerDay < this.maxRequestsPerDay) {
       this.currentThrottlerResolver(null);
     }
     this.currentThrottlerPromise = new Promise((resolve) => {

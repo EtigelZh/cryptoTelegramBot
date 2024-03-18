@@ -8,7 +8,13 @@ import { GoogleDriveModule } from '../google-sheet/google-drive.module';
 import { inspect } from 'util';
 import { ProcessingWalletsConsumer } from './processing-wallets.consumer';
 import { BullModule } from '@nestjs/bull';
-
+import { telegramQueueName, walletQueueName } from './queues';
+import { TelegramConsumer } from './telegram.consumer';
+import { GoogleSheetsConsumer, googleSheetsApiQueueName } from './google-sheets.consumer';
+import { GoogleDriveConsumer, googleDriveQueueName } from './google-drive.consumer';
+import { CacheModule } from '@nestjs/cache-manager';
+import { redisStore } from 'cache-manager-redis-store';
+import type { RedisClientOptions } from 'redis';
 @Module({})
 export class TelegrafModule {
   static register() {
@@ -18,7 +24,55 @@ export class TelegrafModule {
         ZerionApiModule,
         GoogleDriveModule,
         BullModule.registerQueue({
-          name: 'processingWallet',
+          name: walletQueueName,
+          defaultJobOptions: {
+            removeOnComplete: true,
+          },
+        }),
+        BullModule.registerQueue({
+          name: telegramQueueName,
+          limiter: {
+            max: 20, // Максимальное количество задач, которые могут быть обработаны
+            duration: 1000, // Период в миллисекундах (60 секунд)
+          },
+          defaultJobOptions: {
+            removeOnComplete: true,
+          },
+        }),
+        BullModule.registerQueue({
+          name: googleDriveQueueName,
+          limiter: {
+            max: 60,
+            duration: 60_000,
+          },
+          defaultJobOptions: {
+            removeOnComplete: true,
+          },
+        }),
+        BullModule.registerQueue({
+          name: googleSheetsApiQueueName,
+          limiter: {
+            max: 300,
+            duration: 60_000,
+          },
+          defaultJobOptions: {
+            removeOnComplete: true,
+          },
+        }),
+        CacheModule.registerAsync({
+          imports: [AppConfigModule],
+          useFactory: async (appConfig: AppConfig) => {
+            const store = await redisStore({
+                url: appConfig.getRedisUrl(),
+                password: appConfig.getRedisConfig().password,
+                ttl: 60*60*24,
+            });
+            return {
+                store,
+                ttl: appConfig.cacheTTL,
+              } as RedisClientOptions
+          },
+          inject: [AppConfig],
         }),
       ],
       providers: [
@@ -34,7 +88,10 @@ export class TelegrafModule {
             return bot;
           },
         },
+        TelegramConsumer,
         ProcessingWalletsConsumer,
+        GoogleDriveConsumer,
+        GoogleSheetsConsumer,
         TelegramBotService,
       ],
       exports: [TelegramBotService],

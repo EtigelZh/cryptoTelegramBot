@@ -5,7 +5,7 @@ import { GoogleSheetsModule } from './google-sheets/google-sheets.module';
 
 @Module({
   imports: [
-    GoogleSheetsModule.register(GS_CREDENTIALS)
+    GoogleSheetsModule.register(GS_CREDENTIALS),
   ],
   providers: [GoogleDriveService],
   exports: [GoogleDriveService, GoogleSheetsModule],

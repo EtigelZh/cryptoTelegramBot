@@ -1,9 +1,6 @@
-import { Process, Processor } from '@nestjs/bull';
-import { Inject, Logger } from '@nestjs/common';
-import { TELEGRAF } from './telegraf.token';
-import { Telegraf } from 'telegraf';
-import { GoogleSheetsService } from '../google-sheet/google-sheets/google-sheets.service';
-import { GoogleDriveService } from '../google-sheet/google-drive.service';
+import { InjectQueue, Process, Processor } from '@nestjs/bull';
+import { Logger } from '@nestjs/common';
+import { FinanceData, GoogleSheetsService } from '../google-sheet/google-sheets/google-sheets.service';
 import {
   RequestErrorData,
   ZerionApiService,
@@ -11,17 +8,19 @@ import {
 import { AppConfig } from '../app.config';
 import { AxiosError } from 'axios';
 import { inspect } from 'util';
-import { Job } from 'bull';
+import { Job, Queue } from 'bull';
+import { telegramQueueName, walletQueueName } from './queues';
+import { CreateOrUpdateWalletArgs, FillFinanceDataFromSheetsArgs, UpdateSheetValuesArgs, googleSheetsApiQueueName } from './google-sheets.consumer';
+import { googleDriveQueueName } from './google-drive.consumer';
 
-@Processor('processingWallet')
+@Processor(walletQueueName)
 export class ProcessingWalletsConsumer {
   constructor(
     private readonly appConfig: AppConfig,
     private readonly zerionService: ZerionApiService,
-    private readonly googleDrive: GoogleDriveService,
-    private readonly googleSheets: GoogleSheetsService,
-    @Inject(TELEGRAF)
-    private readonly bot: Telegraf
+    @InjectQueue(telegramQueueName) private telegramQueue: Queue,
+    @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
+    @InjectQueue(googleDriveQueueName) private _googleDriveQueue: Queue,
   ) {}
 
   @Process({
@@ -44,23 +43,99 @@ export class ProcessingWalletsConsumer {
     );
   }
 
+  private async _sendMessage(chatId: number, message: string): Promise<{ message_id: number }> {
+    const job = await this.telegramQueue.add('sendMessage',{
+      chatId,
+      message,
+    }, { removeOnComplete: true });
+
+    return job.finished();
+  }
+
+  private async _editMessageText(
+    chatId: number,
+    message: string,
+    messageId: number,
+    inlineMessageId?: string
+  ) {
+    const jobId = `${chatId}-${messageId}`;
+    try {
+      const foundJob = await this.telegramQueue.getJob(jobId);
+      if (foundJob && await foundJob.isWaiting()) {
+        Logger.log(`Removing old job ${jobId}`);
+        try {
+          await foundJob.remove();
+        } catch (e) {
+          Logger.error(`Error removing old job: ${e}`);
+        }
+       
+      }
+      // remove old jobs for update
+      const job = await this.telegramQueue.add('editMessageText', {
+        chatId,
+        message,
+        messageId,
+        inlineMessageId,
+      }, { removeOnComplete: true, jobId: `${chatId}-${messageId}` });
+  
+      return job;
+    } catch (e) {
+      Logger.error(`Error editing message: ${e}`);
+    }
+  }
+
+  private async _copySpreadSheet(newSheetName: string) {
+    const job = await this._googleDriveQueue.add('copySpreadSheet', {
+      templateGoogleSheetId: this.appConfig.templateGoogleSheetId,
+      newSheetName,
+      targetGoogleSheetDirectoryId: this.appConfig.targetGoogleSheetDirectoryId
+    })
+    return await job.finished();
+  }
+
+  private async _updateSheetValues(spreadsheetId: string,
+    range: string,
+    valueInputOption: 'USER_ENTERED' | 'RAW',
+    requestBody: unknown) {
+    const job = await this._googleSheetsQueue.add('sheetValuesUpdate', <UpdateSheetValuesArgs>{
+      spreadsheetId,
+      range,
+      valueInputOption,
+      requestBody,
+    });
+    return job;
+  }
+
+  private async _updateOrAddWallet(walletHash: string, summary7days: FinanceData, summary30days: FinanceData) {
+    const job = await this._googleSheetsQueue.add('createOrUpdateWallet', <CreateOrUpdateWalletArgs>{
+      spreadsheetId: this.appConfig.summaryWalletsSheetId,
+      walletHash,
+      walletData: [
+        summary7days,
+        summary30days,
+      ],
+    });
+    return job;
+  }
+
+  private async _fillFinanceDataFromSheets(spreadsheetId: string, walletHash: string, sheetName: string): Promise<FinanceData> {
+    const job = await this._googleSheetsQueue.add('fillFinanceDataFromSheets', <FillFinanceDataFromSheetsArgs>{
+      spreadsheetId,
+      walletHash,
+      sheetName,
+    });
+    return job.finished();
+  }
+
   private async createOrUpdateLastMessage(
     lastMessageId: number | null,
     messageText: string,
     chatId: number
   ): Promise<number> {
     if (lastMessageId) {
-      await this.bot.telegram.editMessageText(
-        chatId,
-        lastMessageId,
-        null,
-        messageText
-      );
+      await this._editMessageText(chatId, messageText, lastMessageId);
     } else {
-      const sentMessage = await this.bot.telegram.sendMessage(
-        chatId,
-        messageText
-      );
+      const sentMessage = await this._sendMessage(chatId, messageText);
       lastMessageId = sentMessage.message_id;
     }
     return lastMessageId;
@@ -115,7 +190,7 @@ export class ProcessingWalletsConsumer {
         1000
       );
       if (transactions.error) {
-        await this.bot.telegram.sendMessage(
+        await this._sendMessage(
           chatId,
           `Ошибка при скачивании транзакций: ${this.formatErrorMessage(
             transactions.error
@@ -131,7 +206,7 @@ export class ProcessingWalletsConsumer {
         const errorMessages = csvData.errors
           .map((error) => `Строка ${error.rowIndex}: ${error.message}`)
           .join('\n');
-        this.bot.telegram.sendMessage(
+        this._sendMessage(
           chatId,
           `Ошибка при трансформации csv транзакций: ${errorMessages}`
         );
@@ -147,7 +222,7 @@ export class ProcessingWalletsConsumer {
         Logger.error(
           `Error fetching transactions for wallet ${walletHash}: ${error}`
         );
-        this.bot.telegram.sendMessage(
+        this._sendMessage(
           chatId,
           `Ошибка при скачивании текущего потфеля: ${this.formatErrorMessage(
             error
@@ -163,60 +238,59 @@ export class ProcessingWalletsConsumer {
         transactions.data[0]?.attributes?.mined_at || new Date().toISOString()
       ).substring(0, 10);
       const now = new Date().toISOString().substr(0, 16).replace('T', ' ');
-      const document = await this.googleDrive.copySpreadsheet(
-        this.appConfig.templateGoogleSheetId,
-        `выгрузка от ${now} транзакции с ${startTransactionDate} по ${endTransactionDate} кошелек - ${walletHash}`,
-        this.appConfig.targetGoogleSheetDirectoryId
-      );
+      const document = await this._copySpreadSheet(`выгрузка от ${now} транзакции с ${startTransactionDate} по ${endTransactionDate} кошелек - ${walletHash}`);
+      
       const url = `https://docs.google.com/spreadsheets/d/${document.id}/edit`;
-
-      const sheetsApi = this.googleSheets.getSheetConnect();
 
       const updatingData = csvData.data.slice(1);
 
-      await sheetsApi.spreadsheets.values.update({
-        spreadsheetId: document.id,
-        range: 'Исходник!A2',
-        valueInputOption: 'USER_ENTERED',
-        requestBody: {
+      const job = await this._updateSheetValues(
+        document.id,
+        'Исходник!A2',
+        'USER_ENTERED',
+        {
           values: updatingData,
         },
-      });
-
+      );
+      // TODO над построением графа вычислений
+      const updates = [
+        job.finished(),
+      ];
       if (fungiblePositionsCsv.length) {
-        await sheetsApi.spreadsheets.values.update({
-          spreadsheetId: document.id,
-          range: 'Портфель исходник!A2',
-          valueInputOption: 'USER_ENTERED',
-          requestBody: {
+        const job = await this._updateSheetValues(
+          document.id,
+          'Портфель исходник!A2',
+          'USER_ENTERED',
+          {
             values: fungiblePositionsCsv,
-          },
-        });
+          }
+        );
+        updates.push(job.finished());
       }
-      await this.createOrUpdateLastMessage(
+      updates.push(this.createOrUpdateLastMessage(
         lastApiCallMessageId,
         lastText + `\nСоздан новый документ: ${url}\n`,
         chatId
-      );
+      ));
+      await Promise.allSettled(updates);
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      const summary7days = await this.googleSheets.fillFinanceDataFromSheets(
-        document.id,
-        walletHash,
-        'Анализ 7 дней',
-        sheetsApi
-      );
-      const summary30days = await this.googleSheets.fillFinanceDataFromSheets(
-        document.id,
-        walletHash,
-        'Анализ 30 дней',
-        sheetsApi
-      );
+      const [summary7days, summary30days] = await Promise.all([
+        this._fillFinanceDataFromSheets(
+          document.id,
+          walletHash,
+          'Анализ 7 дней',
+        ),
+        this._fillFinanceDataFromSheets(
+          document.id,
+          walletHash,
+          'Анализ 30 дней',
+        ),
+      ]);
 
-      await this.googleSheets.updateOrAddWallet(
-        this.appConfig.summaryWalletsSheetId,
+      await this._updateOrAddWallet(
         walletHash,
-        [summary7days, summary30days],
-        sheetsApi
+        summary7days, 
+        summary30days,
       );
       return {
         summarySheetUpdated: true,
@@ -225,7 +299,7 @@ export class ProcessingWalletsConsumer {
       Logger.error(
         `Error fetching transactions for wallet ${walletHash}: ${error}`
       );
-      this.bot.telegram.sendMessage(
+      this._sendMessage(
         chatId,
         `Ошибка при скачивании транзакций: ${this.formatErrorMessage(error)}`
       );

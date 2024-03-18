@@ -7,6 +7,9 @@ import { WithSentryPerformance } from '../utils/sentry-performance';
 import { TELEGRAF } from './telegraf.token';
 import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
+import { walletQueueName } from './queues';
+import { GetOldWalletsArgs, googleSheetsApiQueueName } from './google-sheets.consumer';
+import { ZerionApiService } from '../zerion-api/zerion-api.service';
 
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
@@ -21,10 +24,10 @@ export class TelegramBotService implements OnModuleInit {
     private readonly appConfig: AppConfig,
     @Inject(TELEGRAF)
     private readonly bot: Telegraf,
-    @InjectQueue('processingWallet') private processingWalletQueue: Queue
-  ) {
-    
-  }
+    @InjectQueue(walletQueueName) private _processingWalletQueue: Queue,
+    @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
+    private _zerionApi: ZerionApiService,
+  ) {}
 
   onModuleInit() {
     this.initializeBotCommands();
@@ -38,8 +41,27 @@ export class TelegramBotService implements OnModuleInit {
   private initializeBotCommands(): void {
     this.bot.command('start', this.handleStartCommand.bind(this));
     this.bot.command('transactions', this.handleTransactionsCommand.bind(this));
+    this.bot.command('update_old_wallets', this.handleUpdateOldWalletsCommand.bind(this));
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
+
+  private async handleUpdateOldWalletsCommand(ctx: Context<MountMap['text']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await ctx.reply('Работа бота доступна только для избранных.');
+    }
+    const numberOfWalletsToUpdate = this._zerionApi.getEstimateAvailableProcessingWallets();
+    await ctx.reply(`Получаем кошельки для обработки. Всего можем обновить кошельков сегодня: ${numberOfWalletsToUpdate}`);
+    const job = await this._googleSheetsQueue.add('getOldWallets', <GetOldWalletsArgs>{
+      spreadsheetId: this.appConfig.summaryWalletsSheetId,
+      numberOfWalletsToUpdate, 
+    }, { removeOnComplete: true });
+    const oldWallets = await job.finished();
+    
+    await ctx.reply(`Добавлены кошельки в очередь на обработку. Всего кошельков: ${oldWallets.length}`);
+
+    await this._processWallets(oldWallets, ctx);
+  }
+
 
   private async handlePossibleWalletHash(
     ctx: Context<MountMap['text']>
@@ -77,6 +99,11 @@ export class TelegramBotService implements OnModuleInit {
     if (!matchedHash?.length) {
       return ctx.reply(`Не указан ни один hash кошелька. ${example}`);
     }
+    await this._processWallets(matchedHash, ctx);
+    
+  }
+
+  private async _processWallets(matchedHash: string[], ctx: Context<MountMap['text'] & MountMap['message']>) {
     const jobResults = [];
     for (const walletHash of matchedHash) {
       const index = matchedHash.indexOf(walletHash);
@@ -94,7 +121,7 @@ export class TelegramBotService implements OnModuleInit {
         Logger.log(`Error sending message: ${e}`);
       }
       
-      const job = await this.processingWalletQueue.add('process', {
+      const job = await this._processingWalletQueue.add('process', {
         walletHash, chatId: ctx.chat.id, suffix, parentMessageId
       }, { removeOnComplete: true });
       jobResults.push(job.finished());
