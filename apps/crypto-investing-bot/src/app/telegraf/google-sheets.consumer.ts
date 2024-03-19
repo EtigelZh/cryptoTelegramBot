@@ -126,7 +126,7 @@ export class GoogleSheetsConsumer {
         // Добавление нового кошелька, если он не найден
         await sheetsApi.spreadsheets.values.append({
           spreadsheetId,
-          range: `${range}!A`, // Допускается использование всего диапазона для добавления
+          range: `${range}!A:AX`, // Допускается использование всего диапазона для добавления
           valueInputOption: 'USER_ENTERED',
           requestBody: {
             values: [this._googleSheets.mapItems(walletData[0], walletData[1], true)],
