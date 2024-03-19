@@ -1,6 +1,6 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import { FinanceData, GoogleSheetsService } from '../google-sheet/google-sheets/google-sheets.service';
+import { FinanceData } from '../google-sheet/google-sheets/google-sheets.service';
 import {
   RequestErrorData,
   ZerionApiService,
@@ -9,23 +9,30 @@ import { AppConfig } from '../app.config';
 import { AxiosError } from 'axios';
 import { inspect } from 'util';
 import { Job, Queue } from 'bull';
-import { telegramQueueName, walletQueueName } from './queues';
-import { CreateOrUpdateWalletArgs, FillFinanceDataFromSheetsArgs, UpdateSheetValuesArgs, googleSheetsApiQueueName } from './google-sheets.consumer';
+import { walletQueueName } from './queues';
+import {
+  CreateOrUpdateWalletArgs,
+  FillFinanceDataFromSheetsArgs,
+  UpdateSheetValuesArgs,
+  googleSheetsApiQueueName,
+} from './google-sheets.consumer';
 import { googleDriveQueueName } from './google-drive.consumer';
+import { TelegramJobApiService } from './telegram-job-api.service';
 
 @Processor(walletQueueName)
 export class ProcessingWalletsConsumer {
   constructor(
     private readonly appConfig: AppConfig,
     private readonly zerionService: ZerionApiService,
-    @InjectQueue(telegramQueueName) private telegramQueue: Queue,
+    private readonly telegramJobApiService: TelegramJobApiService,
+
     @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
-    @InjectQueue(googleDriveQueueName) private _googleDriveQueue: Queue,
+    @InjectQueue(googleDriveQueueName) private _googleDriveQueue: Queue
   ) {}
 
   @Process({
     name: 'process',
-    concurrency: +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4),
+    concurrency: AppConfig.walletProcessorConcurrency,
   })
   async process(
     job: Job<{
@@ -43,61 +50,24 @@ export class ProcessingWalletsConsumer {
     );
   }
 
-  private async _sendMessage(chatId: number, message: string): Promise<{ message_id: number }> {
-    const job = await this.telegramQueue.add('sendMessage',{
-      chatId,
-      message,
-    }, { removeOnComplete: true });
-
-    return job.finished();
-  }
-
-  private async _editMessageText(
-    chatId: number,
-    message: string,
-    messageId: number,
-    inlineMessageId?: string
-  ) {
-    const jobId = `${chatId}-${messageId}`;
-    try {
-      const foundJob = await this.telegramQueue.getJob(jobId);
-      if (foundJob && await foundJob.isWaiting()) {
-        Logger.log(`Removing old job ${jobId}`);
-        try {
-          await foundJob.remove();
-        } catch (e) {
-          Logger.error(`Error removing old job: ${e}`);
-        }
-       
-      }
-      // remove old jobs for update
-      const job = await this.telegramQueue.add('editMessageText', {
-        chatId,
-        message,
-        messageId,
-        inlineMessageId,
-      }, { removeOnComplete: true, jobId: `${chatId}-${messageId}` });
-  
-      return job;
-    } catch (e) {
-      Logger.error(`Error editing message: ${e}`);
-    }
-  }
-
   private async _copySpreadSheet(newSheetName: string) {
     const job = await this._googleDriveQueue.add('copySpreadSheet', {
       templateGoogleSheetId: this.appConfig.templateGoogleSheetId,
       newSheetName,
-      targetGoogleSheetDirectoryId: this.appConfig.targetGoogleSheetDirectoryId
-    })
+      targetGoogleSheetDirectoryId: this.appConfig.targetGoogleSheetDirectoryId,
+    });
     return await job.finished();
   }
 
-  private async _updateSheetValues(spreadsheetId: string,
+  private async _updateSheetValues(
+    spreadsheetId: string,
     range: string,
     valueInputOption: 'USER_ENTERED' | 'RAW',
-    requestBody: unknown) {
-    const job = await this._googleSheetsQueue.add('sheetValuesUpdate', <UpdateSheetValuesArgs>{
+    requestBody: unknown
+  ) {
+    const job = await this._googleSheetsQueue.add('sheetValuesUpdate', <
+      UpdateSheetValuesArgs
+    >{
       spreadsheetId,
       range,
       valueInputOption,
@@ -106,20 +76,31 @@ export class ProcessingWalletsConsumer {
     return job;
   }
 
-  private async _updateOrAddWallet(walletHash: string, summary7days: FinanceData, summary30days: FinanceData) {
-    const job = await this._googleSheetsQueue.add('createOrUpdateWallet', <CreateOrUpdateWalletArgs>{
+  private async _updateOrAddWallet(
+    walletHash: string,
+    summary7days: FinanceData | null,
+    summary30days: FinanceData | null,
+    error?: [string, 'HTTP_400' | 'HTTP' | 'OTHER'],
+  ) {
+    const job = await this._googleSheetsQueue.add('createOrUpdateWallet', <
+      CreateOrUpdateWalletArgs
+    >{
       spreadsheetId: this.appConfig.summaryWalletsSheetId,
       walletHash,
-      walletData: [
-        summary7days,
-        summary30days,
-      ],
+      walletData: [summary7days, summary30days],
+      error,
     });
     return job;
   }
 
-  private async _fillFinanceDataFromSheets(spreadsheetId: string, walletHash: string, sheetName: string): Promise<FinanceData> {
-    const job = await this._googleSheetsQueue.add('fillFinanceDataFromSheets', <FillFinanceDataFromSheetsArgs>{
+  private async _fillFinanceDataFromSheets(
+    spreadsheetId: string,
+    walletHash: string,
+    sheetName: string
+  ): Promise<FinanceData> {
+    const job = await this._googleSheetsQueue.add('fillFinanceDataFromSheets', <
+      FillFinanceDataFromSheetsArgs
+    >{
       spreadsheetId,
       walletHash,
       sheetName,
@@ -133,9 +114,16 @@ export class ProcessingWalletsConsumer {
     chatId: number
   ): Promise<number> {
     if (lastMessageId) {
-      await this._editMessageText(chatId, messageText, lastMessageId);
+      await this.telegramJobApiService.editMessageText(
+        chatId,
+        messageText,
+        lastMessageId
+      );
     } else {
-      const sentMessage = await this._sendMessage(chatId, messageText);
+      const sentMessage = await this.telegramJobApiService.sendMessage(
+        chatId,
+        messageText
+      );
       lastMessageId = sentMessage.message_id;
     }
     return lastMessageId;
@@ -147,14 +135,16 @@ export class ProcessingWalletsConsumer {
     suffix: string,
     parentMessageId: number | null
   ): Promise<{ summarySheetUpdated?: boolean }> {
+    const globalPrefix = `Скачиваю транзакции для кошелька ${walletHash}. ${suffix}`;
+    let lastApiCallMessageId = parentMessageId;
+    let lastText = globalPrefix;
     try {
-      const globalPrefix = `Скачиваю транзакции для кошелька ${walletHash}. ${suffix}`;
-      let lastApiCallMessageId = await this.createOrUpdateLastMessage(
+      lastApiCallMessageId = await this.createOrUpdateLastMessage(
         parentMessageId,
         globalPrefix,
         chatId
       );
-      let lastText = null;
+      
       const transactions = await this.zerionService.getTransactions(
         walletHash,
         async (
@@ -190,12 +180,16 @@ export class ProcessingWalletsConsumer {
         1000
       );
       if (transactions.error) {
-        await this._sendMessage(
+        const [text, status] = this.formatErrorMessage(transactions.error);
+        this.createOrUpdateLastMessage(
+          lastApiCallMessageId,
+          `${lastText}\nОшибка при скачивании транзакций: ${text} ${status}`,
           chatId,
-          `Ошибка при скачивании транзакций: ${this.formatErrorMessage(
-            transactions.error
-          )}`
         );
+
+        if (status === 'HTTP_400') {
+          await this._updateOrAddWallet(walletHash, null, null, [text, status]);
+        }
 
         return {};
       }
@@ -206,9 +200,10 @@ export class ProcessingWalletsConsumer {
         const errorMessages = csvData.errors
           .map((error) => `Строка ${error.rowIndex}: ${error.message}`)
           .join('\n');
-        this._sendMessage(
-          chatId,
-          `Ошибка при трансформации csv транзакций: ${errorMessages}`
+          this.createOrUpdateLastMessage(
+            lastApiCallMessageId,
+            `${lastText}\nОшибка при трансформации csv транзакций: ${errorMessages}`,
+            chatId,
         );
 
         return {};
@@ -222,11 +217,12 @@ export class ProcessingWalletsConsumer {
         Logger.error(
           `Error fetching transactions for wallet ${walletHash}: ${error}`
         );
-        this._sendMessage(
-          chatId,
-          `Ошибка при скачивании текущего потфеля: ${this.formatErrorMessage(
+        this.createOrUpdateLastMessage(
+          lastApiCallMessageId,
+          `${lastText}\nОшибка при скачивании текущего потфеля: ${this.formatErrorMessage(
             error
-          )}`
+          )}`,
+          chatId
         );
       }
 
@@ -238,8 +234,10 @@ export class ProcessingWalletsConsumer {
         transactions.data[0]?.attributes?.mined_at || new Date().toISOString()
       ).substring(0, 10);
       const now = new Date().toISOString().substr(0, 16).replace('T', ' ');
-      const document = await this._copySpreadSheet(`выгрузка от ${now} транзакции с ${startTransactionDate} по ${endTransactionDate} кошелек - ${walletHash}`);
-      
+      const document = await this._copySpreadSheet(
+        `выгрузка от ${now} транзакции с ${startTransactionDate} по ${endTransactionDate} кошелек - ${walletHash}`
+      );
+
       const url = `https://docs.google.com/spreadsheets/d/${document.id}/edit`;
 
       const updatingData = csvData.data.slice(1);
@@ -250,12 +248,10 @@ export class ProcessingWalletsConsumer {
         'USER_ENTERED',
         {
           values: updatingData,
-        },
+        }
       );
       // TODO над построением графа вычислений
-      const updates = [
-        job.finished(),
-      ];
+      const updates = [job.finished()];
       if (fungiblePositionsCsv.length) {
         const job = await this._updateSheetValues(
           document.id,
@@ -267,31 +263,29 @@ export class ProcessingWalletsConsumer {
         );
         updates.push(job.finished());
       }
-      updates.push(this.createOrUpdateLastMessage(
-        lastApiCallMessageId,
-        lastText + `\nСоздан новый документ: ${url}\n`,
-        chatId
-      ));
+      updates.push(
+        this.createOrUpdateLastMessage(
+          lastApiCallMessageId,
+          lastText + `\nСоздан новый документ: ${url}\n`,
+          chatId
+        )
+      );
       await Promise.allSettled(updates);
       await new Promise((resolve) => setTimeout(resolve, 1000));
       const [summary7days, summary30days] = await Promise.all([
         this._fillFinanceDataFromSheets(
           document.id,
           walletHash,
-          'Анализ 7 дней',
+          'Анализ 7 дней'
         ),
         this._fillFinanceDataFromSheets(
           document.id,
           walletHash,
-          'Анализ 30 дней',
+          'Анализ 30 дней'
         ),
       ]);
 
-      await this._updateOrAddWallet(
-        walletHash,
-        summary7days, 
-        summary30days,
-      );
+      await this._updateOrAddWallet(walletHash, summary7days, summary30days);
       return {
         summarySheetUpdated: true,
       };
@@ -299,16 +293,17 @@ export class ProcessingWalletsConsumer {
       Logger.error(
         `Error fetching transactions for wallet ${walletHash}: ${error}`
       );
-      this._sendMessage(
-        chatId,
-        `Ошибка при скачивании транзакций: ${this.formatErrorMessage(error)}`
+      this.createOrUpdateLastMessage(
+        lastApiCallMessageId,
+        `${lastText}\nОшибка при скачивании транзакций: ${this.formatErrorMessage(error)}`,
+        chatId
       );
     }
   }
 
   private formatErrorMessage(
     error: Error | AxiosError<RequestErrorData>
-  ): string {
+  ): [string, 'HTTP_400' | 'HTTP' | 'OTHER'] {
     if (
       this.isAxiosError(error) &&
       error.response &&
@@ -318,11 +313,11 @@ export class ProcessingWalletsConsumer {
       const fullError = inspect(error.response.data.errors);
       console.log('error.response.data.message', fullError);
 
-      return `Ошибка API запроса: ${fullError.substring(0, 256)} Стаутс код: ${
+      return [`Ошибка API запроса: ${fullError.substring(0, 256)} Стаутс код: ${
         error.response.statusText
-      } ${error.response.status} API `;
+      } ${error.response.status} API`, error.response.status === 400 ? 'HTTP_400' : 'HTTP'];
     }
-    return error?.toString() || String(error);
+    return [error?.toString() || String(error), 'OTHER'];
   }
 
   private isAxiosError(error: Error): error is AxiosError<RequestErrorData> {

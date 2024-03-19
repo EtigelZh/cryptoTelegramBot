@@ -14,6 +14,7 @@ import {
 } from './google-sheets.consumer';
 import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { Cron } from '@nestjs/schedule';
+import { TelegramJobApiService } from './telegram-job-api.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -27,7 +28,8 @@ export class TelegramBotService implements OnModuleInit {
     private readonly bot: Telegraf,
     @InjectQueue(walletQueueName) private _processingWalletQueue: Queue,
     @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
-    private _zerionApi: ZerionApiService
+    private _zerionApi: ZerionApiService,
+    private _telegramJobApiService: TelegramJobApiService
   ) {}
 
   onModuleInit() {
@@ -53,11 +55,16 @@ export class TelegramBotService implements OnModuleInit {
     ctx: Context<MountMap['text']>
   ): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
-      await ctx.reply('Работа бота доступна только для избранных.');
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
     }
     const numberOfWalletsToUpdate =
       this._zerionApi.getEstimateAvailableProcessingWallets();
-    await ctx.reply(
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
       `Получаем кошельки для обработки. Всего можем обновить кошельков сегодня: ${numberOfWalletsToUpdate}`
     );
     const job = await this._googleSheetsQueue.add(
@@ -70,7 +77,8 @@ export class TelegramBotService implements OnModuleInit {
     );
     const oldWallets = await job.finished();
 
-    await ctx.reply(
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
       `Добавлены кошельки в очередь на обработку. Всего кошельков: ${oldWallets.length}`
     );
 
@@ -91,10 +99,15 @@ export class TelegramBotService implements OnModuleInit {
 
   private async handleStartCommand(ctx): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
-      return ctx.reply('Работа бота доступна только для избранных.');
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
     }
 
-    ctx.reply(
+    this._telegramJobApiService.sendMessage(
+      ctx.from.id,
       `[${ctx.from?.id}] Отправь мне команду /transactions <hash_кошелька>, <hash_кошелька> чтобы я отправил аналитику по транзакциям. ${example}`
     );
   }
@@ -104,17 +117,24 @@ export class TelegramBotService implements OnModuleInit {
     ctx: Context<MountMap['text'] & MountMap['message']>
   ): Promise<unknown> {
     if (!this.isAdminUser(ctx.from?.id)) {
-      return ctx.reply('Работа бота доступна только для избранных.');
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
     }
 
     const matchedHash = ctx.message.text.match(walletHashRegex);
     if (!matchedHash?.length) {
-      return ctx.reply(`Не указан ни один hash кошелька. ${example}`);
+      return await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один hash кошелька. ${example}`
+      );
     }
     await this._processWallets(matchedHash, ctx);
   }
 
-  @Cron('0 22 * * *')
+  @Cron(AppConfig.updateOldWalletsCron)
   async updateOldWallets() {
     const numberOfWalletsToUpdate = Math.floor(
       this._zerionApi.getEstimateAvailableProcessingWallets() / 2
@@ -136,10 +156,9 @@ export class TelegramBotService implements OnModuleInit {
         suffix = `(${index + 1} из ${oldWallets.length})`;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
       let parentMessageId = null;
       try {
-        const message = await this.bot.telegram.sendMessage(
+        const message = await this._telegramJobApiService.sendMessage(
           this.appConfig.dailyUpdateReportChatId,
           `Кошелек ${walletHash} добавлен в очередь ${suffix}`
         );
@@ -172,11 +191,10 @@ export class TelegramBotService implements OnModuleInit {
       if (matchedHash.length > 1) {
         suffix = `(${index + 1} из ${matchedHash.length})`;
       }
-      // Таймаут что бы не получать 429 ошибку от API телеграмма
-      await new Promise((resolve) => setTimeout(resolve, 500));
       let parentMessageId = null;
       try {
-        const message = await ctx.reply(
+        const message = await this._telegramJobApiService.sendMessage(
+          ctx.from.id,
           `Кошелек ${walletHash} добавлен в очередь ${suffix}`
         );
         parentMessageId = message.message_id;
@@ -202,7 +220,8 @@ export class TelegramBotService implements OnModuleInit {
         res.status === 'fulfilled' && res.value?.summarySheetUpdated === true
     );
     if (summarySheetUpdated) {
-      ctx.reply(
+      this._telegramJobApiService.sendMessage(
+        ctx.from.id,
         `Обновлены данные в общей таблице https://docs.google.com/spreadsheets/d/${this.appConfig.summaryWalletsSheetId}/edit`
       );
     }

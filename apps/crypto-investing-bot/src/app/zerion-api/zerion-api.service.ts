@@ -335,7 +335,7 @@ export class ZerionApiService implements OnModuleDestroy {
   }
 
   getEstimateAvailableProcessingWallets(): number {
-    return Math.max(Math.floor(((this.maxRequestsPerDay - this.currentRequestsPerDay) / 10) - 10), 0);
+    return Math.min(Math.max(Math.floor(((this.maxRequestsPerDay - this.currentRequestsPerDay) / 10) - 10), 0), this.config.maxWalletsToUpdate);
   }
 
   async saveCounters() {

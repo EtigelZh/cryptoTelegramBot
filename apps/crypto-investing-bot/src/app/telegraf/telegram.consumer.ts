@@ -4,6 +4,7 @@ import { Inject } from '@nestjs/common';
 import { TELEGRAF } from './telegraf.token';
 import { Telegraf } from 'telegraf';
 import { Job } from 'bull';
+import { AppConfig } from '../app.config';
 
 @Processor(telegramQueueName)
 export class TelegramConsumer {
@@ -14,7 +15,7 @@ export class TelegramConsumer {
 
   @Process({
     name: 'sendMessage',
-    concurrency: +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4),
+    concurrency: AppConfig.sendTelegramMessageProcessorConcurrency,
   })
   async sendMessage(
     job: Job<{
@@ -28,7 +29,7 @@ export class TelegramConsumer {
 
     @Process({
         name: 'editMessageText',
-        concurrency: +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4),
+        concurrency: AppConfig.updateTelegramMessageProcessorConcurrency,
     })
     async editMessageText(
         job: Job<{

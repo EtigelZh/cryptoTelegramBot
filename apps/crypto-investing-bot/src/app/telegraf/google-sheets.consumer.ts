@@ -23,8 +23,9 @@ export type UpdateSheetValuesArgs = {
 export type CreateOrUpdateWalletArgs = {
   spreadsheetId: string;
   walletHash: string;
-  walletData: [FinanceData, FinanceData];
-  sheetsApi: sheets_v4.Sheets;
+  walletData: [FinanceData | null, FinanceData | null];
+  error: [string, 'HTTP_400' | 'HTTP' | 'OTHER']
+
 };
 
 export type FillFinanceDataFromSheetsArgs = {
@@ -99,6 +100,18 @@ export class GoogleSheetsConsumer {
         }
       });
 
+      if (Array.isArray(job.data.error) && job.data.error[1] === 'HTTP_400') {
+        await sheetsApi.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${range}!E${foundRowIndex + 1}`, // Нумерация строк начинается с 1
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [['NOT_TRACKABLE', null, this._googleSheets.getFormattedCurrentDate()]],
+          },
+        });
+        return;
+      }
+
       if (foundRowIndex !== null) {
         // Обновление данных кошелька, если он найден
         await sheetsApi.spreadsheets.values.update({
@@ -140,21 +153,24 @@ export class GoogleSheetsConsumer {
       const range = 'Лист1'; // Название вашего листа
       const response = await sheetsApi.spreadsheets.values.get({
         spreadsheetId,
-        range: `${range}!A1:C`, // Предполагается, что искомые данные находятся в колонках A-C
+        range: `${range}!A3:G`, // Предполагается, что искомые данные находятся в колонках A-C
       });
 
       const rows = response.data.values || [];
       
+      const lastUpdateDateIndex = 6;
+      const walletHashIndex = 0;
       // Преобразование дат и сортировка строк
       const walletsToUpdate = rows
+        .filter((row) => typeof row[walletHashIndex] === 'string' && row[walletHashIndex].startsWith('0x') && row[walletHashIndex].length === 42 && row[4] !== 'NOT_TRACKABLE')
         .map((row) => {
-          Logger.log(`ROW ${inspect(row)}`);
-          if (!row[2]) {
-            return { walletHash: row[0], updateDate: new Date() };
+          const walletHash = row[walletHashIndex];
+          if (!row[lastUpdateDateIndex]) {
+            return { walletHash, updateDate: new Date() };
           }
-          const [day, month, year] = row[2].split('.')
+          const [day, month, year] = row[lastUpdateDateIndex].split('.')
           return {
-            walletHash: row[0],
+            walletHash,
             updateDate: new Date(`${year}-${month}-${day}`),
           };
         })

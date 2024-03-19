@@ -16,6 +16,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-store';
 import type { RedisClientOptions } from 'redis';
 import { ScheduleModule } from '@nestjs/schedule';
+import { TelegramJobApiService } from './telegram-job-api.service';
 @Module({})
 export class TelegrafModule {
   static register() {
@@ -95,6 +96,7 @@ export class TelegrafModule {
         GoogleDriveConsumer,
         GoogleSheetsConsumer,
         TelegramBotService,
+        TelegramJobApiService,
       ],
       exports: [TelegramBotService],
       module: TelegrafModule,

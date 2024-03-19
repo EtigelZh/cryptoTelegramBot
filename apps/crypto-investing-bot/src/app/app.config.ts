@@ -63,6 +63,11 @@ process.on('unhandledRejection', (reason, promise) => {
 
 @Injectable()
 export class AppConfig {
+  static readonly walletProcessorConcurrency = +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4);
+  static readonly sendTelegramMessageProcessorConcurrency = +(process.env.SEND_TELEGRAM_MESSAGE_CONCURRENCY || 4);
+  static readonly updateTelegramMessageProcessorConcurrency = +(process.env.UPDATE_TELEGRAM_MESSAGE_CONCURRENCY || 4);
+  static readonly updateOldWalletsCron = process.env.UPDATE_OLD_WALLETS_CRON || '0 22 * * *';
+
   minioEndpoint: string = process.env.MINIO_ENDPOINT || '';
   minioEndpointPort: number = +(process.env.MINIO_ENDPOINT_PORT || 9000);
   minioAccessKey: string = process.env.MINIO_ACCESS_KEY || '';
@@ -72,7 +77,7 @@ export class AppConfig {
   coinmarketCupApiKey: string = process.env.COINMARKETCUP_API_KEY || '';
   zerionApiKey: string = process.env.ZERION_API_KEY || '';
   cacheTTL: number = +(process.env.CACHE_TTL || 60_000 * 60 * 24);
-  walletProcessorConcurrency: number = +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4);
+  maxWalletsToUpdate: number = +(process.env.MAX_WALLETS_TO_UPDATE || 5);
 
   summaryWalletsSheetId: string =
     process.env.SUMMARY_WALLETS_SHEET_ID ||
