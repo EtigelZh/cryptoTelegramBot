@@ -2,39 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import GoogleSheetConnectorDto from './dto/google-sheet-connector.dto';
 import { google, sheets_v4, drive_v3 } from 'googleapis';
 import { JWT } from 'google-auth-library';
-
-export type FinanceData = {
-  sourceDocumentId: string;
-  sourceLink: string;
-  walletHash: string;
-  walletAlias: string;
-  medianEntry: string;
-  avgLose: string;
-  avgWin: string;
-  medianPurchaseCount: string;
-  RR: string;
-  averageEntry: string;
-  medianLose: string;
-  medianWin: string;
-  tradedCoins: string;
-  balance: string;
-  copyTradingThreshold: string;
-  winRateRCT: string;
-  PLRCT: string;
-  lastTransactionDate: string;
-  tripleTransaction: string;
-  lastXDays: string;
-  winRateR: string;
-  PLR: string;
-  averageTermDays: string;
-  annualYieldR: string;
-  commissions: string;
-  winRateTotal: string;
-  PLTotal: string;
-  riskProfile: string;
-  annualYield: string;
-  averageCommission: string;
-};
+import { FinanceData } from './google-sheets.models';
 
 @Injectable()
 export class GoogleSheetsService {

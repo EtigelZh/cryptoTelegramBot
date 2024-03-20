@@ -1,15 +1,12 @@
 import { Process, Processor } from '@nestjs/bull';
-import {
-  FinanceData,
-  GoogleSheetsService,
-} from '../google-sheet/google-sheets/google-sheets.service';
+import { GoogleSheetsService } from '../google-sheet/google-sheets/google-sheets.service';
 import { Job } from 'bull';
-import { sheets_v4 } from 'googleapis/build/src/apis/sheets/v4';
 import { Inject, Logger } from '@nestjs/common';
 import { humanizeHash } from '../utils/humanized-hash';
 import Redis from 'ioredis';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
-import { inspect } from 'util';
+import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
+import { SaveToDbApiJobService } from './save-to-db.consumer';
 
 export const googleSheetsApiQueueName = 'googleApiQueue';
 
@@ -296,7 +293,7 @@ export class GoogleSheetsConsumer {
         PLRCT: valuesMap.PLRCT,
         winRateRCT: valuesMap.winRateRCT,
       };
-
+      
       return data;
     } catch (error) {
       Logger.error('fillFinanceDataFromSheets error', error);

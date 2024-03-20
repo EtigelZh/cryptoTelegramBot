@@ -1,7 +1,6 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import GoogleSheetConnectorDto from './dto/google-sheet-connector.dto';
 import { GoogleSheetsService } from './google-sheets.service';
-import { GoogleSheetsConsumer } from '../../telegraf/google-sheets.consumer';
 
 @Module({})
 export class GoogleSheetsModule {

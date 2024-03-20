@@ -1,6 +1,32 @@
 version: '3.7'
 
 services:
+  postgres:
+    image: "postgres:13-alpine"
+    hostname: "postgres"
+    networks:
+      - overlay
+    environment:
+      - POSTGRES_PASSWORD=fdgdfsgds
+      - POSTGRES_USER=invest_bot
+      - POSTGRES_DB=invest_bot_dev
+      - TZ="Europe/Moscow"
+    ports:
+      - '5449:5432'
+    volumes:
+      - 'postgres_data_vol:/var/lib/postgresql/data'
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin}
+    volumes:
+      - pgadmin:/root/.pgadmin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    networks:
+      - overlay
+    restart: unless-stopped
   redis-server:
     image: 'redis'
     ports:
@@ -19,5 +45,7 @@ services:
 
 volumes:
   redis_data:
+  postgres_data_vol:
+  pgadmin:
 networks:
   overlay:

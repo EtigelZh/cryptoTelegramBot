@@ -5,11 +5,17 @@ import { AppService } from './app.service';
 import { AppConfig, AppConfigModule } from './app.config';
 import { HealthModule } from './health/health.module';
 import { BullModule } from '@nestjs/bull';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 
 @Module({
   imports: [
     AppConfigModule,
+    TypeOrmModule.forRootAsync({
+      imports: [AppConfigModule],
+      useFactory: (appConfig: AppConfig) => appConfig.getDbConfig(),
+      inject: [AppConfig],
+    }),
     BullModule.forRootAsync({
       imports: [AppConfigModule],
       useFactory: (appConfig: AppConfig) => appConfig.getBullConfig(),

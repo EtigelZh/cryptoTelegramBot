@@ -3,10 +3,13 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "nx": "nx",
     "start": "nx serve crypto-investing-bot",
     "test": "nx test crypto-investing-bot",
     "test:crypto-investing-bot:unit": "nx test crypto-investing-bot",
     "build": "nx build crypto-investing-bot --configuration=production",
+    "typeorm:crypto-investing-bot": "nx run crypto-investing-bot:build:data-source",
+    "migration:crypto-investing-bot": "npm run typeorm:crypto-investing-bot && npx typeorm-ts-node-esm migration:generate -d ./dist/apps/crypto-investing-bot/main.js apps/crypto-investing-bot/src/app/migrations/${npm_config_migration_name}",
     "build:crypto-investing-bot": "nx build crypto-investing-bot --configuration=production"
   },
   "private": true,

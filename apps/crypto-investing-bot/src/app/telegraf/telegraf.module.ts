@@ -17,6 +17,8 @@ import { redisStore } from 'cache-manager-redis-store';
 import type { RedisClientOptions } from 'redis';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TelegramJobApiService } from './telegram-job-api.service';
+import { SaveToDbApiJobService, SaveToDbConsumer, saveToDbQueueName } from './save-to-db.consumer';
+import { AnalyticsModule } from '../analytics/analytics.module';
 @Module({})
 export class TelegrafModule {
   static register() {
@@ -25,6 +27,7 @@ export class TelegrafModule {
         AppConfigModule,
         ZerionApiModule,
         GoogleDriveModule,
+        AnalyticsModule,
         BullModule.registerQueue({
           name: walletQueueName,
           defaultJobOptions: {
@@ -61,6 +64,12 @@ export class TelegrafModule {
             removeOnComplete: true,
           },
         }),
+        BullModule.registerQueue({
+          name: saveToDbQueueName,
+          defaultJobOptions: {
+            removeOnComplete: true,
+          }
+        }),
         CacheModule.registerAsync({
           imports: [AppConfigModule],
           useFactory: async (appConfig: AppConfig) => {
@@ -95,6 +104,8 @@ export class TelegrafModule {
         ProcessingWalletsConsumer,
         GoogleDriveConsumer,
         GoogleSheetsConsumer,
+        SaveToDbConsumer,
+        SaveToDbApiJobService,
         TelegramBotService,
         TelegramJobApiService,
       ],

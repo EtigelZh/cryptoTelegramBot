@@ -1,6 +1,5 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import { FinanceData } from '../google-sheet/google-sheets/google-sheets.service';
 import {
   RequestErrorData,
   ZerionApiService,
@@ -18,13 +17,16 @@ import {
 } from './google-sheets.consumer';
 import { googleDriveQueueName } from './google-drive.consumer';
 import { TelegramJobApiService } from './telegram-job-api.service';
+import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
+import { SaveToDbApiJobService } from './save-to-db.consumer';
 
 @Processor(walletQueueName)
 export class ProcessingWalletsConsumer {
   constructor(
     private readonly appConfig: AppConfig,
     private readonly zerionService: ZerionApiService,
-    private readonly telegramJobApiService: TelegramJobApiService,
+    private readonly _telegramJobApiService: TelegramJobApiService,
+    private readonly _saveToDbApiJobService: SaveToDbApiJobService,
 
     @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
     @InjectQueue(googleDriveQueueName) private _googleDriveQueue: Queue
@@ -114,13 +116,13 @@ export class ProcessingWalletsConsumer {
     chatId: number
   ): Promise<number> {
     if (lastMessageId) {
-      await this.telegramJobApiService.editMessageText(
+      await this._telegramJobApiService.editMessageText(
         chatId,
         messageText,
         lastMessageId
       );
     } else {
-      const sentMessage = await this.telegramJobApiService.sendMessage(
+      const sentMessage = await this._telegramJobApiService.sendMessage(
         chatId,
         messageText
       );
@@ -283,6 +285,11 @@ export class ProcessingWalletsConsumer {
           walletHash,
           'Анализ 30 дней'
         ),
+      ]);
+
+      await Promise.allSettled([
+        this._saveToDbApiJobService.saveToDbFinancialData(summary7days),
+        this._saveToDbApiJobService.saveToDbFinancialData(summary30days),
       ]);
 
       await this._updateOrAddWallet(walletHash, summary7days, summary30days);
