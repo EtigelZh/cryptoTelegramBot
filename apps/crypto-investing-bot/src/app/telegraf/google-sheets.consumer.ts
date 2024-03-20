@@ -24,8 +24,7 @@ export type CreateOrUpdateWalletArgs = {
   spreadsheetId: string;
   walletHash: string;
   walletData: [FinanceData | null, FinanceData | null];
-  error: [string, 'HTTP_400' | 'HTTP' | 'OTHER']
-
+  error: [string, 'HTTP_400' | 'HTTP' | 'OTHER'];
 };
 
 export type FillFinanceDataFromSheetsArgs = {
@@ -34,7 +33,10 @@ export type FillFinanceDataFromSheetsArgs = {
   sheetName: string;
 };
 
-export type GetOldWalletsArgs = { spreadsheetId: string; numberOfWalletsToUpdate: number };
+export type GetOldWalletsArgs = {
+  spreadsheetId: string;
+  numberOfWalletsToUpdate: number;
+};
 
 type Range = typeof GoogleSheetsService.ranges;
 
@@ -106,7 +108,13 @@ export class GoogleSheetsConsumer {
           range: `${range}!E${foundRowIndex + 1}`, // Нумерация строк начинается с 1
           valueInputOption: 'USER_ENTERED',
           requestBody: {
-            values: [['NOT_TRACKABLE', null, this._googleSheets.getFormattedCurrentDate()]],
+            values: [
+              [
+                'NOT_TRACKABLE',
+                null,
+                this._googleSheets.getFormattedCurrentDate(),
+              ],
+            ],
           },
         });
         return;
@@ -126,10 +134,12 @@ export class GoogleSheetsConsumer {
         // Добавление нового кошелька, если он не найден
         await sheetsApi.spreadsheets.values.append({
           spreadsheetId,
-          range: `${range}!A:AX`, // Допускается использование всего диапазона для добавления
+          range: `${range}!A:BI`, // Допускается использование всего диапазона для добавления
           valueInputOption: 'USER_ENTERED',
           requestBody: {
-            values: [this._googleSheets.mapItems(walletData[0], walletData[1], true)],
+            values: [
+              this._googleSheets.mapItems(walletData[0], walletData[1], true),
+            ],
           },
         });
       }
@@ -143,9 +153,7 @@ export class GoogleSheetsConsumer {
     name: 'getOldWallets',
     concurrency: 1,
   })
-  async getOldWallets(
-    job: Job<GetOldWalletsArgs>
-  ): Promise<string[]> {
+  async getOldWallets(job: Job<GetOldWalletsArgs>): Promise<string[]> {
     const { spreadsheetId, numberOfWalletsToUpdate } = job.data;
 
     try {
@@ -157,18 +165,24 @@ export class GoogleSheetsConsumer {
       });
 
       const rows = response.data.values || [];
-      
+
       const lastUpdateDateIndex = 6;
       const walletHashIndex = 0;
       // Преобразование дат и сортировка строк
       const walletsToUpdate = rows
-        .filter((row) => typeof row[walletHashIndex] === 'string' && row[walletHashIndex].startsWith('0x') && row[walletHashIndex].length === 42 && row[4] !== 'NOT_TRACKABLE')
+        .filter(
+          (row) =>
+            typeof row[walletHashIndex] === 'string' &&
+            row[walletHashIndex].startsWith('0x') &&
+            row[walletHashIndex].length === 42 &&
+            row[4] !== 'NOT_TRACKABLE'
+        )
         .map((row) => {
           const walletHash = row[walletHashIndex];
           if (!row[lastUpdateDateIndex]) {
             return { walletHash, updateDate: new Date() };
           }
-          const [day, month, year] = row[lastUpdateDateIndex].split('.')
+          const [day, month, year] = row[lastUpdateDateIndex].split('.');
           return {
             walletHash,
             updateDate: new Date(`${year}-${month}-${day}`),
@@ -265,21 +279,22 @@ export class GoogleSheetsConsumer {
         medianLose: valuesMap.medianLose,
         medianWin: valuesMap.medianWin,
         tradedCoins: valuesMap.tradedCoins,
-        wallet: {
-          lastTransactionDate: valuesMap.lastTransactionDate,
-          tripleTransaction: valuesMap.tripleTransaction,
-          lastXDays: valuesMap.lastXDays,
-          winRateR: valuesMap.winRateR,
-          PLR: valuesMap.PLR,
-          averageTermDays: valuesMap.averageTermDays,
-          annualYieldR: valuesMap.annualYieldR,
-          commissions: valuesMap.commissions,
-          winRateTotal: valuesMap.winRateTotal,
-          PLTotal: valuesMap.PLTotal,
-          riskProfile: valuesMap.riskProfile,
-          annualYield: valuesMap.annualYield,
-          averageCommission: valuesMap.averageCommission,
-        },
+        lastTransactionDate: valuesMap.lastTransactionDate,
+        tripleTransaction: valuesMap.tripleTransaction,
+        lastXDays: valuesMap.lastXDays,
+        winRateR: valuesMap.winRateR,
+        PLR: valuesMap.PLR,
+        averageTermDays: valuesMap.averageTermDays,
+        annualYieldR: valuesMap.annualYieldR,
+        commissions: valuesMap.commissions,
+        winRateTotal: valuesMap.winRateTotal,
+        PLTotal: valuesMap.PLTotal,
+        riskProfile: valuesMap.riskProfile,
+        annualYield: valuesMap.annualYield,
+        averageCommission: valuesMap.averageCommission,
+        copyTradingThreshold: valuesMap.copyTradingThreshold,
+        PLRCT: valuesMap.PLRCT,
+        winRateRCT: valuesMap.winRateRCT,
       };
 
       return data;

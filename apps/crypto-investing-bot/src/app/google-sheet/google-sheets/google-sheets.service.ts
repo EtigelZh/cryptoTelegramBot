@@ -18,21 +18,22 @@ export type FinanceData = {
   medianWin: string;
   tradedCoins: string;
   balance: string;
-  wallet: {
-    lastTransactionDate: string;
-    tripleTransaction: string;
-    lastXDays: string;
-    winRateR: string;
-    PLR: string;
-    averageTermDays: string;
-    annualYieldR: string;
-    commissions: string;
-    winRateTotal: string;
-    PLTotal: string;
-    riskProfile: string;
-    annualYield: string;
-    averageCommission: string;
-  };
+  copyTradingThreshold: string;
+  winRateRCT: string;
+  PLRCT: string;
+  lastTransactionDate: string;
+  tripleTransaction: string;
+  lastXDays: string;
+  winRateR: string;
+  PLR: string;
+  averageTermDays: string;
+  annualYieldR: string;
+  commissions: string;
+  winRateTotal: string;
+  PLTotal: string;
+  riskProfile: string;
+  annualYield: string;
+  averageCommission: string;
 };
 
 @Injectable()
@@ -42,6 +43,10 @@ export class GoogleSheetsService {
   private readonly _jwtClient: JWT;
 
   static ranges = {
+    copyTradingThreshold: 'C3', // "порог для копитрейдинга"
+    winRateRCT: 'F2', // Win Rate R (CT)
+    PLRCT: 'F3', // P&L R (CT)
+
     balance: 'H2', // Остаток
   
     medianEntry: 'H3', // "Медианный вход"
@@ -105,9 +110,9 @@ export class GoogleSheetsService {
   mapItems(summary7days: FinanceData, summary30days: FinanceData, isNewWallet = false): string[] {
     // Кошелек Псевдоним	Дата анализа	Последняя транзакция	Отслеживать?	Последнее обновление	Монет проторговано	Медианное кол-во покупок	Профиль риска	Доходность годовых, R	Доходность годовых	Средний срок, д	Медианный вход	Средний вход	Ср.комиссия	Win Rate Total	Win Rate R	RR, %	P&L R	P&L Total	Avg loss	Median loss	Avg profit	Median profit	Комиссий всего	Монет проторговано	Медианное кол-во покупок	Профиль риска	Доходность годовых, R	Доходность годовых	Средний срок, д	Медианный вход	Средний вход	Ср.комиссия	Win Rate Total	Win Rate R	RR, %	P&L R	P&L Total	Avg loss	Median loss	Avg profit	Median profit	Комиссий всего
     const now = new Date();
-    const lastTransactionDate = new Date(summary30days.wallet.lastTransactionDate || summary7days.wallet.lastTransactionDate || now.toISOString());
+    const lastTransactionDate = new Date(summary30days.lastTransactionDate || summary7days.lastTransactionDate || now.toISOString());
     const analyzeDate = this.getFormattedCurrentDate(now);
-    const lastTransactionDateStr = (typeof summary30days.wallet.lastTransactionDate === 'string' && summary30days.wallet.lastTransactionDate) ? summary7days.wallet.lastTransactionDate : `${lastTransactionDate.getDate().toString().padStart(2, '0')}.${(lastTransactionDate.getMonth() + 1).toString().padStart(2, '0')}.${lastTransactionDate.getFullYear().toString().padStart(2, '0')}`;
+    const lastTransactionDateStr = (typeof summary30days.lastTransactionDate === 'string' && summary30days.lastTransactionDate) ? summary7days.lastTransactionDate : `${lastTransactionDate.getDate().toString().padStart(2, '0')}.${(lastTransactionDate.getMonth() + 1).toString().padStart(2, '0')}.${lastTransactionDate.getFullYear().toString().padStart(2, '0')}`;
     
     return [
       summary7days.walletHash,
@@ -121,42 +126,48 @@ export class GoogleSheetsService {
       analyzeDate,
       summary7days.tradedCoins.toString(),
       summary7days.medianPurchaseCount.toString(),
-      summary7days.wallet.riskProfile.toString(),
-      summary7days.wallet.annualYieldR,
-      summary7days.wallet.annualYield,
-      summary7days.wallet.averageTermDays.toString(),
+      summary7days.riskProfile.toString(),
+      summary7days.annualYieldR,
+      summary7days.annualYield,
+      summary7days.averageTermDays.toString(),
       summary7days.medianEntry.toString(),
       summary7days.averageEntry.toString(),
-      summary7days.wallet.averageCommission.toString(),
-      summary7days.wallet.winRateTotal,
-      summary7days.wallet.winRateR,
+      summary7days.averageCommission.toString(),
+      summary7days.winRateTotal,
+      summary7days.winRateR,
+      summary7days.winRateRCT,
       summary7days.RR,
-      summary7days.wallet.PLR,
-      summary7days.wallet.PLTotal,
+      summary7days.PLR,
+      summary7days.PLTotal,
+      summary7days.PLRCT,
       summary7days.avgLose,
       summary7days.medianLose,
       summary7days.avgWin,
       summary7days.medianWin,
-      summary7days.wallet.commissions.toString(),
+      summary7days.commissions.toString(),
+      summary7days.copyTradingThreshold,
       summary30days.tradedCoins.toString(),
       summary30days.medianPurchaseCount.toString(),
-      summary30days.wallet.riskProfile.toString(),
-      summary30days.wallet.annualYieldR,
-      summary30days.wallet.annualYield,
-      summary30days.wallet.averageTermDays.toString(),
+      summary30days.riskProfile.toString(),
+      summary30days.annualYieldR,
+      summary30days.annualYield,
+      summary30days.averageTermDays.toString(),
       summary30days.medianEntry.toString(),
       summary30days.averageEntry.toString(),
-      summary30days.wallet.averageCommission.toString(),
-      summary30days.wallet.winRateTotal,
-      summary30days.wallet.winRateR,
+      summary30days.averageCommission.toString(),
+      summary30days.winRateTotal,
+      summary30days.winRateR,
+      summary30days.winRateRCT,
       summary30days.RR,
-      summary30days.wallet.PLR,
-      summary30days.wallet.PLTotal,
+      summary30days.PLR,
+      summary30days.PLTotal,
+      summary30days.PLRCT,
       summary30days.avgLose,
       summary30days.medianLose,
       summary30days.avgWin,
       summary30days.medianWin,
-      summary30days.wallet.commissions.toString(),
+      summary30days.commissions.toString(),
+      summary30days.copyTradingThreshold,
       summary7days.sourceLink,
     ];
   }
