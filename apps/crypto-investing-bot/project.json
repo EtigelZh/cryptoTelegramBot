@@ -33,11 +33,15 @@
       "executor": "@nx/js:node",
       "defaultConfiguration": "development",
       "options": {
-        "buildTarget": "crypto-investing-bot:build"
+        "buildTarget": "crypto-investing-bot:build",
+        "inspect": true,
+        "port": 9229
       },
       "configurations": {
         "development": {
-          "buildTarget": "crypto-investing-bot:build:development"
+          "buildTarget": "crypto-investing-bot:build:development",
+          "inspect": true,
+          "port": 9229
         },
         "production": {
           "buildTarget": "crypto-investing-bot:build:production"
