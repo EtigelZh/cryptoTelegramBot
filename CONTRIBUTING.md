@@ -16,7 +16,7 @@
 3. По пути в репозитории ./apps/crypto-investing-bot/src/assets/config создаем файлик private.env
 Пример команды в unix подобной системе, так же файлик можно просто редактировать в ide:
 ```
-etho 'TELEGRAM_BOT_TOKEN="<Токен_созданного_бота>"\nZERION_API_KEY="<dev_zerion_token>"\nADMINS_CHAT_ID="<id_юзера_из_под_которого_идет_общение_с_ботом>"' > ./apps/crypto-investing-bot/src/assets/config/private.env
+echo 'TELEGRAM_BOT_TOKEN="<Токен_созданного_бота>"\nZERION_API_KEY="<dev_zerion_token>"\nADMINS_CHAT_ID="<id_юзера_из_под_которого_идет_общение_с_ботом>"' > ./apps/crypto-investing-bot/src/assets/config/private.env
 ```
 4. Устанавливаем npm зависимости
 ```
