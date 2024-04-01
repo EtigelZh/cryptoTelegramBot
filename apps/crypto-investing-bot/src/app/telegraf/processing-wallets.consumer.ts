@@ -273,7 +273,8 @@ export class ProcessingWalletsConsumer {
         )
       );
       await Promise.allSettled(updates);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Gap for google sheets to update (5 seconds) we are have floating bag, when put incorrect data to aggregated google sheets
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
       const [summary7days, summary30days] = await Promise.all([
         this._fillFinanceDataFromSheets(
           document.id,
