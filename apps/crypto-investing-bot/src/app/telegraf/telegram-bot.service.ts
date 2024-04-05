@@ -48,7 +48,29 @@ export class TelegramBotService implements OnModuleInit {
       'update_old_wallets',
       this.handleUpdateOldWalletsCommand.bind(this)
     );
+    this.bot.command('restart', this.handleRestart.bind(this));
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
+  }
+
+  private async handleRestart(
+    ctx: Context<MountMap['text']>
+  ) {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    await this._telegramJobApiService.sendMessage(
+      this.appConfig.dailyUpdateReportChatId,
+      'Бот умер, но воскреснет в течении 10 секунд'
+    );
+    await this.bot.stop();
+    setTimeout(() => {
+      process.exit(0);
+    }, 1_000);
+    
   }
 
   private async handleUpdateOldWalletsCommand(
