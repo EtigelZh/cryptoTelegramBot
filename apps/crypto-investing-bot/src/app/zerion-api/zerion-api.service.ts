@@ -4,6 +4,7 @@ import axios, { AxiosError } from 'axios';
 import { WithSentryPerformance } from '../utils/sentry-performance';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { createMD5Hash } from '../utils/hash';
+import { captureException } from '@sentry/node';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 export type RequestErrorData = {
@@ -260,7 +261,19 @@ function convertJsonToCsv(data: ZerionResponse['data']): CsvProcessingResponse {
 
       // Assuming the first transfer is 'in' and the second is 'out'
       const buyTransfer = transfers.find((t) => t.direction === 'in');
-      const sellTransfer = transfers.find((t) => t.direction === 'out');
+      // sell transfers 
+      const sellTransfers = transfers.filter((t) => t.direction === 'out');
+      const sellCurrencies = new Set(sellTransfers.map((t) => t.currency));
+      if (sellCurrencies.size > 1) {
+        captureException(`Multiple sell currencies in a single transaction ${txHash}`)
+      }
+      const sellTransfer = sellTransfers.reduce((acc, transaction) => ({
+        amount: acc.amount + transaction.amount,
+        currency: transaction.currency,
+        address: transaction.address,
+        fiatAmount: acc.fiatAmount + +(transaction?.fiatAmount || 0),
+      }), {amount: 0, currency: '', address: '', fiatAmount: 0});
+
 
       return [
         date,
