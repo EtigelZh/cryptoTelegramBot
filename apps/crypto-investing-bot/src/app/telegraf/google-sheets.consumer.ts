@@ -6,7 +6,6 @@ import { humanizeHash } from '../utils/humanized-hash';
 import Redis from 'ioredis';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
-import { SaveToDbApiJobService } from './save-to-db.consumer';
 
 export const googleSheetsApiQueueName = 'googleApiQueue';
 
