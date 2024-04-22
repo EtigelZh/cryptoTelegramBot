@@ -42,13 +42,15 @@ export class ProcessingWalletsConsumer {
       chatId: number;
       suffix: string;
       parentMessageId: number | null;
+      input: string;
     }>
   ) {
     return await this.processWallet(
       job.data.walletHash,
       job.data.chatId,
       job.data.suffix,
-      job.data.parentMessageId
+      job.data.parentMessageId,
+      job.data.input
     );
   }
 
@@ -135,7 +137,8 @@ export class ProcessingWalletsConsumer {
     walletHash: string,
     chatId: number,
     suffix: string,
-    parentMessageId: number | null
+    parentMessageId: number | null,
+    input: string
   ): Promise<{ summarySheetUpdated?: boolean }> {
     const globalPrefix = `Скачиваю транзакции для кошелька ${walletHash}. ${suffix}`;
     let lastApiCallMessageId = parentMessageId;
@@ -179,7 +182,8 @@ export class ProcessingWalletsConsumer {
             chatId
           );
         },
-        1000
+        1000,
+        input
       );
       if (transactions.error) {
         const [text, status] = this.formatErrorMessage(transactions.error);
@@ -213,7 +217,8 @@ export class ProcessingWalletsConsumer {
       let fungiblePositionsCsv = [];
       try {
         fungiblePositionsCsv = await this.zerionService.getFungiblePositionsCsv(
-          walletHash
+          walletHash,
+          input
         );
       } catch (error) {
         Logger.error(

@@ -320,65 +320,88 @@ function createFromUserPass(user: string, pass: string): string {
 
 @Injectable()
 export class ZerionApiService implements OnModuleDestroy {
-  private currentThrottlerPromise: Promise<void> = Promise.resolve();
+  private currentThrottlerPromise: {auto: Promise<void>, manual: Promise<void>} = {auto: Promise.resolve(), manual: Promise.resolve()}
   private currentThrottlerResolver: (args: unknown) => void;
+  
+  
   readonly maxRequestsPerMinute = 55;
-  private currentRequestsPerMinute = 0;
-  interval: NodeJS.Timeout = setInterval(
-    () => this.renewMinuteThrottler(),
-    60000
-  );
+  private currentRequestsPerMinute = {auto: 0, manual: 0};
+  interval: {auto: NodeJS.Timeout, manual: NodeJS.Timeout} = {
+    auto: setInterval(
+      () => this.renewMinuteThrottler('auto'),
+      60000
+    ),
+    manual: setInterval(
+      () => this.renewMinuteThrottler('manual'),
+      60000
+    )}
+  ;
 
-  readonly maxRequestsPerDay = 5000;
-  private currentRequestsPerDay = 0;
+  private currentKey = {auto: 0, manual: 0};
+  private currentRequestsPerDay = {auto: 0, manual: 0};
+
   private cacheHitsToday = 0;
   private cacheSaving = false;
-  dayInterval: NodeJS.Timeout = setInterval(() => {
-    this.currentRequestsPerDay = 0;
-    this.cacheHitsToday = 0;
-    this.saveCounters();
-  }, ONE_DAY);
+  dayInterval: {auto: NodeJS.Timeout, manual: NodeJS.Timeout} = {
+    auto: setInterval(() => {
+      this.currentRequestsPerDay.auto = 0;
+      this.cacheHitsToday = 0;
+      this.saveCounters();
+      }, ONE_DAY),
+    manual: setInterval(() => {
+      this.currentRequestsPerDay.manual = 0;
+      this.cacheHitsToday = 0;
+      this.saveCounters();
+      }, ONE_DAY)
+    };
 
   constructor(
     private readonly config: AppConfig,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
   ) {
-    this.renewMinuteThrottler();
+    this.renewMinuteThrottler('auto');
+    this.renewMinuteThrottler('manual');
     this.loadCounters();
   }
 
   getEstimateAvailableProcessingWallets(): number {
-    return Math.min(Math.max(Math.floor(((this.maxRequestsPerDay - this.currentRequestsPerDay) / 10) - 10), 0), this.config.maxWalletsToUpdate);
+    return Math.min(Math.max(Math.floor(((this.config.zerionApiKeyArray.auto[this.currentKey.auto].limit - this.currentRequestsPerDay.auto) / 10) - 10), 0), this.config.maxWalletsToUpdate); // можно больше?
   }
 
+  //TODO
   async saveCounters() {
     if (!this.cacheSaving) {
       this.cacheSaving = true;
-      await this.cacheManager.set('requestsPerDay', this.currentRequestsPerDay, ONE_DAY);
+      await this.cacheManager.set('requestsPerDayAuto', this.currentRequestsPerDay.auto, ONE_DAY);
+      await this.cacheManager.set('requestsPerDayManual', this.currentRequestsPerDay.manual, ONE_DAY);
       await this.cacheManager.set('cacheHitsToday', this.cacheHitsToday, ONE_DAY);
       this.cacheSaving = false;
     }
   }
 
   async loadCounters() {
-    this.currentRequestsPerDay =
-      (await this.cacheManager.get('requestsPerDay')) || 0;
+    this.currentRequestsPerDay.auto =
+      (await this.cacheManager.get('requestsPerDayAuto')) || 0;
+    this.currentRequestsPerDay.manual =
+      (await this.cacheManager.get('requestsPerDayManual')) || 0;
     this.cacheHitsToday = (await this.cacheManager.get('cacheHitsToday')) || 0;
   }
 
-  private renewMinuteThrottler() {
-    this.currentRequestsPerMinute = 0;
-    if (typeof this.currentThrottlerResolver === 'function' && this.currentRequestsPerDay < this.maxRequestsPerDay) {
+  private renewMinuteThrottler(input: string) {
+    this.currentRequestsPerMinute[input] = 0;
+    if (typeof this.currentThrottlerResolver === 'function' && this.currentRequestsPerDay[input] < this.config.zerionApiKeyArray[input][this.currentKey.auto].limit) {
       this.currentThrottlerResolver(null);
     }
-    this.currentThrottlerPromise = new Promise((resolve) => {
+    this.currentThrottlerPromise[input] = new Promise((resolve) => {
       this.currentThrottlerResolver = resolve;
     });
     this.saveCounters();
   }
   onModuleDestroy() {
-    clearInterval(this.interval);
-    clearInterval(this.dayInterval);
+    clearInterval(this.interval.auto);
+    clearInterval(this.interval.manual);
+    clearInterval(this.dayInterval.auto);
+    clearInterval(this.dayInterval.manual);
   }
 
   @WithSentryPerformance('Get CSV transactions')
@@ -394,11 +417,12 @@ export class ZerionApiService implements OnModuleDestroy {
     }
   }
 
-  async getFungiblePositionsCsv(walletId: string): Promise<string[][]> {
+  async getFungiblePositionsCsv(walletId: string, input: string): Promise<string[][]> {
     const fungiblePositions = await this.getTransactions<FungiblePosition>(
       walletId,
       () => Promise.resolve(),
       1000,
+      input,
       (walletId) =>
         `https://api.zerion.io/v1/wallets/${walletId}/positions/?currency=usd&filter%5Btrash%5D=only_non_trash&sort=value`
     );
@@ -417,13 +441,17 @@ export class ZerionApiService implements OnModuleDestroy {
       data: T[]
     ) => Promise<void>,
     take = 0,
+    input = 'manual',
     urlTemplate: (walletId: string, perPage: number) => string = (
       walletId,
       perPage
     ) =>
       `https://api.zerion.io/v1/wallets/${walletId}/transactions/?currency=usd&page[size]=${perPage}&filter[trash]=only_non_trash`
   ): Promise<ZerionResponse<T>> {
-    const authHeader = createFromUserPass(this.config.zerionApiKey, '');
+    const zerionApiKey = this.config.zerionApiKeyArray[input][this.currentKey.auto].token;
+    const maxRequestsPerDay = this.config.zerionApiKeyArray[input][this.currentKey.auto].limit;
+    const authHeader = createFromUserPass(zerionApiKey, '');
+    
     const options = {
       headers: {
         accept: 'application/json',
@@ -439,10 +467,10 @@ export class ZerionApiService implements OnModuleDestroy {
     try {
       while (url) {
         console.log(
-          `Fetching transactions from ${url} currentRequestsPerMinute: ${this.currentRequestsPerMinute} ${this.currentRequestsPerDay}`
+          `Fetching transactions from ${url} currentRequestsPerMinute: ${this.currentRequestsPerMinute[input]} ${this.currentRequestsPerDay[input]} currentKey: ${zerionApiKey} ${input}`
         );
 
-        if (this.currentRequestsPerMinute >= this.maxRequestsPerMinute) {
+        if (this.currentRequestsPerMinute[input] >= this.maxRequestsPerMinute) {
           await Promise.race([
             this.currentThrottlerPromise,
             new Promise((resolve) => setTimeout(resolve, 60_000)),
@@ -465,8 +493,8 @@ export class ZerionApiService implements OnModuleDestroy {
           const response = await axios.get<ZerionResponse<T>>(url, options);
           zerionResponse = response.data;
           this.cacheManager.set(urlCacheKey, zerionResponse, ONE_DAY);
-          this.currentRequestsPerMinute++;
-          this.currentRequestsPerDay++;
+          this.currentRequestsPerMinute[input]++;
+          this.currentRequestsPerDay[input]++;
         } else {
           this.cacheHitsToday++;
         }
@@ -474,8 +502,8 @@ export class ZerionApiService implements OnModuleDestroy {
         allTransactions = allTransactions.concat(zerionResponse.data as T[]);
 
         await onNextRequest(
-          this.currentRequestsPerMinute,
-          this.currentRequestsPerDay,
+          this.currentRequestsPerMinute[input],
+          this.currentRequestsPerDay[input],
           this.maxRequestsPerMinute,
           this.cacheHitsToday,
           allTransactions

@@ -104,7 +104,7 @@ export class TelegramBotService implements OnModuleInit {
       `Добавлены кошельки в очередь на обработку. Всего кошельков: ${oldWallets.length}`
     );
 
-    await this._processWallets(oldWallets, ctx);
+    await this._processWallets(oldWallets, ctx, 'auto');
   }
 
   private async handlePossibleWalletHash(
@@ -153,7 +153,7 @@ export class TelegramBotService implements OnModuleInit {
         `Не указан ни один hash кошелька. ${example}`
       );
     }
-    await this._processWallets(matchedHash, ctx);
+    await this._processWallets(matchedHash, ctx, 'manual');
   }
 
   @Cron(AppConfig.updateOldWalletsCron)
@@ -196,6 +196,7 @@ export class TelegramBotService implements OnModuleInit {
           chatId: this.appConfig.dailyUpdateReportChatId,
           suffix,
           parentMessageId,
+          auto: true
         },
         { removeOnComplete: true }
       );
@@ -204,7 +205,8 @@ export class TelegramBotService implements OnModuleInit {
 
   private async _processWallets(
     matchedHash: string[],
-    ctx: Context<MountMap['text'] & MountMap['message']>
+    ctx: Context<MountMap['text'] & MountMap['message']>,
+    input: string
   ) {
     const jobResults = [];
     for (const walletHash of matchedHash) {
@@ -231,6 +233,7 @@ export class TelegramBotService implements OnModuleInit {
           chatId: ctx.chat.id,
           suffix,
           parentMessageId,
+          input
         },
         { removeOnComplete: true }
       );

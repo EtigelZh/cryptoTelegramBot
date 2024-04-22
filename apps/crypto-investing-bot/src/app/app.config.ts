@@ -76,6 +76,10 @@ export class AppConfig {
   etherscanApiKey: string = process.env.ETHERSCAN_API_KEY || '';
   coinmarketCupApiKey: string = process.env.COINMARKETCUP_API_KEY || '';
   zerionApiKey: string = process.env.ZERION_API_KEY || '';
+  zerionApiKeyArray: {auto: { token : string, limit: number }[], manual: { token : string, limit: number }[]} = {
+    auto: (process.env.ZERION_API_KEY_AUTO || '')?.split(',').map(tokenAndLimit => tokenAndLimit.split(':')).map(([token, limit]) => ({token, limit: +limit})),
+    manual: (process.env.ZERION_API_KEY_MANUAL || '')?.split(',').map(tokenAndLimit => tokenAndLimit.split(':')).map(([token, limit]) => ({token, limit: +limit}))
+  };
   cacheTTL: number = +(process.env.CACHE_TTL || 60_000 * 60 * 24);
   maxWalletsToUpdate: number = +(process.env.MAX_WALLETS_TO_UPDATE || 5);
 
