@@ -40,7 +40,7 @@ export class TelegrafModule {
         BullModule.registerQueue({
           name: telegramQueueName,
           limiter: {
-            max: 10, // Максимальное количество задач, которые могут быть обработаны
+            max: 5, // Максимальное количество задач, которые могут быть обработаны
             duration: 2_000, // Период в миллисекундах (60 секунд)
           },
           defaultJobOptions: {
