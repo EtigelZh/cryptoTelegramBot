@@ -40,8 +40,8 @@ export class TelegrafModule {
         BullModule.registerQueue({
           name: telegramQueueName,
           limiter: {
-            max: 5, // Максимальное количество задач, которые могут быть обработаны
-            duration: 2_000, // Период в миллисекундах (60 секунд)
+            max: 55, // Максимальное количество задач, которые могут быть обработаны
+            duration: 60_000, // Период в миллисекундах (60 секунд)
           },
           defaultJobOptions: {
             removeOnComplete: true,
@@ -82,7 +82,7 @@ export class TelegrafModule {
         BullModule.registerQueue({
           name: zerionApiManualQueueName,
           limiter: {
-            max: 50,
+            max: 55,
             duration: 60_000,
           },
           defaultJobOptions: {
@@ -92,7 +92,7 @@ export class TelegrafModule {
         BullModule.registerQueue({
           name: zerionApiUpdatingQueueName,
           limiter: {
-            max: 50,
+            max: 55,
             duration: 60_000,
           },
           defaultJobOptions: {
