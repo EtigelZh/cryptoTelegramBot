@@ -50,7 +50,7 @@ export class TelegrafModule {
         BullModule.registerQueue({
           name: googleDriveQueueName,
           limiter: {
-            max: 60,
+            max: 55,
             duration: 60_000,
           },
           defaultJobOptions: {
@@ -60,7 +60,7 @@ export class TelegrafModule {
         BullModule.registerQueue({
           name: googleSheetsApiQueueName,
           limiter: {
-            max: 300,
+            max: 280,
             duration: 60_000,
           },
           defaultJobOptions: {
@@ -82,7 +82,7 @@ export class TelegrafModule {
         BullModule.registerQueue({
           name: zerionApiManualQueueName,
           limiter: {
-            max: 55,
+            max: 50,
             duration: 60_000,
           },
           defaultJobOptions: {
@@ -92,7 +92,7 @@ export class TelegrafModule {
         BullModule.registerQueue({
           name: zerionApiUpdatingQueueName,
           limiter: {
-            max: 55,
+            max: 50,
             duration: 60_000,
           },
           defaultJobOptions: {
