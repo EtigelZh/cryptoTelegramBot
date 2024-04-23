@@ -7,6 +7,27 @@ import { Queue } from 'bull';
 export class TelegramJobApiService {
   constructor(@InjectQueue(telegramQueueName) private telegramQueue: Queue) {}
 
+  async createOrUpdateLastMessage(
+    lastMessageId: number | null,
+    messageText: string,
+    chatId: number
+  ): Promise<number> {
+    if (lastMessageId) {
+      await this.editMessageText(
+        chatId,
+        messageText,
+        lastMessageId
+      );
+    } else {
+      const sentMessage = await this.sendMessage(
+        chatId,
+        messageText
+      );
+      lastMessageId = sentMessage.message_id;
+    }
+    return lastMessageId;
+  }
+
   async sendMessage(
     chatId: string | number,
     message: string
