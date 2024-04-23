@@ -25,7 +25,7 @@ export class ZerionApiService {
   }
 
   getEstimateAvailableProcessingWallets(): number {
-    return this._updatingApiKeys.reduce((acc, key) => acc + (key.limit - key.used), 0);
+    return Math.floor(this._updatingApiKeys.reduce((acc, key) => acc + (key.limit - key.used), 0) / 10);
   }
 
   getRequestLimits(apiKeyQueueName: ZerionApiQueueName) {
