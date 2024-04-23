@@ -3,7 +3,6 @@ import { GoogleSheetsService } from '../google-sheet/google-sheets/google-sheets
 import { Job } from 'bull';
 import { Inject, Logger } from '@nestjs/common';
 import { humanizeHash } from '../utils/humanized-hash';
-import Redis from 'ioredis';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
 
@@ -38,7 +37,6 @@ type Range = typeof GoogleSheetsService.ranges;
 
 @Processor(googleSheetsApiQueueName)
 export class GoogleSheetsConsumer {
-  private _redis: Redis;
   constructor(
     private readonly _googleSheets: GoogleSheetsService,
     @Inject(CACHE_MANAGER) private _cacheManager: Cache

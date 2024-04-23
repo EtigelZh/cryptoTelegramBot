@@ -15,6 +15,7 @@ import {
 import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { Cron } from '@nestjs/schedule';
 import { TelegramJobApiService } from './telegram-job-api.service';
+import { ZerionApiQueueName } from '../zerion-api/zerion-api.models';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -85,6 +86,13 @@ export class TelegramBotService implements OnModuleInit {
     }
     const numberOfWalletsToUpdate =
       this._zerionApi.getEstimateAvailableProcessingWallets();
+    if (numberOfWalletsToUpdate <= 0) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Дневной лимит запросов исчерпан. Попробуйте завтра.'
+      );
+      return;
+    }
     await this._telegramJobApiService.sendMessage(
       ctx.from.id,
       `Получаем кошельки для обработки. Всего можем обновить кошельков сегодня: ${numberOfWalletsToUpdate}`
@@ -104,7 +112,7 @@ export class TelegramBotService implements OnModuleInit {
       `Добавлены кошельки в очередь на обработку. Всего кошельков: ${oldWallets.length}`
     );
 
-    await this._processWallets(oldWallets, ctx);
+    await this._processWallets(oldWallets, ctx, 'updating');
   }
 
   private async handlePossibleWalletHash(
@@ -153,14 +161,19 @@ export class TelegramBotService implements OnModuleInit {
         `Не указан ни один hash кошелька. ${example}`
       );
     }
-    await this._processWallets(matchedHash, ctx);
+    await this._processWallets(matchedHash, ctx, 'manual');
   }
 
   @Cron(AppConfig.updateOldWalletsCron)
   async updateOldWallets() {
-    const numberOfWalletsToUpdate = Math.floor(
-      this._zerionApi.getEstimateAvailableProcessingWallets() / 2
-    );
+    const numberOfWalletsToUpdate = this._zerionApi.getEstimateAvailableProcessingWallets();
+    if (numberOfWalletsToUpdate <= 0) {
+      await this._telegramJobApiService.sendMessage(
+        this.appConfig.dailyUpdateReportChatId,
+        'Дневной лимит запросов исчерпан. Попробуйте завтра.'
+      );
+      return;
+    }
     const job = await this._googleSheetsQueue.add(
       'getOldWallets',
       <GetOldWalletsArgs>{
@@ -196,6 +209,7 @@ export class TelegramBotService implements OnModuleInit {
           chatId: this.appConfig.dailyUpdateReportChatId,
           suffix,
           parentMessageId,
+          auto: true
         },
         { removeOnComplete: true }
       );
@@ -204,7 +218,8 @@ export class TelegramBotService implements OnModuleInit {
 
   private async _processWallets(
     matchedHash: string[],
-    ctx: Context<MountMap['text'] & MountMap['message']>
+    ctx: Context<MountMap['text'] & MountMap['message']>,
+    input: ZerionApiQueueName
   ) {
     const jobResults = [];
     for (const walletHash of matchedHash) {
@@ -231,6 +246,7 @@ export class TelegramBotService implements OnModuleInit {
           chatId: ctx.chat.id,
           suffix,
           parentMessageId,
+          input
         },
         { removeOnComplete: true }
       );

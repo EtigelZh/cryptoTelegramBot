@@ -19,6 +19,9 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TelegramJobApiService } from './telegram-job-api.service';
 import { SaveToDbApiJobService, SaveToDbConsumer, saveToDbQueueName } from './save-to-db.consumer';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { ZerionApiFetchTransactionsConsumer, zerionApiFetchTransactionsQueueName } from '../zerion-api/zerion-api-fetch-transactions.consumer';
+import { ZerionApiManualConsumer, zerionApiManualQueueName } from '../zerion-api/zerion-api-manual.consumer';
+import { ZerionApiUpdatingConsumer, zerionApiUpdatingQueueName } from '../zerion-api/zerion-api-updating.consumer';
 @Module({})
 export class TelegrafModule {
   static register() {
@@ -70,6 +73,32 @@ export class TelegrafModule {
             removeOnComplete: true,
           }
         }),
+        BullModule.registerQueue({
+          name: zerionApiFetchTransactionsQueueName,
+          defaultJobOptions: {
+            removeOnComplete: true,
+          },
+        }),
+        BullModule.registerQueue({
+          name: zerionApiManualQueueName,
+          limiter: {
+            max: 55,
+            duration: 60_000,
+          },
+          defaultJobOptions: {
+            removeOnComplete: true,
+          },
+        }),
+        BullModule.registerQueue({
+          name: zerionApiUpdatingQueueName,
+          limiter: {
+            max: 55,
+            duration: 60_000,
+          },
+          defaultJobOptions: {
+            removeOnComplete: true,
+          },
+        }),
         CacheModule.registerAsync({
           imports: [AppConfigModule],
           useFactory: async (appConfig: AppConfig) => {
@@ -108,6 +137,9 @@ export class TelegrafModule {
         SaveToDbApiJobService,
         TelegramBotService,
         TelegramJobApiService,
+        ZerionApiFetchTransactionsConsumer,
+        ZerionApiManualConsumer,
+        ZerionApiUpdatingConsumer,
       ],
       exports: [TelegramBotService],
       module: TelegrafModule,

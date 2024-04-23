@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AppConfig, AppConfigModule } from '../app.config';
 import { ZerionApiService } from './zerion-api.service';
-import { CacheModule } from '@nestjs/cache-manager';
+import { CACHE_MANAGER, CacheModule } from '@nestjs/cache-manager';
 import type { RedisClientOptions } from 'redis';
-import { redisStore } from 'cache-manager-redis-store';
+import { RedisStore, redisStore } from 'cache-manager-redis-store';
+import { ZERION_MANUAL_API_KEYS, ZERION_UPDATING_API_KEYS, fillTokenUsage } from './zerion-api-key-day-limiter';
 
 @Module({
   imports: [
@@ -24,7 +25,25 @@ import { redisStore } from 'cache-manager-redis-store';
       inject: [AppConfig],
     }),
   ],
-  providers: [ZerionApiService],
+  providers: [
+    ZerionApiService,
+    {
+      provide: ZERION_MANUAL_API_KEYS,
+      useFactory: (appConfig: AppConfig, cacheManager: { store: RedisStore}) => {
+        const redisClient = cacheManager.store.getClient();
+        return fillTokenUsage(appConfig.zerionManualApiKeys, redisClient);
+      },
+      inject: [AppConfig, CACHE_MANAGER],
+    },
+    {
+      provide: ZERION_UPDATING_API_KEYS,
+      useFactory: (appConfig: AppConfig, cacheManager: { store: RedisStore}) => {
+        const redisClient = cacheManager.store.getClient();
+        return fillTokenUsage(appConfig.zerionUpdatingApiKeys, redisClient);
+      },
+      inject: [AppConfig, CACHE_MANAGER],
+    }
+  ],
   exports: [ZerionApiService],
 })
 export class ZerionApiModule {}
