@@ -5,7 +5,13 @@ import { Queue } from 'bull';
 
 @Injectable()
 export class TelegramJobApiService {
-  constructor(@InjectQueue(telegramQueueName) private telegramQueue: Queue) {}
+  constructor(@InjectQueue(telegramQueueName) private telegramQueue: Queue) {
+    this.telegramQueue.isPaused().then((paused) => {
+      if (paused) {
+        this.telegramQueue.resume();
+      }
+    });
+  }
 
   async createOrUpdateLastMessage(
     lastMessageId: number | null,
@@ -19,11 +25,19 @@ export class TelegramJobApiService {
         lastMessageId
       );
     } else {
-      const sentMessage = await this.sendMessage(
-        chatId,
-        messageText
-      );
-      lastMessageId = sentMessage.message_id;
+      try {
+        const sentMessage = await this.sendMessage(
+          chatId,
+          messageText
+        );
+        lastMessageId = sentMessage.message_id;
+      } catch (error) {
+        if (error.response && error.response.statusCode === 429) {
+          await this.handleRateLimit(error.response.message);
+        } else {
+          throw error;
+        }
+      }
     }
     return lastMessageId;
   }
@@ -32,16 +46,29 @@ export class TelegramJobApiService {
     chatId: string | number,
     message: string
   ): Promise<{ message_id: number }> {
-    const job = await this.telegramQueue.add(
-      'sendMessage',
-      {
-        chatId,
-        message,
-      },
-      { removeOnComplete: true }
-    );
-
-    return job.finished();
+    try {
+      const job = await this.telegramQueue.add(
+        'sendMessage',
+        {
+          chatId,
+          message,
+        },
+        {
+          removeOnComplete: true,
+          attempts: 5,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          }
+        }
+      );
+      return job.finished();
+    } catch (error) {
+      if (error.response && error.response.statusCode === 429) {
+        await this.handleRateLimit(error.response.message);
+      }
+      throw error;
+    }
   }
 
   async editMessageText(
@@ -61,7 +88,6 @@ export class TelegramJobApiService {
           Logger.error(`Error removing old job: ${e}`);
         }
       }
-      // remove old jobs for update
       const job = await this.telegramQueue.add(
         'editMessageText',
         {
@@ -70,12 +96,38 @@ export class TelegramJobApiService {
           messageId,
           inlineMessageId,
         },
-        { removeOnComplete: true, jobId: `${chatId}-${messageId}` }
+        {
+          removeOnComplete: true,
+          jobId: `${chatId}-${messageId}`,
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000
+          }
+        }
       );
-
       return job;
     } catch (e) {
+      if (e.response && e.response.statusCode === 429) {
+        await this.handleRateLimit(e.response.message);
+      }
       Logger.error(`Error editing message: ${e}`);
+      throw e;
     }
   }
+
+ 
+
+  private async handleRateLimit(message: string) {
+    Logger.error('Hit rate limit, pausing queue');
+    await this.telegramQueue.pause();
+    const pauseSeconds = this._extractRetrySeconds(message) + 10;
+    setTimeout(() => this.telegramQueue.resume(), 1000 * pauseSeconds);
+  }
+
+  private _extractRetrySeconds(message: string): number {
+    const regex = /retry after (\d+)/;
+    const match = (message || '').match(regex);
+    return match ? parseInt(match[1], 10) : 0;
+}
 }

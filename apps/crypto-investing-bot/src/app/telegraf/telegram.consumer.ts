@@ -10,7 +10,7 @@ import { AppConfig } from '../app.config';
 export class TelegramConsumer {
   constructor(
     @Inject(TELEGRAF)
-    private readonly bot: Telegraf
+    private readonly bot: Telegraf,
   ) {}
 
   @Process({
