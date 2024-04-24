@@ -16,6 +16,7 @@ import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { Cron } from '@nestjs/schedule';
 import { TelegramJobApiService } from './telegram-job-api.service';
 import { ZerionApiQueueName } from '../zerion-api/zerion-api.models';
+import { ProcessingWalletArguments } from './processing-wallets.consumer';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -209,8 +210,8 @@ export class TelegramBotService implements OnModuleInit {
           chatId: this.appConfig.dailyUpdateReportChatId,
           suffix,
           parentMessageId,
-          auto: true
-        },
+          apiKeyQueueName: 'updating'
+        } as ProcessingWalletArguments,
         { removeOnComplete: true }
       );
     }
@@ -219,7 +220,7 @@ export class TelegramBotService implements OnModuleInit {
   private async _processWallets(
     matchedHash: string[],
     ctx: Context<MountMap['text'] & MountMap['message']>,
-    input: ZerionApiQueueName
+    apiKeyQueueName: ZerionApiQueueName
   ) {
     const jobResults = [];
     for (const walletHash of matchedHash) {
@@ -246,8 +247,8 @@ export class TelegramBotService implements OnModuleInit {
           chatId: ctx.chat.id,
           suffix,
           parentMessageId,
-          input
-        },
+          apiKeyQueueName,
+        } as ProcessingWalletArguments,
         { removeOnComplete: true }
       );
       jobResults.push(job.finished());

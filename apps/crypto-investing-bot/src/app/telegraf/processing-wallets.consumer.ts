@@ -21,6 +21,14 @@ import { SaveToDbApiJobService } from './save-to-db.consumer';
 import { RequestErrorData, ZerionApiQueueName } from '../zerion-api/zerion-api.models';
 import { FetchTransactionsJob, zerionApiFetchTransactionsQueueName } from '../zerion-api/zerion-api-fetch-transactions.consumer';
 
+export type ProcessingWalletArguments = {
+  walletHash: string;
+  chatId: number;
+  suffix: string;
+  parentMessageId: number | null;
+  apiKeyQueueName: ZerionApiQueueName;
+};
+
 @Processor(walletQueueName)
 export class ProcessingWalletsConsumer {
   constructor(
@@ -39,20 +47,14 @@ export class ProcessingWalletsConsumer {
     concurrency: AppConfig.walletProcessorConcurrency,
   })
   async process(
-    job: Job<{
-      walletHash: string;
-      chatId: number;
-      suffix: string;
-      parentMessageId: number | null;
-      input: ZerionApiQueueName;
-    }>
+    job: Job<ProcessingWalletArguments>
   ) {
     return await this.processWallet(
       job.data.walletHash,
       job.data.chatId,
       job.data.suffix,
       job.data.parentMessageId,
-      job.data.input
+      job.data.apiKeyQueueName
     );
   }
 
