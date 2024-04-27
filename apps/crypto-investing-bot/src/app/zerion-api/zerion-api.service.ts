@@ -102,7 +102,7 @@ export class ZerionApiService {
           if (zerionResponse.error) {
             throw new Error('Failed to fetch transactions');
           }
-          // this.cacheManager.set(urlCacheKey, zerionResponse, ONE_DAY);
+          this.cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
         } else {
           cacheHits++;
         }
