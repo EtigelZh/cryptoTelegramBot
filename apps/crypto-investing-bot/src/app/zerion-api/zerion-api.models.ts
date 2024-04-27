@@ -20,7 +20,7 @@ export type ResponseWithErrorList<
 
 export type CsvProcessingResponse = ResponseWithErrorList<string[][]>;
 
-export type ZerionResponse<T = Transaction> = {
+export type ZerionResponse<T = ZerionTransaction> = {
   links: {
     self: string;
     next: string;
@@ -29,12 +29,13 @@ export type ZerionResponse<T = Transaction> = {
   data: T[];
 };
 
-export type Transaction = {
+export type ZerionTransaction = {
   type: string;
   id: string;
   attributes: TransactionAttributes;
   relationships: {
     chain: ChainRelationship;
+    dapp?: ChainRelationship;
   };
 };
 
@@ -94,7 +95,7 @@ export type ApplicationMetadata = {
 };
 
 export type ChainRelationship = {
-  links: {
+  links?: {
     related: string;
   };
   data: {

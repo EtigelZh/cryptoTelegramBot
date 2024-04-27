@@ -7,7 +7,6 @@ import { HealthModule } from './health/health.module';
 import { BullModule } from '@nestjs/bull';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-
 @Module({
   imports: [
     AppConfigModule,
