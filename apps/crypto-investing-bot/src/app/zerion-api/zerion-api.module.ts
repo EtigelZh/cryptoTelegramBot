@@ -5,6 +5,7 @@ import { CACHE_MANAGER, CacheModule } from '@nestjs/cache-manager';
 import type { RedisClientOptions } from 'redis';
 import { RedisStore, redisStore } from 'cache-manager-redis-store';
 import { ZERION_MANUAL_API_KEYS, ZERION_UPDATING_API_KEYS, fillTokenUsage } from './zerion-api-key-day-limiter';
+import { TransactionModule } from '../transaction/transaction.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ZERION_MANUAL_API_KEYS, ZERION_UPDATING_API_KEYS, fillTokenUsage } from
       },
       inject: [AppConfig],
     }),
+    TransactionModule,
   ],
   providers: [
     ZerionApiService,

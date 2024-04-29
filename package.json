@@ -28,6 +28,7 @@
     "cache-manager": "^5.4.0",
     "cache-manager-redis-store": "^3.0.1",
     "dotenv": "^16.4.1",
+    "ethers": "^6.12.0",
     "google-auth-library": "9.6.3",
     "googleapis": "133.0.0",
     "pg": "^8.11.3",

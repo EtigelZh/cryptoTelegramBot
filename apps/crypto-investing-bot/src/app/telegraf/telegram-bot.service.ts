@@ -249,7 +249,10 @@ export class TelegramBotService implements OnModuleInit {
           parentMessageId,
           apiKeyQueueName,
         } as ProcessingWalletArguments,
-        { removeOnComplete: true }
+        {
+          removeOnComplete: true, 
+          priority: apiKeyQueueName === 'manual' ? 1 : 2 // Ручной пересчет более приоритетный
+        }
       );
       jobResults.push(job.finished());
     }

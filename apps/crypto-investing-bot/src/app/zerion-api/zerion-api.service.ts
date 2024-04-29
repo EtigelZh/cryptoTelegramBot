@@ -5,14 +5,19 @@ import { WithSentryPerformance } from '../utils/sentry-performance';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { createMD5Hash } from '../utils/hash';
 import { captureException } from '@sentry/node';
-import { CsvProcessingResponse, FungiblePosition, GetTransactionsArguments, Transaction, ZerionApiQueueName, ZerionResponse } from './zerion-api.models';
+import { CsvProcessingResponse, FungiblePosition, GetTransactionsArguments, ZerionApiQueueName, ZerionResponse, ZerionTransaction } from './zerion-api.models';
 import { RedisStore } from 'cache-manager-redis-store';
 import { ApiKeyAndLimitWithUsage, ZERION_MANUAL_API_KEYS, ZERION_UPDATING_API_KEYS, getTokenKey } from './zerion-api-key-day-limiter';
+import { TransactionService } from '../transaction/transaction.service';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
 }
-
+const transactionsUrlTemplate = (
+  walletHash,
+  perPage
+) =>
+  `https://api.zerion.io/v1/wallets/${walletHash}/transactions/?currency=usd&page[size]=${perPage}&filter[trash]=only_non_trash`;
 @Injectable()
 export class ZerionApiService {
   constructor(
@@ -20,6 +25,7 @@ export class ZerionApiService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     @Inject(ZERION_MANUAL_API_KEYS) private _manualApiKeys: ApiKeyAndLimitWithUsage[],
     @Inject(ZERION_UPDATING_API_KEYS) private _updatingApiKeys: ApiKeyAndLimitWithUsage[],
+    private _transactionService: TransactionService,
   ) {
     console.log(this._manualApiKeys, this._updatingApiKeys);
   }
@@ -60,7 +66,7 @@ export class ZerionApiService {
   }
 
   @WithSentryPerformance('Get transactions')
-  async getTransactions<T = Transaction>(
+  async getTransactions<T = ZerionTransaction>(
     options: GetTransactionsArguments<T>
   ): Promise<ZerionResponse<T>> {
     const {
@@ -68,11 +74,7 @@ export class ZerionApiService {
       onNextRequest = () => Promise.resolve(),
       apiKeyQueueName,
       take = 0,
-      urlTemplate = (
-        walletHash,
-        perPage
-      ) =>
-        `https://api.zerion.io/v1/wallets/${walletHash}/transactions/?currency=usd&page[size]=${perPage}&filter[trash]=only_non_trash`,
+      urlTemplate = transactionsUrlTemplate,
       getNextChunk = this.fetchTransactionsChunk
     } = options;
 
@@ -103,6 +105,13 @@ export class ZerionApiService {
             throw new Error('Failed to fetch transactions');
           }
           this.cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
+          if (urlTemplate === transactionsUrlTemplate) {
+            try {
+              this._transactionService.createNotExistZerionTransactions(zerionResponse.data as ZerionTransaction[]).catch(e => Logger.error(e));
+            } catch (e) {
+              Logger.error(e);
+            }
+          }
         } else {
           cacheHits++;
         }
