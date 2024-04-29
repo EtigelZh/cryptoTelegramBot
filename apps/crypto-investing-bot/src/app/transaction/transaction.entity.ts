@@ -2,9 +2,10 @@ import { Column, Entity, Index, PrimaryColumn } from "typeorm";
 import { UNSIGNED_BIGINT_COLUMN, TIMESTAMP_COLUMN, TRANSACTION_HASH_COLUMN, WALLET_HASH_COLUMN, INTEGER_COLUMN, CURRENCY_SYMBOL_COLUMN } from "../utils/db-utils";
 import { CurrencySymbol, InOutTransactionFields, TransactionHash, TransactionStatus, TransactionType, WalletHash } from "../utils/models";
 import type { ZerionTransaction } from "../zerion-api/zerion-api.models";
+import { WithUpdatedAndCreatedAt } from "../utils/base.entity";
 
 @Entity()
-export class TransactionEntity implements InOutTransactionFields {
+export class TransactionEntity  extends WithUpdatedAndCreatedAt implements InOutTransactionFields {
     @PrimaryColumn(TRANSACTION_HASH_COLUMN)
     id: TransactionHash;
     @Index()

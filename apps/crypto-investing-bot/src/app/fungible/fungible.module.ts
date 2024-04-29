@@ -4,6 +4,7 @@ import { FungibleEntity } from "./fungible.entity";
 import { FungibleService } from "./fungible.service";
 import { FungibleConsumer, fungibleQueueName } from "./fungible.consumer";
 import { BullModule } from "@nestjs/bull";
+import { FungibleConsumerApiService } from "./fungible-consumer-api.service";
 
 @Module({
     imports: [
@@ -15,8 +16,8 @@ import { BullModule } from "@nestjs/bull";
             }
         }),
     ],
-    providers: [FungibleService, FungibleConsumer],
-    exports: [FungibleService]
+    providers: [FungibleService, FungibleConsumerApiService, FungibleConsumer],
+    exports: [FungibleService, FungibleConsumerApiService]
 })
 export class FungibleModule {
 }

@@ -1,9 +1,10 @@
 import { Column, Entity, PrimaryColumn } from "typeorm";
 import type { Implementation } from "../zerion-api/zerion-api.models";
 import { CurrencySymbol } from "../utils/models";
+import { WithUpdatedAndCreatedAt } from "../utils/base.entity";
 
 @Entity()
-export class FungibleEntity {
+export class FungibleEntity extends WithUpdatedAndCreatedAt {
     @PrimaryColumn({type: 'text'})
     symbol: CurrencySymbol;
 

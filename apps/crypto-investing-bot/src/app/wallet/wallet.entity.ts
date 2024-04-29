@@ -1,6 +1,7 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn, UpdateDateColumn } from "typeorm";
+import { Column, Entity, Index, PrimaryColumn } from "typeorm";
 import { WALLET_HASH_COLUMN } from "../utils/db-utils";
 import { WalletHash } from "../utils/models";
+import { WithUpdatedAndCreatedAt } from "../utils/base.entity";
 
 export enum WalletStatus {
     ACTIVE = 'ACTIVE', // Есть транзакции
@@ -9,10 +10,11 @@ export enum WalletStatus {
 }
 
 @Entity()
-export class WalletEntity {
+export class WalletEntity extends WithUpdatedAndCreatedAt {
     @PrimaryColumn(WALLET_HASH_COLUMN)
     hash: WalletHash;
 
+    @Index()
     @Column({ unique: true })
     alias: string;
 
@@ -29,9 +31,6 @@ export class WalletEntity {
     @Column({ nullable: true })
     lastTransactionDate?: Date;
 
-    @UpdateDateColumn()
-    updatedAt: Date;
-
-    @CreateDateColumn()
-    createdAt: Date;
+    @Column({ default: false })
+    isUseMaestroBot: boolean;
 }

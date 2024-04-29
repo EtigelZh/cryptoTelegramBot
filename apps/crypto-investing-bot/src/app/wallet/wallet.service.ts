@@ -13,7 +13,7 @@ export class WalletService {
         return this._walletRepository.save(wallet);
     }
 
-    saveWallet(wallet: WalletEntity): Promise<WalletEntity> {
+    saveWallet(wallet: Partial<WalletEntity>): Promise<WalletEntity> {
         return this._walletRepository.save(wallet);
     }
 }

@@ -6,6 +6,7 @@ import { FungibleModule } from "../fungible/fungible.module";
 import { BullModule } from "@nestjs/bull";
 import { transferQueueName } from "./transfer.queue";
 import { TransferConsumer } from "./transfer.consumer";
+import { TransferConsumerApiService } from "./transfer-consumer-api.service";
 
 @Module({
     imports: [
@@ -18,8 +19,8 @@ import { TransferConsumer } from "./transfer.consumer";
             }
         }),
     ],
-    providers: [TransferService, TransferConsumer],
-    exports: [TransferService]
+    providers: [TransferService, TransferConsumer, TransferConsumerApiService],
+    exports: [TransferService, TransferConsumerApiService]
 })
 export class TransferModule {
 }

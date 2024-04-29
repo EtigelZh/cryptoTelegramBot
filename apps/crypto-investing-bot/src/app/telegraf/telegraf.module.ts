@@ -22,6 +22,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 import { ZerionApiFetchTransactionsConsumer, zerionApiFetchTransactionsQueueName } from '../zerion-api/zerion-api-fetch-transactions.consumer';
 import { ZerionApiManualConsumer, zerionApiManualQueueName } from '../zerion-api/zerion-api-manual.consumer';
 import { ZerionApiUpdatingConsumer, zerionApiUpdatingQueueName } from '../zerion-api/zerion-api-updating.consumer';
+import { WalletModule } from '../wallet/wallet.module';
 @Module({})
 export class TelegrafModule {
   static register() {
@@ -31,6 +32,7 @@ export class TelegrafModule {
         ZerionApiModule,
         GoogleDriveModule,
         AnalyticsModule,
+        WalletModule,
         BullModule.registerQueue({
           name: walletQueueName,
           defaultJobOptions: {

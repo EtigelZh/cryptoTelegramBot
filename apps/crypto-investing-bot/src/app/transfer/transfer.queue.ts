@@ -12,6 +12,6 @@ export enum TransferQueueMethods {
 
 export type CreateTransfersFromZerionTransaction = {
     name: TransferQueueMethods.createTransfersFromZerionTransaction,
-    data: ZerionTransaction;
+    data: ZerionTransaction[];
     result: TransferEntity[];
 }

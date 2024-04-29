@@ -5,6 +5,7 @@ import { Repository } from "typeorm";
 import { ZerionTransaction } from "../zerion-api/zerion-api.models";
 import { TransferService } from "../transfer/transfer.service";
 import { calculateInOutTransferByZerionTransaction } from "../utils/pure-calculations";
+import { captureException } from "@sentry/node";
 
 @Injectable()
 export class TransactionService {
@@ -14,7 +15,6 @@ export class TransactionService {
     ) {}
 
     createNotExistZerionTransactions(zerionTransactions: ZerionTransaction[]): Promise<TransactionEntity[]> {
-        
         const transactions: Partial<TransactionEntity>[] = zerionTransactions.map(zerionTransaction => {
             const data = calculateInOutTransferByZerionTransaction(zerionTransaction)
             const transaction = {
@@ -44,9 +44,9 @@ export class TransactionService {
                 zerionSource: zerionTransaction,
             } as TransactionEntity;
 
-            this._transferService.createTransfersFromZerionTransaction(zerionTransaction).catch(console.error);
             return transaction;
         });
+        this._transferService.createTransfersFromZerionTransaction(zerionTransactions).catch(err => captureException(err, { tags: { source: 'TransactionService.createNotExistZerionTransactions', call: 'TransferService.createTransfersFromZerionTransaction' }}));
         return this._transactionRepository.save(transactions);
     }
     

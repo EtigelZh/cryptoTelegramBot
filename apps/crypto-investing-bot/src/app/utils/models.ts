@@ -59,3 +59,12 @@ export type AmountGroup = {
     amountUsd: number | null;
     amountUsdRate: number | null;
 }
+
+export type AddIfNotExistsResult = {
+    isAdded: boolean;
+}
+
+export type AddButchIfNotExistsResult<Key = string, SavedEntity = unknown> = {
+    added: SavedEntity[];
+    exists: Key[];
+}

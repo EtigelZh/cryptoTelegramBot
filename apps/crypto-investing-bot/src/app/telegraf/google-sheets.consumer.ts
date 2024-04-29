@@ -5,6 +5,8 @@ import { Inject, Logger } from '@nestjs/common';
 import { humanizeHash } from '../utils/humanized-hash';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
+import { WalletService } from '../wallet/wallet.service';
+import { captureException } from '@sentry/node';
 
 export const googleSheetsApiQueueName = 'googleApiQueue';
 
@@ -39,7 +41,8 @@ type Range = typeof GoogleSheetsService.ranges;
 export class GoogleSheetsConsumer {
   constructor(
     private readonly _googleSheets: GoogleSheetsService,
-    @Inject(CACHE_MANAGER) private _cacheManager: Cache
+    @Inject(CACHE_MANAGER) private _cacheManager: Cache,
+    private _walletService: WalletService,
   ) {}
 
   @Process({
@@ -247,6 +250,11 @@ export class GoogleSheetsConsumer {
               return false;
             }
             return hash !== walletHash;
+          }).then( alias => {
+            this._walletService.saveWallet({ hash: walletHash, alias }).catch(error => {
+              captureException(error, { extra: { walletHash, alias }, tags: { source: 'GoogleSheetsConsumer.fillFinanceDataFromSheets', target: 'WalletService.save'}})
+            });
+            return alias;
           }),
           new Promise((_, rej) => setTimeout(rej, 10_000)),
         ])) as string;
