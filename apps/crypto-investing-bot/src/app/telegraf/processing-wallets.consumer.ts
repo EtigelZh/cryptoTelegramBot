@@ -155,7 +155,7 @@ export class ProcessingWalletsConsumer {
       Logger.error('fillFinanceDataFromSheets humanizeHash error', error);
     }
 
-    const globalPrefix = `Скачиваю транзакции для кошелька ${walletHash}. ${suffix}`;
+    const globalPrefix = `Скачиваю транзакции для кошелька ${walletHash}(${walletAlias}). ${suffix}`;
 
     let lastApiCallMessageId = parentMessageId;
     const lastText = globalPrefix;
