@@ -17,7 +17,7 @@ const transactionsUrlTemplate = (
   walletHash,
   perPage
 ) =>
-  `https://api.zerion.io/v1/wallets/${walletHash}/transactions/?currency=usd&page[size]=${perPage}&filter[trash]=only_non_trash`;
+  `https://api.zerion.io/v1/wallets/${walletHash}/transactions/?currency=usd&page[size]=${perPage}&filter[chain_ids]=ethereum&filter[trash]=only_non_trash`;
 @Injectable()
 export class ZerionApiService {
   constructor(
