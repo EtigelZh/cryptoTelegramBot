@@ -155,7 +155,7 @@ export class ZerionApiService {
       throw new Error('Дневной лимит запросов исчерпан');
     }
     const authHeader = createFromUserPass(apiKey.token, '');
-    
+
     const options = {
       headers: {
         accept: 'application/json',
@@ -212,19 +212,19 @@ export class ZerionApiService {
       try {
         const attributes = transaction.attributes;
         const chain = transaction.relationships.chain.data.id;
-  
+
         const date = new Date(attributes.mined_at).toLocaleDateString();
         const time = new Date(attributes.mined_at).toLocaleTimeString();
         const transactionType = attributes.operation_type;
         const status = attributes.status;
         const txHash = attributes.hash;
         const link = `https://etherscan.io/tx/${txHash}`;
-  
+
         const fee = attributes.fee;
         const feeCurrency = fee.fungible_info?.symbol ?? ''; // Default value if fungible_info is not available
         const feeAmount = fee.quantity.float;
         const feeFiatAmount = fee.value ?? ''; // Default value if fee value is null
-  
+
         const transfers = attributes.transfers.map((transfer) => {
           return {
             amount: transfer.quantity.float,
@@ -239,10 +239,10 @@ export class ZerionApiService {
             recipient: transfer.recipient,
           };
         });
-  
+
         // Assuming the first transfer is 'in' and the second is 'out'
         const buyTransfer = transfers.find((t) => t.direction === 'in');
-        // sell transfers 
+        // sell transfers
         const sellTransfers = transfers.filter((t) => t.direction === 'out');
         const sellCurrencies = new Set(sellTransfers.map((t) => t.currency));
         if (sellCurrencies.size > 1) {
@@ -254,8 +254,8 @@ export class ZerionApiService {
           address: transaction.address,
           fiatAmount: acc.fiatAmount + +(transaction?.fiatAmount || 0),
         }), {amount: 0, currency: '', address: '', fiatAmount: 0});
-  
-  
+
+
         return [
           date,
           time,
@@ -288,7 +288,7 @@ export class ZerionApiService {
         return []; // Return an empty string for transactions that fail to process
       }
     });
-  
+
     return {
       data: [header, ...transactions],
       errors,
@@ -301,7 +301,7 @@ export class ZerionApiService {
     const csvRows: string[][] = [
       //['Type','ID','Name','Position Type','Quantity Numeric','Value','Price','Absolute Change 1D','Percent Change 1D','Fungible Info Name','Fungible Info Symbol','Updated At']
     ];
-  
+
     positions.forEach((position) => {
       const {
         type,
@@ -317,7 +317,7 @@ export class ZerionApiService {
           updated_at,
         } = {},
       } = position;
-  
+
       const csvRow = [
         type,
         id,
@@ -332,10 +332,10 @@ export class ZerionApiService {
         fungible_info?.symbol,
         updated_at,
       ] as string[];
-  
+
       csvRows.push(csvRow);
     });
-  
+
     return csvRows;
   }
 }
