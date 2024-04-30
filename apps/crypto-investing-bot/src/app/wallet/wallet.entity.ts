@@ -4,7 +4,7 @@ import { WalletHash } from "../utils/models";
 import { WithUpdatedAndCreatedAt } from "../utils/base.entity";
 
 export enum WalletStatus {
-    ACTIVE = 'ACTIVE', // Есть транзакции
+    ACTIVE = 'ACTIVE', // Есть транзакции, заполнены поля firstTransactionDate и lastTransactionDate
     NEW = 'NEW', // Новый кошелек, еще не ходили в api
     NOT_TRACKABLE = 'NOT_TRACKABLE', // получаем 404 при запросе транзакций
 }

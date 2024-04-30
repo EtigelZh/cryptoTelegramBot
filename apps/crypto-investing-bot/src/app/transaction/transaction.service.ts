@@ -1,7 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from '@nestjs/common';
 import { TransactionEntity } from "./transaction.entity";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, LessThan, Not, Repository } from 'typeorm';
 import { ZerionTransaction } from "../zerion-api/zerion-api.models";
 import { TransferService } from "../transfer/transfer.service";
 import { calculateInOutTransferByZerionTransaction } from "../utils/pure-calculations";
@@ -13,6 +13,17 @@ export class TransactionService {
         @InjectRepository(TransactionEntity) private _transactionRepository: Repository<TransactionEntity>,
         private _transferService: TransferService,
     ) {}
+
+    getTransactionsByWallet(walletHash: string, lastTransactionDate: Date): Promise<TransactionEntity[]> {
+      return this._transactionRepository.find({
+        where: [
+          { from: walletHash, date: LessThan(lastTransactionDate), zerionSource: Not(IsNull()) },
+          { to: walletHash, date: LessThan(lastTransactionDate), zerionSource: Not(IsNull()) }
+        ],
+        take: 1000,
+        order: { date: 'DESC' },
+      });
+    }
 
     createNotExistZerionTransactions(zerionTransactions: ZerionTransaction[]): Promise<TransactionEntity[]> {
         const transactions: Partial<TransactionEntity>[] = zerionTransactions.map(zerionTransaction => {
@@ -30,7 +41,7 @@ export class TransactionService {
                 transactionType: zerionTransaction.attributes.operation_type,
 
                 fee: +zerionTransaction.attributes.fee.quantity.numeric,
-                feeCurrency: zerionTransaction.attributes.fee.fungible_info.symbol,
+                feeCurrency: zerionTransaction.attributes.fee.fungible_info?.symbol || '',
                 feeUsd: zerionTransaction.attributes.fee.value,
                 feeUsdRate: zerionTransaction.attributes.fee.price,
 
@@ -46,8 +57,11 @@ export class TransactionService {
 
             return transaction;
         });
-        this._transferService.createTransfersFromZerionTransaction(zerionTransactions).catch(err => captureException(err, { tags: { source: 'TransactionService.createNotExistZerionTransactions', call: 'TransferService.createTransfersFromZerionTransaction' }}));
+        this._transferService.createTransfersFromZerionTransaction(zerionTransactions).catch(err => {
+          Logger.error(err);
+          captureException(err, { tags: { source: 'TransactionService.createNotExistZerionTransactions', call: 'TransferService.createTransfersFromZerionTransaction' }});
+        });
         return this._transactionRepository.save(transactions);
     }
-    
+
 }

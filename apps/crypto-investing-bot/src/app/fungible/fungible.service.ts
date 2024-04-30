@@ -26,7 +26,7 @@ export class FungibleService {
     await this._fungibleRepository.save({
       name: fund.name,
       symbol: fund.symbol,
-      zerionVerified: fund.flags.verified,
+      zerionVerified: fund.flags?.verified ?? false,
       implementations: fund.implementations,
     });
     return { isAdded: true };
@@ -37,25 +37,25 @@ export class FungibleService {
   ): Promise<AddButchIfNotExistsResult<CurrencySymbol, FungibleEntity>> {
     const existsEntities = await this._fungibleRepository.find({
       select: ['symbol'],
-      where: { symbol: In(funds.map((fund) => fund.symbol)) },
+      where: { symbol: In(funds.map((fund) => fund?.symbol)) },
     });
     const notExits = funds.filter(
-      (fund) => !existsEntities.some((exit) => exit.symbol === fund.symbol)
+      (fund) => !!fund && !!fund?.name && !!fund?.symbol && !existsEntities.some((exit) => exit.symbol === fund.symbol)
     );
     const added = await this._fungibleRepository.save(
       notExits.map((fund) => this._mapFungibleInfoToEntity(fund))
     );
     return {
       added,
-      exists: existsEntities.map((entity) => entity.symbol),
+      exists: existsEntities.map((entity) => entity?.symbol || ''),
     };
   }
 
   private _mapFungibleInfoToEntity(fund: FungibleInfo): Partial<FungibleEntity> {
     return {
       name: fund.name,
-      symbol: fund.symbol,
-      zerionVerified: fund.flags.verified,
+      symbol: fund?.symbol || '',
+      zerionVerified: fund.flags?.verified || false,
       implementations: fund.implementations,
     };
   }

@@ -6,6 +6,7 @@ import type { RedisClientOptions } from 'redis';
 import { RedisStore, redisStore } from 'cache-manager-redis-store';
 import { ZERION_MANUAL_API_KEYS, ZERION_UPDATING_API_KEYS, fillTokenUsage } from './zerion-api-key-day-limiter';
 import { TransactionModule } from '../transaction/transaction.module';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { TransactionModule } from '../transaction/transaction.module';
       },
       inject: [AppConfig],
     }),
+    WalletModule,
     TransactionModule,
   ],
   providers: [
