@@ -41,7 +41,6 @@ type Range = typeof GoogleSheetsService.ranges;
 export class GoogleSheetsConsumer {
   constructor(
     private readonly _googleSheets: GoogleSheetsService,
-    @Inject(CACHE_MANAGER) private _cacheManager: Cache,
     private _walletService: WalletService,
   ) {}
 
@@ -114,6 +113,7 @@ export class GoogleSheetsConsumer {
             ],
           },
         });
+        // TODO Обновить в базе что кошелек NOT_TRACKABLE
         return;
       }
 
@@ -239,31 +239,13 @@ export class GoogleSheetsConsumer {
         },
         {} as Range
       );
+
       let walletAlias = '';
       try {
-        // Будет работать только пока concurrency 1
-        walletAlias = (await Promise.race([
-          humanizeHash(walletHash, async (key) => {
-            const hash = await this._cacheManager.get(`name:${key}`);
-            Logger.log(`check collision ${key} ${hash}`);
-            if (!hash) {
-              return false;
-            }
-            return hash !== walletHash;
-          }).then( alias => {
-            this._walletService.saveWallet({ hash: walletHash, alias }).catch(error => {
-              Logger.error(error);
-              captureException(error, { extra: { walletHash, alias }, tags: { source: 'GoogleSheetsConsumer.fillFinanceDataFromSheets', target: 'WalletService.save'}})
-            });
-            return alias;
-          }),
-          new Promise((_, rej) => setTimeout(rej, 10_000)),
-        ])) as string;
-        if (walletAlias) {
-          await this._cacheManager.set(`name:${walletAlias}`, walletHash, 0);
-        }
+        const walletEntity = await this._walletService.getWallet(walletHash);
+        walletAlias = walletEntity.hash;
       } catch (error) {
-        Logger.error('fillFinanceDataFromSheets humanizeHash error', error);
+        Logger.error('fillFinanceDataFromSheets error', error);
       }
 
       // Заполнение объекта FinanceData с использованием данных из valuesMap

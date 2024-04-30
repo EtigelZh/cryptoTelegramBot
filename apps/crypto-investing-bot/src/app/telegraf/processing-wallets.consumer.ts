@@ -1,5 +1,5 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import {
   ZerionApiService,
 } from '../zerion-api/zerion-api.service';
@@ -20,6 +20,10 @@ import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models'
 import { SaveToDbApiJobService } from './save-to-db.consumer';
 import { RequestErrorData, ZerionApiQueueName } from '../zerion-api/zerion-api.models';
 import { FetchTransactionsJob, zerionApiFetchTransactionsQueueName } from '../zerion-api/zerion-api-fetch-transactions.consumer';
+import { humanizeHash } from '../utils/humanized-hash';
+import { captureException } from '@sentry/node';
+import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
+import { WalletService } from '../wallet/wallet.service';
 
 export type ProcessingWalletArguments = {
   walletHash: string;
@@ -35,8 +39,9 @@ export class ProcessingWalletsConsumer {
     private readonly appConfig: AppConfig,
     private readonly _telegramJobApiService: TelegramJobApiService,
     private readonly _saveToDbApiJobService: SaveToDbApiJobService,
-    private readonly zerionService: ZerionApiService,
-
+    private readonly _zerionService: ZerionApiService,
+    private readonly _walletService: WalletService,
+    @Inject(CACHE_MANAGER) private _cacheManager: Cache,
     @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
     @InjectQueue(googleDriveQueueName) private _googleDriveQueue: Queue,
     @InjectQueue(zerionApiFetchTransactionsQueueName) private _zerionApiFetchTransactionsQueue: Queue,
@@ -123,7 +128,35 @@ export class ProcessingWalletsConsumer {
     parentMessageId: number | null,
     apiKeyQueueName: ZerionApiQueueName
   ): Promise<{ summarySheetUpdated?: boolean }> {
+    let walletAlias = '';
+    try {
+      // Будет работать только пока concurrency 1
+      walletAlias = (await Promise.race([
+        humanizeHash(walletHash, async (key) => {
+          const hash = await this._cacheManager.get(`name:${key}`);
+          Logger.log(`check collision ${key} ${hash}`);
+          if (!hash) {
+            return false;
+          }
+          return hash !== walletHash;
+        }).then( alias => {
+          this._walletService.saveWallet({ hash: walletHash, alias }).catch(error => {
+            Logger.error(error);
+            captureException(error, { extra: { walletHash, alias }, tags: { source: 'GoogleSheetsConsumer.fillFinanceDataFromSheets', target: 'WalletService.save'}})
+          });
+          return alias;
+        }),
+        new Promise((_, rej) => setTimeout(rej, 10_000)),
+      ])) as string;
+      if (walletAlias) {
+        await this._cacheManager.set(`name:${walletAlias}`, walletHash, 0);
+      }
+    } catch (error) {
+      Logger.error('fillFinanceDataFromSheets humanizeHash error', error);
+    }
+
     const globalPrefix = `Скачиваю транзакции для кошелька ${walletHash}. ${suffix}`;
+
     let lastApiCallMessageId = parentMessageId;
     const lastText = globalPrefix;
     try {
@@ -132,7 +165,7 @@ export class ProcessingWalletsConsumer {
         globalPrefix,
         chatId
       );
-      
+
       const getTransactionsJob = await this._zerionApiFetchTransactionsQueue.add('getTransactions', {
         walletHash,
         take: 1000,
@@ -159,7 +192,7 @@ export class ProcessingWalletsConsumer {
 
         return {};
       }
-      const csvData = await this.zerionService.getCsvTransactions(
+      const csvData = await this._zerionService.getCsvTransactions(
         transactions.data
       );
       if (csvData.errors.length) {

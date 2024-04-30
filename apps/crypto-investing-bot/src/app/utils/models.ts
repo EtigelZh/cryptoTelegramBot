@@ -7,27 +7,31 @@ export type WalletHash = string;
  * Hex string 66 characters long
  */
 export type TransactionHash = string;
+
 export enum TransactionType {
-    send = 'send',
-    receive = 'receive',
-    execute = 'execute',
-    trade = 'trade',
-    approve = 'approve',
-    withdraw = 'withdraw',
-    deposit = 'deposit',
-    mint = 'mint',
-    unknown = 'unknown',
+  send = 'send',
+  receive = 'receive',
+  execute = 'execute',
+  trade = 'trade',
+  approve = 'approve',
+  withdraw = 'withdraw',
+  deposit = 'deposit',
+  mint = 'mint',
+  unknown = 'unknown',
 }
+
 export enum TransactionStatus {
-    confirmed = 'confirmed',
-    failed = 'failed',
-    pending = 'pending',
+  confirmed = 'confirmed',
+  failed = 'failed',
+  pending = 'pending',
 }
 
 export enum TransferDirection {
-    in = 'in',
-    out = 'out',
+  in = 'in',
+  out = 'out',
+  self = 'self',
 }
+
 /**
  * Currency symbol
  */
@@ -45,29 +49,29 @@ export type Quantity = {
 };
 
 export type InOutTransactionFields = {
-    receiveAmount: number;
-    receiveCurrency: CurrencySymbol;
-    receiveUsd: number;
-    receiveUsdRate: number;
+  receiveAmount: number;
+  receiveCurrency: CurrencySymbol;
+  receiveUsd: number;
+  receiveUsdRate: number;
 
-    spentAmount: number;
-    spentCurrency: CurrencySymbol;
-    spentUsd: number;
-    spentUsdRate: number;
+  spentAmount: number;
+  spentCurrency: CurrencySymbol;
+  spentUsd: number;
+  spentUsdRate: number;
 }
 
 export type AmountGroup = {
-    amount: number;
-    amountCurrency: CurrencySymbol;
-    amountUsd: number | null;
-    amountUsdRate: number | null;
+  amount: number;
+  amountCurrency: CurrencySymbol;
+  amountUsd: number | null;
+  amountUsdRate: number | null;
 }
 
 export type AddIfNotExistsResult = {
-    isAdded: boolean;
+  isAdded: boolean;
 }
 
 export type AddButchIfNotExistsResult<Key = string, SavedEntity = unknown> = {
-    added: SavedEntity[];
-    exists: Key[];
+  added: SavedEntity[];
+  exists: Key[];
 }
