@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TransferEntity } from './transfer.entity';
 import { Repository } from 'typeorm';
@@ -20,6 +20,8 @@ export class TransferService {
   ): Promise<TransferEntity[]> {
     const transfers: TransferEntity[] = [];
     const fungiblePositions = new Map<CurrencySymbol, FungibleInfo>();
+
+    // TODO поправить проблему с error: duplicate key value violates unique constraint "PK_transfers_from_to_transaction_id"
     for (const transaction of transactions) {
       transfers.push(
         ...transaction.attributes.transfers.map((zerionTransfer) => {
@@ -32,13 +34,13 @@ export class TransferService {
             blockNo: transaction.attributes.mined_at_block,
 
             amount: +zerionTransfer.quantity.numeric, // TODO подумать возможно приведение к числу плохая идея
-            amountCurrency: zerionTransfer.fungible_info.symbol,
+            amountCurrency: zerionTransfer.fungible_info?.symbol || '',
             amountUsd: zerionTransfer.value,
             amountUsdRate: zerionTransfer.price,
 
             quantity: zerionTransfer.quantity,
           } as TransferEntity;
-          fungiblePositions[zerionTransfer.fungible_info.symbol] = {
+          fungiblePositions[zerionTransfer.fungible_info?.symbol || ''] = {
             ...zerionTransfer.fungible_info,
           };
           return transfer;
@@ -46,8 +48,10 @@ export class TransferService {
       );
     }
 
-    this._fungibleConsumerApiService.addZerionFundsIfNotExists(Object.values(fungiblePositions)).catch(err => 
-        captureException(err, { tags: { source: 'TransferService.createTransfersFromZerionTransaction', call: 'FungibleConsumerApiService.addZerionFundsIfNotExists' }})
+    this._fungibleConsumerApiService.addZerionFundsIfNotExists(Object.values(fungiblePositions)).catch(err => {
+      Logger.error(err);
+      captureException(err, { tags: { source: 'TransferService.createTransfersFromZerionTransaction', call: 'FungibleConsumerApiService.addZerionFundsIfNotExists' }})
+    }
     );
 
     return await this._transferRepository.save(transfers);

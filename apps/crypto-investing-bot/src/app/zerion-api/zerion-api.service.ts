@@ -2,22 +2,38 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppConfig } from '../app.config';
 import axios from 'axios';
 import { WithSentryPerformance } from '../utils/sentry-performance';
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
+import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { createMD5Hash } from '../utils/hash';
 import { captureException } from '@sentry/node';
-import { CsvProcessingResponse, FungiblePosition, GetTransactionsArguments, ZerionApiQueueName, ZerionResponse, ZerionTransaction } from './zerion-api.models';
+import {
+  CsvProcessingResponse,
+  FungiblePosition,
+  GetTransactionsArguments,
+  ZerionApiQueueName,
+  ZerionResponse,
+  ZerionTransaction
+} from './zerion-api.models';
 import { RedisStore } from 'cache-manager-redis-store';
-import { ApiKeyAndLimitWithUsage, ZERION_MANUAL_API_KEYS, ZERION_UPDATING_API_KEYS, getTokenKey } from './zerion-api-key-day-limiter';
+import {
+  ApiKeyAndLimitWithUsage,
+  getTokenKey,
+  ZERION_MANUAL_API_KEYS,
+  ZERION_UPDATING_API_KEYS
+} from './zerion-api-key-day-limiter';
 import { TransactionService } from '../transaction/transaction.service';
+import { WalletService } from '../wallet/wallet.service';
+import { WalletEntity, WalletStatus } from '../wallet/wallet.entity';
+import { inspect } from 'util';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
 }
 const transactionsUrlTemplate = (
   walletHash,
-  perPage
+  perPage,
+  lastTransactionDateTimestamp?: number
 ) =>
-  `https://api.zerion.io/v1/wallets/${walletHash}/transactions/?currency=usd&page[size]=${perPage}&filter[chain_ids]=ethereum&filter[trash]=only_non_trash`;
+  `https://api.zerion.io/v1/wallets/${walletHash}/transactions/?currency=usd&page[size]=${perPage}&filter[chain_ids]=ethereum&filter[trash]=only_non_trash${lastTransactionDateTimestamp ? `&filter[min_mined_at]=${lastTransactionDateTimestamp}` : ''}`;
 @Injectable()
 export class ZerionApiService {
   constructor(
@@ -25,6 +41,7 @@ export class ZerionApiService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     @Inject(ZERION_MANUAL_API_KEYS) private _manualApiKeys: ApiKeyAndLimitWithUsage[],
     @Inject(ZERION_UPDATING_API_KEYS) private _updatingApiKeys: ApiKeyAndLimitWithUsage[],
+    private _walletService: WalletService,
     private _transactionService: TransactionService,
   ) {
     console.log(this._manualApiKeys, this._updatingApiKeys);
@@ -77,34 +94,51 @@ export class ZerionApiService {
       urlTemplate = transactionsUrlTemplate,
       getNextChunk = this.fetchTransactionsChunk
     } = options;
-
+    const isTransactionsRequest = urlTemplate === transactionsUrlTemplate;
     const perPage = Math.min(take || 100, 100);
 
+    let walletEntity: WalletEntity | null = null;
+    try {
+      walletEntity = await this._walletService.getWallet(walletHash);
+      Logger.log(`Wallet status ${walletEntity?.status}`)
+    } catch (e) {
+      Logger.error(e);
+      captureException(e, { tags: { source: 'getTransactions', target: 'savingToDbWalletStatistics' } })
+    }
+
     let allTransactions: T[] = [];
-    let url = urlTemplate(walletHash, perPage);
+    let url = urlTemplate(walletHash, perPage,  +(walletEntity?.lastTransactionDate || 0));
 
     try {
       while (url) {
         let zerionResponse: ZerionResponse<T> = null;
         let cacheHits = 0;
+
+        // TODO вынести получение транзакций и fungible_positions в отдельные методы
         const urlCacheKey = createMD5Hash(url);
-        try {
-          const zerionResponseRaw = await this.cacheManager.get(urlCacheKey);
-          if (typeof zerionResponseRaw === 'string') {
-            zerionResponse = JSON.parse(zerionResponseRaw as string);
-          } else {
-            zerionResponse = zerionResponseRaw as ZerionResponse<T>;
+        if (!isTransactionsRequest) {
+          try {
+            const zerionResponseRaw = await this.cacheManager.get(urlCacheKey);
+            if (typeof zerionResponseRaw === 'string') {
+              zerionResponse = JSON.parse(zerionResponseRaw as string);
+            } else {
+              zerionResponse = zerionResponseRaw as ZerionResponse<T>;
+            }
+          } catch (e) {
+            Logger.error(`Failed to parse cache key ${e}`);
           }
-        } catch (e) {
-          Logger.error(`Failed to parse cache key ${e}`);
         }
+
 
         if (!zerionResponse) {
           zerionResponse = await getNextChunk(url, apiKeyQueueName);
           if (zerionResponse.error) {
             throw new Error('Failed to fetch transactions');
           }
-          this.cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
+          if (!isTransactionsRequest) {
+            this.cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
+          }
+
           if (urlTemplate === transactionsUrlTemplate) {
             try {
               this._transactionService.createNotExistZerionTransactions(zerionResponse.data as ZerionTransaction[]).catch(e => Logger.error(e));
@@ -126,6 +160,29 @@ export class ZerionApiService {
 
         if (take && allTransactions.length >= take) {
           break;
+        }
+      }
+      if (this._walletIsNotEmpty(walletEntity) && isTransactionsRequest) {
+        try {
+          if (walletEntity.status === WalletStatus.NEW && allTransactions.length > 0 ) {
+            const firstTransaction = allTransactions[allTransactions.length - 1]  as ZerionTransaction;
+            walletEntity.firstTransactionDate = new Date(firstTransaction.attributes.mined_at);
+            walletEntity.status = WalletStatus.ACTIVE;
+          } else {
+            // Дополняем ответ сохраненными в базе транзакциями
+            const savedInDbOldTransactions = await this._transactionService.getTransactionsByWallet(walletHash, walletEntity.lastTransactionDate);
+            allTransactions.push(...savedInDbOldTransactions.map(t => t.zerionSource as T));
+          }
+
+          if (allTransactions.length > 0) {
+            // Обновляем дату последней транзакции
+            const lastTransaction = allTransactions[0] as ZerionTransaction;
+            walletEntity.lastTransactionDate = new Date(lastTransaction.attributes.mined_at);
+            await this._walletService.saveWallet(walletEntity);
+          }
+        } catch (e) {
+          Logger.error(e);
+          captureException(e, { tags: { source: 'getTransactions', target: 'savingToDbWalletStatistics' } });
         }
       }
 
@@ -244,10 +301,6 @@ export class ZerionApiService {
         const buyTransfer = transfers.find((t) => t.direction === 'in');
         // sell transfers
         const sellTransfers = transfers.filter((t) => t.direction === 'out');
-        const sellCurrencies = new Set(sellTransfers.map((t) => t.currency));
-        if (sellCurrencies.size > 1) {
-          captureException(`Multiple sell currencies in a single transaction ${txHash}`)
-        }
         const sellTransfer = sellTransfers.reduce((acc, transaction) => ({
           amount: acc.amount + transaction.amount,
           currency: transaction.currency,
@@ -337,5 +390,9 @@ export class ZerionApiService {
     });
 
     return csvRows;
+  }
+
+  private _walletIsNotEmpty(wallet: WalletEntity | null): wallet is WalletEntity {
+    return wallet !== null && !!wallet;
   }
 }

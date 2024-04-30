@@ -252,6 +252,7 @@ export class GoogleSheetsConsumer {
             return hash !== walletHash;
           }).then( alias => {
             this._walletService.saveWallet({ hash: walletHash, alias }).catch(error => {
+              Logger.error(error);
               captureException(error, { extra: { walletHash, alias }, tags: { source: 'GoogleSheetsConsumer.fillFinanceDataFromSheets', target: 'WalletService.save'}})
             });
             return alias;
@@ -298,7 +299,7 @@ export class GoogleSheetsConsumer {
         PLRCT: valuesMap.PLRCT,
         winRateRCT: valuesMap.winRateRCT,
       };
-      
+
       return data;
     } catch (error) {
       Logger.error('fillFinanceDataFromSheets error', error);

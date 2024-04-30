@@ -13,6 +13,9 @@ export enum TransactionType {
     execute = 'execute',
     trade = 'trade',
     approve = 'approve',
+    withdraw = 'withdraw',
+    deposit = 'deposit',
+    mint = 'mint',
     unknown = 'unknown',
 }
 export enum TransactionStatus {
