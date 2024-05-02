@@ -99,7 +99,7 @@ export class AppConfig {
     process.env.ADMINS_CHAT_ID || '-4039511820,254372545,341786440'
   )?.split(',');
 
-  dailyUpdateReportChatId: number = +(process.env.DAILY_UPDATE_REPORT_CHAT_ID || '254372545');
+  dailyUpdateReportChatId: number = +(process.env.DAILY_UPDATE_REPORT_CHAT_ID || '-1002079084911');
 
   devPrefix: string = process.env.DEV_MESSAGE_PREFIX || '';
   public async getDbConfig() {

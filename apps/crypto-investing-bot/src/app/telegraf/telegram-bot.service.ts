@@ -142,6 +142,7 @@ export class TelegramBotService implements OnModuleInit {
     if (this._isBotMessage(ctx)) {
       return;
     }
+    // ctx.chat.id <- чат из которого отправили сообщение возможно стоит везде поменять ctx.from?.id на ctx.chat.id
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
