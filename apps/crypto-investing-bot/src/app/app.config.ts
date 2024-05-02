@@ -68,7 +68,7 @@ export class AppConfig {
   static readonly walletProcessorConcurrency = +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4);
   static readonly sendTelegramMessageProcessorConcurrency = +(process.env.SEND_TELEGRAM_MESSAGE_CONCURRENCY || 4);
   static readonly updateTelegramMessageProcessorConcurrency = +(process.env.UPDATE_TELEGRAM_MESSAGE_CONCURRENCY || 4);
-  static readonly updateOldWalletsCron = process.env.UPDATE_OLD_WALLETS_CRON || '0 22 * * *';
+  static readonly updateOldWalletsCron = process.env.UPDATE_OLD_WALLETS_CRON || '10 */6 * * *';
 
   minioEndpoint: string = process.env.MINIO_ENDPOINT || '';
   minioEndpointPort: number = +(process.env.MINIO_ENDPOINT_PORT || 9000);
@@ -78,7 +78,7 @@ export class AppConfig {
   etherscanApiKey: string = process.env.ETHERSCAN_API_KEY || '';
   coinmarketCupApiKey: string = process.env.COINMARKETCUP_API_KEY || '';
   zerionApiKey: string = process.env.ZERION_API_KEY || '';
-  
+
   zerionUpdatingApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_UPDATING_API_KEYS ?? '');
   zerionManualApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_MANUAL_API_KEYS ?? '');
 

@@ -7,6 +7,7 @@ import { RedisStore, redisStore } from 'cache-manager-redis-store';
 import { ZERION_MANUAL_API_KEYS, ZERION_UPDATING_API_KEYS, fillTokenUsage } from './zerion-api-key-day-limiter';
 import { TransactionModule } from '../transaction/transaction.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { WalletModule } from '../wallet/wallet.module';
     }),
     WalletModule,
     TransactionModule,
+    ScheduleModule,
   ],
   providers: [
     ZerionApiService,

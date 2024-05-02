@@ -23,7 +23,7 @@ import {
 import { TransactionService } from '../transaction/transaction.service';
 import { WalletService } from '../wallet/wallet.service';
 import { WalletEntity, WalletStatus } from '../wallet/wallet.entity';
-import { inspect } from 'util';
+import { Cron } from '@nestjs/schedule';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
@@ -38,9 +38,9 @@ const transactionsUrlTemplate = (
 export class ZerionApiService {
   constructor(
     private readonly config: AppConfig,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    @Inject(ZERION_MANUAL_API_KEYS) private _manualApiKeys: ApiKeyAndLimitWithUsage[],
-    @Inject(ZERION_UPDATING_API_KEYS) private _updatingApiKeys: ApiKeyAndLimitWithUsage[],
+    @Inject(CACHE_MANAGER) private readonly _cacheManager: Cache,
+    @Inject(ZERION_MANUAL_API_KEYS) private readonly _manualApiKeys: ApiKeyAndLimitWithUsage[],
+    @Inject(ZERION_UPDATING_API_KEYS) private readonly _updatingApiKeys: ApiKeyAndLimitWithUsage[],
     private _walletService: WalletService,
     private _transactionService: TransactionService,
   ) {
@@ -66,7 +66,7 @@ export class ZerionApiService {
   }
 
   getRedisClient() {
-    return (this.cacheManager.store as unknown as RedisStore).getClient();
+    return (this._cacheManager.store as unknown as RedisStore).getClient();
   }
 
   @WithSentryPerformance('Get CSV transactions')
@@ -118,7 +118,7 @@ export class ZerionApiService {
         const urlCacheKey = createMD5Hash(url);
         if (!isTransactionsRequest) {
           try {
-            const zerionResponseRaw = await this.cacheManager.get(urlCacheKey);
+            const zerionResponseRaw = await this._cacheManager.get(urlCacheKey);
             if (typeof zerionResponseRaw === 'string') {
               zerionResponse = JSON.parse(zerionResponseRaw as string);
             } else {
@@ -129,17 +129,14 @@ export class ZerionApiService {
           }
         }
 
-
         if (!zerionResponse) {
           zerionResponse = await getNextChunk(url, apiKeyQueueName);
           if (zerionResponse.error) {
             throw new Error('Failed to fetch transactions');
           }
           if (!isTransactionsRequest) {
-            this.cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
-          }
-
-          if (urlTemplate === transactionsUrlTemplate) {
+            this._cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
+          } else {
             try {
               this._transactionService.createNotExistZerionTransactions(zerionResponse.data as ZerionTransaction[]).catch(e => Logger.error(e));
             } catch (e) {
@@ -206,6 +203,19 @@ export class ZerionApiService {
     }
   }
 
+  /** каждый час синхронизируем использование токенов */
+  @Cron('0 * * * *')
+  async updateKeysUsage() {
+    for (const apiKey of this._manualApiKeys) {
+      const cachedValue = await this._cacheManager.get(getTokenKey(apiKey.token));
+      apiKey.used = +(cachedValue || 0);
+    }
+
+    for (const apiKey of this._updatingApiKeys) {
+      const cachedValue = await this._cacheManager.get(getTokenKey(apiKey.token));
+      apiKey.used = +(cachedValue || 0);
+    }
+  }
   async fetchTransactionsChunk<T>(url: string, apiKeyQueueName: ZerionApiQueueName): Promise<ZerionResponse<T>> {
     const apiKey = await this._getKeyForQueue(apiKeyQueueName);
     if (!apiKey) {
@@ -221,7 +231,7 @@ export class ZerionApiService {
     };
     const response = await axios.get<ZerionResponse<T>>(url, options);
     await this.getRedisClient().incr(getTokenKey(apiKey.token));
-    const cachedValue = await this.cacheManager.get(getTokenKey(apiKey.token));
+    const cachedValue = await this._cacheManager.get(getTokenKey(apiKey.token));
     apiKey.used = +(cachedValue || 0);
     console.log(cachedValue, apiKey.used, apiKey.limit, apiKey.token, getTokenKey(apiKey.token));
     return response.data;

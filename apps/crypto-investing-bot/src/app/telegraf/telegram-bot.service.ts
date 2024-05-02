@@ -51,12 +51,16 @@ export class TelegramBotService implements OnModuleInit {
       this.handleUpdateOldWalletsCommand.bind(this)
     );
     this.bot.command('restart', this.handleRestart.bind(this));
+    this.bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
 
   private async handleRestart(
     ctx: Context<MountMap['text']>
   ) {
+    if (this._isBotMessage(ctx)) {
+      return;
+    }
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -72,12 +76,15 @@ export class TelegramBotService implements OnModuleInit {
     setTimeout(() => {
       process.exit(0);
     }, 1_000);
-    
+
   }
 
   private async handleUpdateOldWalletsCommand(
     ctx: Context<MountMap['text']>
   ): Promise<void> {
+    if (this._isBotMessage(ctx)) {
+      return;
+    }
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -119,6 +126,9 @@ export class TelegramBotService implements OnModuleInit {
   private async handlePossibleWalletHash(
     ctx: Context<MountMap['text']>
   ): Promise<unknown> {
+    if (this._isBotMessage(ctx)) {
+      return;
+    }
     const messageText = ctx.message.text;
 
     // Check if the message looks like a wallet hash
@@ -129,6 +139,9 @@ export class TelegramBotService implements OnModuleInit {
   }
 
   private async handleStartCommand(ctx): Promise<void> {
+    if (this._isBotMessage(ctx)) {
+      return;
+    }
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -147,6 +160,9 @@ export class TelegramBotService implements OnModuleInit {
   private async handleTransactionsCommand(
     ctx: Context<MountMap['text'] & MountMap['message']>
   ): Promise<unknown> {
+    if (this._isBotMessage(ctx)) {
+      return;
+    }
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -250,7 +266,7 @@ export class TelegramBotService implements OnModuleInit {
           apiKeyQueueName,
         } as ProcessingWalletArguments,
         {
-          removeOnComplete: true, 
+          removeOnComplete: true,
           priority: apiKeyQueueName === 'manual' ? 1 : 2 // Ручной пересчет более приоритетный
         }
       );
@@ -273,6 +289,10 @@ export class TelegramBotService implements OnModuleInit {
     Logger.error(`Telegraf bot error: ${err} Context: ${ctx}`);
 
     // Implement error-specific handling logic if needed
+  }
+
+  private _isBotMessage(ctx: Context<MountMap['text']>): boolean {
+    return ctx.message.from.is_bot;
   }
 
   private isAdminUser(userId: string | number): boolean {
