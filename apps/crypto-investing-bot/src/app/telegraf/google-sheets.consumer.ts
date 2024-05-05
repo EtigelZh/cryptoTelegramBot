@@ -243,7 +243,7 @@ export class GoogleSheetsConsumer {
       let walletAlias = '';
       try {
         const walletEntity = await this._walletService.getWallet(walletHash);
-        walletAlias = walletEntity.hash;
+        walletAlias = walletEntity.alias;
       } catch (error) {
         Logger.error('fillFinanceDataFromSheets error', error);
       }
