@@ -14,7 +14,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const globalPrefix = '';
   app.setGlobalPrefix(globalPrefix);
-  
+  app.enableShutdownHooks();
   Logger.log(
     `🚀 Application is running on: http://localhost:${port}/${globalPrefix}`
   );

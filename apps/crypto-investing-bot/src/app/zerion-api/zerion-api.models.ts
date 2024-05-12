@@ -158,7 +158,7 @@ export type GetTransactionsArguments<T> = {
     take?: number;
     apiKeyQueueName: ZerionApiQueueName;
     urlTemplate?: (walletHash: string, perPage: number) => string;
-    onNextRequest: (
+    onNextRequest?: (
         cacheHitsToday: number,
         data: T[]
       ) => Promise<void>;

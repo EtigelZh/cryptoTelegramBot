@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { TelegramBotService } from '../telegraf/telegram-bot.service';
+import { TelegramBotLogicService } from '../telegram-bot-logic/telegram-bot-logic.service';
 
 @Injectable()
 export class HealthService {
   constructor(
-    private telegramService: TelegramBotService
+    private telegramService: TelegramBotLogicService
   ) {}
 
 

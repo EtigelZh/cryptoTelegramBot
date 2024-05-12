@@ -24,6 +24,7 @@ import { TransactionService } from '../transaction/transaction.service';
 import { WalletService } from '../wallet/wallet.service';
 import { WalletEntity, WalletStatus } from '../wallet/wallet.entity';
 import { Cron } from '@nestjs/schedule';
+import { ZerionApiLimitReachedError } from '../error-handling/custom-errors';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
@@ -219,7 +220,7 @@ export class ZerionApiService {
   async fetchTransactionsChunk<T>(url: string, apiKeyQueueName: ZerionApiQueueName): Promise<ZerionResponse<T>> {
     const apiKey = await this._getKeyForQueue(apiKeyQueueName);
     if (!apiKey) {
-      throw new Error('Дневной лимит запросов исчерпан');
+      throw new ZerionApiLimitReachedError('Дневной лимит запросов исчерпан');
     }
     const authHeader = createFromUserPass(apiKey.token, '');
 
@@ -230,10 +231,11 @@ export class ZerionApiService {
       },
     };
     const response = await axios.get<ZerionResponse<T>>(url, options);
-    await this.getRedisClient().incr(getTokenKey(apiKey.token));
-    const cachedValue = await this._cacheManager.get(getTokenKey(apiKey.token));
+    const tokenRedisKey = getTokenKey(apiKey.token);
+    await this.getRedisClient().incr(tokenRedisKey);
+    const cachedValue = await this._cacheManager.get(tokenRedisKey);
     apiKey.used = +(cachedValue || 0);
-    console.log(cachedValue, apiKey.used, apiKey.limit, apiKey.token, getTokenKey(apiKey.token));
+    console.log(cachedValue, apiKey.used, apiKey.limit, apiKey.token, tokenRedisKey);
     return response.data;
   }
 

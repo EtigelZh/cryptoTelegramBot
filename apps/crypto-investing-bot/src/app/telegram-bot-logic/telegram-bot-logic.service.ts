@@ -4,55 +4,52 @@ import { AppConfig } from '../app.config';
 import { message } from 'telegraf/filters';
 import { MountMap } from 'telegraf/typings/telegram-types';
 import { WithSentryPerformance } from '../utils/sentry-performance';
-import { TELEGRAF } from './telegraf.token';
-import { Queue } from 'bull';
-import { InjectQueue } from '@nestjs/bull';
-import { walletQueueName } from './queues';
-import {
-  GetOldWalletsArgs,
-  googleSheetsApiQueueName,
-} from './google-sheets.consumer';
+
+
 import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { Cron } from '@nestjs/schedule';
-import { TelegramJobApiService } from './telegram-job-api.service';
 import { ZerionApiQueueName } from '../zerion-api/zerion-api.models';
-import { ProcessingWalletArguments } from './processing-wallets.consumer';
+import { GoogleSheetsJobApiService } from '../google-api/google-sheets/google-sheets-job-api.service';
+import { ProcessingWalletArguments } from '../processing-wallets/processing-wallets.consumer';
+import { ProcessingWalletsJobApiService } from '../processing-wallets/processing-wallets-job-api.service';
+import { TELEGRAF } from '../telegraf/telegraf.token';
+import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
   '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
 
 @Injectable()
-export class TelegramBotService implements OnModuleInit {
+export class TelegramBotLogicService implements OnModuleInit {
   constructor(
-    private readonly appConfig: AppConfig,
-    @Inject(TELEGRAF)
-    private readonly bot: Telegraf,
-    @InjectQueue(walletQueueName) private _processingWalletQueue: Queue,
-    @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
+    private _appConfig: AppConfig,
+    private _processingWalletsJobApiService: ProcessingWalletsJobApiService,
+    private _googleSheetsJobApiService: GoogleSheetsJobApiService,
     private _zerionApi: ZerionApiService,
-    private _telegramJobApiService: TelegramJobApiService
+    private _telegramJobApiService: TelegramJobApiService,
+    @Inject(TELEGRAF)
+    public readonly _bot: Telegraf,
   ) {}
 
   onModuleInit() {
     this.initializeBotCommands();
-    this.bot.catch(this.handleBotError);
+    this._bot.catch(this.handleBotError);
   }
 
   getMe() {
-    return this.bot.telegram.getMe();
+    return this._bot.telegram.getMe();
   }
 
   private initializeBotCommands(): void {
-    this.bot.command('start', this.handleStartCommand.bind(this));
-    this.bot.command('transactions', this.handleTransactionsCommand.bind(this));
-    this.bot.command(
+    this._bot.command('start', this.handleStartCommand.bind(this));
+    this._bot.command('transactions', this.handleTransactionsCommand.bind(this));
+    this._bot.command(
       'update_old_wallets',
       this.handleUpdateOldWalletsCommand.bind(this)
     );
-    this.bot.command('restart', this.handleRestart.bind(this));
-    this.bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
-    this.bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
+    this._bot.command('restart', this.handleRestart.bind(this));
+    this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
+    this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
 
   private async handleRestart(
@@ -69,10 +66,10 @@ export class TelegramBotService implements OnModuleInit {
       return;
     }
     await this._telegramJobApiService.sendMessage(
-      this.appConfig.dailyUpdateReportChatId,
+      this._appConfig.dailyUpdateReportChatId,
       'Бот умер, но воскреснет в течении 10 секунд'
     );
-    await this.bot.stop();
+    await this._bot.stop();
     setTimeout(() => {
       process.exit(0);
     }, 1_000);
@@ -105,15 +102,7 @@ export class TelegramBotService implements OnModuleInit {
       ctx.from.id,
       `Получаем кошельки для обработки. Всего можем обновить кошельков сегодня: ${numberOfWalletsToUpdate}`
     );
-    const job = await this._googleSheetsQueue.add(
-      'getOldWallets',
-      <GetOldWalletsArgs>{
-        spreadsheetId: this.appConfig.summaryWalletsSheetId,
-        numberOfWalletsToUpdate,
-      },
-      { removeOnComplete: true }
-    );
-    const oldWallets = await job.finished();
+    const oldWallets = await this._googleSheetsJobApiService.getOldWallets(numberOfWalletsToUpdate);
 
     await this._telegramJobApiService.sendMessage(
       ctx.from.id,
@@ -187,20 +176,13 @@ export class TelegramBotService implements OnModuleInit {
     const numberOfWalletsToUpdate = this._zerionApi.getEstimateAvailableProcessingWallets();
     if (numberOfWalletsToUpdate <= 0) {
       await this._telegramJobApiService.sendMessage(
-        this.appConfig.dailyUpdateReportChatId,
+        this._appConfig.dailyUpdateReportChatId,
         'Дневной лимит запросов исчерпан. Попробуйте завтра.'
       );
       return;
     }
-    const job = await this._googleSheetsQueue.add(
-      'getOldWallets',
-      <GetOldWalletsArgs>{
-        spreadsheetId: this.appConfig.summaryWalletsSheetId,
-        numberOfWalletsToUpdate,
-      },
-      { removeOnComplete: true }
-    );
-    const oldWallets = await job.finished();
+
+    const oldWallets = await this._googleSheetsJobApiService.getOldWallets(numberOfWalletsToUpdate);
 
     for (const walletHash of oldWallets) {
       const index = oldWallets.indexOf(walletHash);
@@ -212,7 +194,7 @@ export class TelegramBotService implements OnModuleInit {
       let parentMessageId = null;
       try {
         const message = await this._telegramJobApiService.sendMessage(
-          this.appConfig.dailyUpdateReportChatId,
+          this._appConfig.dailyUpdateReportChatId,
           `Кошелек ${walletHash} добавлен в очередь ${suffix}`
         );
         parentMessageId = message.message_id;
@@ -220,17 +202,13 @@ export class TelegramBotService implements OnModuleInit {
         Logger.log(`Error sending message: ${e}`);
       }
 
-      await this._processingWalletQueue.add(
-        'process',
-        {
-          walletHash,
-          chatId: this.appConfig.dailyUpdateReportChatId,
-          suffix,
-          parentMessageId,
-          apiKeyQueueName: 'updating'
-        } as ProcessingWalletArguments,
-        { removeOnComplete: true }
-      );
+      this._processingWalletsJobApiService.processWallet({
+        walletHash,
+        chatId: this._appConfig.dailyUpdateReportChatId,
+        suffix,
+        parentMessageId,
+        apiKeyQueueName: 'updating'
+      } as ProcessingWalletArguments);
     }
   }
 
@@ -257,21 +235,13 @@ export class TelegramBotService implements OnModuleInit {
         Logger.log(`Error sending message: ${e}`);
       }
 
-      const job = await this._processingWalletQueue.add(
-        'process',
-        {
-          walletHash,
-          chatId: ctx.chat.id,
-          suffix,
-          parentMessageId,
-          apiKeyQueueName,
-        } as ProcessingWalletArguments,
-        {
-          removeOnComplete: true,
-          priority: apiKeyQueueName === 'manual' ? 1 : 2 // Ручной пересчет более приоритетный
-        }
-      );
-      jobResults.push(job.finished());
+      jobResults.push(this._processingWalletsJobApiService.processWallet({
+        walletHash,
+        chatId: ctx.chat.id,
+        suffix,
+        parentMessageId,
+        apiKeyQueueName,
+      } as ProcessingWalletArguments));
     }
     const summarySheetUpdatedResults = await Promise.allSettled(jobResults);
     const summarySheetUpdated = summarySheetUpdatedResults.some(
@@ -281,7 +251,7 @@ export class TelegramBotService implements OnModuleInit {
     if (summarySheetUpdated) {
       this._telegramJobApiService.sendMessage(
         ctx.from.id,
-        `Обновлены данные в общей таблице https://docs.google.com/spreadsheets/d/${this.appConfig.summaryWalletsSheetId}/edit`
+        `Обновлены данные в общей таблице https://docs.google.com/spreadsheets/d/${this._appConfig.summaryWalletsSheetId}/edit`
       );
     }
   }
@@ -297,6 +267,6 @@ export class TelegramBotService implements OnModuleInit {
   }
 
   private isAdminUser(userId: string | number): boolean {
-    return this.appConfig.adminChatIds.includes(String(userId));
+    return this._appConfig.adminChatIds.includes(String(userId));
   }
 }

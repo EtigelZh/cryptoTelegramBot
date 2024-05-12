@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { FinanceDataEntity } from "./financial-data.entity";
 import { Repository } from "typeorm";
-import { FinanceData } from "../google-sheet/google-sheets/google-sheets.models";
+import { FinanceData } from "../google-api/google-sheets/google-sheets.models";
 
 @Injectable()
 export class AnalyticsService {

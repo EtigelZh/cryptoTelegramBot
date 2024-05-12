@@ -1,5 +1,5 @@
 import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
-import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
+import { FinanceData } from '../google-api/google-sheets/google-sheets.models';
 
 @Entity()
 export class FinanceDataEntity implements FinanceData {

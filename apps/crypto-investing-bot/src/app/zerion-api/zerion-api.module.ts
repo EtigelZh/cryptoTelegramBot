@@ -1,56 +1,79 @@
 import { Module } from '@nestjs/common';
 import { AppConfig, AppConfigModule } from '../app.config';
 import { ZerionApiService } from './zerion-api.service';
-import { CACHE_MANAGER, CacheModule } from '@nestjs/cache-manager';
-import type { RedisClientOptions } from 'redis';
-import { RedisStore, redisStore } from 'cache-manager-redis-store';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { RedisStore } from 'cache-manager-redis-store';
 import { ZERION_MANUAL_API_KEYS, ZERION_UPDATING_API_KEYS, fillTokenUsage } from './zerion-api-key-day-limiter';
 import { TransactionModule } from '../transaction/transaction.module';
 import { WalletModule } from '../wallet/wallet.module';
-import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bull';
+import {
+  ZerionApiFetchTransactionsConsumer,
+  zerionApiFetchTransactionsQueueName
+} from './zerion-api-fetch-transactions.consumer';
+import { ZerionApiManualConsumer, zerionApiManualQueueName } from './zerion-api-manual.consumer';
+import { ZerionApiUpdatingConsumer, zerionApiUpdatingQueueName } from './zerion-api-updating.consumer';
+import { ZerionClientJobApiService } from './zerion-client-job-api.service';
+import { ErrorHandlingModule } from '../error-handling/error-handling-module';
 
 @Module({
   imports: [
     AppConfigModule,
-    CacheModule.registerAsync({
-      imports: [AppConfigModule],
-      useFactory: async (appConfig: AppConfig) => {
-        const store = await redisStore({
-            url: appConfig.getRedisUrl(),
-            password: appConfig.getRedisConfig().password,
-            ttl: 60*60*24,
-        });
-        return {
-            store,
-            ttl: appConfig.cacheTTL,
-          } as RedisClientOptions
+    BullModule.registerQueue({
+      name: zerionApiFetchTransactionsQueueName,
+      defaultJobOptions: {
+        removeOnComplete: true
+      }
+    }),
+    BullModule.registerQueue({
+      name: zerionApiManualQueueName,
+      limiter: {
+        max: 55,
+        duration: 60_000
       },
-      inject: [AppConfig],
+      defaultJobOptions: {
+        removeOnComplete: true
+      }
+    }),
+    BullModule.registerQueue({
+      name: zerionApiUpdatingQueueName,
+      limiter: {
+        max: 55,
+        duration: 60_000
+      },
+      defaultJobOptions: {
+        removeOnComplete: true
+      }
     }),
     WalletModule,
     TransactionModule,
-    ScheduleModule,
+    ErrorHandlingModule,
   ],
   providers: [
     ZerionApiService,
     {
       provide: ZERION_MANUAL_API_KEYS,
-      useFactory: (appConfig: AppConfig, cacheManager: { store: RedisStore}) => {
+      useFactory: (appConfig: AppConfig, cacheManager: { store: RedisStore }) => {
         const redisClient = cacheManager.store.getClient();
         return fillTokenUsage(appConfig.zerionManualApiKeys, redisClient);
       },
-      inject: [AppConfig, CACHE_MANAGER],
+      inject: [AppConfig, CACHE_MANAGER]
     },
     {
       provide: ZERION_UPDATING_API_KEYS,
-      useFactory: (appConfig: AppConfig, cacheManager: { store: RedisStore}) => {
+      useFactory: (appConfig: AppConfig, cacheManager: { store: RedisStore }) => {
         const redisClient = cacheManager.store.getClient();
         return fillTokenUsage(appConfig.zerionUpdatingApiKeys, redisClient);
       },
-      inject: [AppConfig, CACHE_MANAGER],
-    }
+      inject: [AppConfig, CACHE_MANAGER]
+    },
+    ZerionApiFetchTransactionsConsumer,
+    ZerionApiManualConsumer,
+    ZerionApiUpdatingConsumer,
+    ZerionClientJobApiService,
   ],
-  exports: [ZerionApiService],
+  exports: [ZerionApiService, ZerionClientJobApiService]
 })
-export class ZerionApiModule {}
+export class ZerionApiModule {
+}
 
