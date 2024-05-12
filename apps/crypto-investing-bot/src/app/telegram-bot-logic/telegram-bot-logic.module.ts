@@ -7,6 +7,7 @@ import { ZerionApiModule } from '../zerion-api/zerion-api.module';
 import { GoogleDriveModule } from '../google-api/google-drive.module';
 import { TelegramReportingService } from './telegram-reporting.service';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { ErrorHandlingModule } from '../error-handling/error-handling-module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     GoogleDriveModule,
     ProcessingWalletsModule,
     AnalyticsModule,
+    ErrorHandlingModule,
   ],
   providers: [TelegramBotLogicService, TelegramReportingService],
   exports: [TelegramBotLogicService],

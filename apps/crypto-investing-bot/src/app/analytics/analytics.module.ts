@@ -13,7 +13,7 @@ import { SaveToDbApiJobService, SaveToDbConsumer, saveToDbQueueName } from './sa
       defaultJobOptions: {
         removeOnComplete: true
       }
-    })
+    }),
   ],
   providers: [AnalyticsService, SaveToDbApiJobService, SaveToDbConsumer],
   exports: [AnalyticsService, SaveToDbApiJobService]

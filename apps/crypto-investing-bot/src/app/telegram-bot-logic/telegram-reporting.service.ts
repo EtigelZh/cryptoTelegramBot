@@ -6,6 +6,7 @@ import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { isNumber } from '@nestjs/common/utils/shared.utils';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 function getDailyRedisKey(date = new Date()): string {
   return `daily-report-${date.toISOString().split('T')[0]}`;
@@ -19,6 +20,7 @@ export class TelegramReportingService {
     private _analyticsService: AnalyticsService,
     private _zerionApiService: ZerionApiService,
     private _telegramJobApiService: TelegramJobApiService,
+    private _errorHandlingService: ErrorHandlingService,
     @Inject(CACHE_MANAGER) private readonly _cacheManager: Cache,
   ) {
     this._cacheManager.get(getDailyRedisKey()).then((value) => {
@@ -48,8 +50,9 @@ export class TelegramReportingService {
     const updatingApiRequests =  this._zerionApiService.getRequestLimits('updating');
     const manualLimits = [
       `Запросов сегодня: `,
-      `Ручные запросы: ${manualApiRequests.used}/${updatingApiRequests.limit}`,
+      `Ручные запросы: ${manualApiRequests.used}/${manualApiRequests.limit}`,
       `Запросы для обновлений: ${updatingApiRequests.used}/${updatingApiRequests.limit}`,
+      `Ошибок: ${this._errorHandlingService.getErrorsCount()}`,
     ].join('\n');
 
     const fullReport = [queueReport, manualLimits, dbReport].join('\n\n');

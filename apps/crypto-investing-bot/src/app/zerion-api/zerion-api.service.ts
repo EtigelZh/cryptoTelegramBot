@@ -204,6 +204,10 @@ export class ZerionApiService {
     }
   }
 
+  // async getReceiveTransactions(walletHash: string, startingDateTimestamp: number): Promise<ZerionTransaction[]> {
+  //   transactionsUrlTemplate(walletHash, 100, startingDateTimestamp);
+  // }
+
   /** каждый час синхронизируем использование токенов */
   @Cron('0 * * * *')
   async updateKeysUsage() {
