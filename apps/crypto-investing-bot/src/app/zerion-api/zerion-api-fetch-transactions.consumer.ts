@@ -5,7 +5,7 @@ import { FungiblePosition, ZerionApiQueueName } from "./zerion-api.models";
 import { zerionApiManualQueueName } from "./zerion-api-manual.consumer";
 import { zerionApiUpdatingQueueName } from "./zerion-api-updating.consumer";
 import { AppConfig } from "../app.config";
-import { TelegramJobApiService } from "../telegraf/telegram-job-api.service";
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 export const zerionApiFetchTransactionsQueueName = `zerion-api-fetch-transactions`;
 
@@ -13,7 +13,6 @@ export type FetchTransactionsJob = {
     walletHash: string;
     apiKeyQueueName: ZerionApiQueueName;
     take?: number;
-    reportingFn?: 'telegram_full' | 'telegram_short' | 'none';
     messagingInfo?: {
         globalPrefix: string;
         lastApiCallMessageId: number;
@@ -27,7 +26,7 @@ export type FetchTransactionsJob = {
 export class ZerionApiFetchTransactionsConsumer {
     constructor(
         private _zerionApiService: ZerionApiService,
-        private readonly _telegramJobApiService: TelegramJobApiService,
+        private _errorHandler: ErrorHandlingService,
         @InjectQueue(zerionApiManualQueueName) private _zerionApiManualQueue: Queue,
         @InjectQueue(zerionApiUpdatingQueueName) private _zerionApiUpdatingQueue: Queue,
     ) {}
@@ -37,49 +36,10 @@ export class ZerionApiFetchTransactionsConsumer {
         concurrency: AppConfig.walletProcessorConcurrency,
     })
     async getTransactions(job: Job<FetchTransactionsJob>) {
-        const { walletHash: walletId, take = 0, apiKeyQueueName, reportingFn = 'none', messagingInfo } = job.data;
-        
+        const { walletHash: walletId, take = 0, apiKeyQueueName, messagingInfo } = job.data;
+
         const transactions = await this._zerionApiService.getTransactions({
             walletHash: walletId,
-            
-            onNextRequest: async (
-                cacheHitsToday,
-                data
-            ) => {
-                switch (reportingFn) {
-                    case 'telegram_full':{
-                        if (!messagingInfo) {
-                            return;
-                        }
-                        const {globalPrefix, lastApiCallMessageId, chatId} = messagingInfo;
-                        if (data.length === 0) {
-                            return;
-                          }
-                          const summary = this._zerionApiService.getRequestLimits(apiKeyQueueName);
-                          const messageText = `${globalPrefix}\nСкачано ${
-                            data.length
-                          } транзакций.\nДата последней скачанной транзакции: ${data[
-                            data.length - 1
-                          ]?.attributes?.mined_at?.substring(
-                            0,
-                            10
-                          )}. Запросов сегодня: ${summary.used}/${summary.limit} \nПопаданий в кеш: ${cacheHitsToday}`;
-                          await this._telegramJobApiService.createOrUpdateLastMessage(
-                            lastApiCallMessageId,
-                            messageText,
-                            chatId
-                          );
-
-                        break;
-                    }  
-                    case 'telegram_short':
-                        // TODO implement it
-                        break;
-                    case 'none':
-                        Promise.resolve();
-                        break;
-                }
-            },
             take,
             apiKeyQueueName,
             getNextChunk: async (url, apiKeyQueueName) => {
@@ -91,10 +51,11 @@ export class ZerionApiFetchTransactionsConsumer {
                             return result;
                         } catch (error) {
                             if (messagingInfo) {
-                                await this._telegramJobApiService.sendMessage(
-                                    messagingInfo.chatId,
-                                    `Ошибка при скачивании транзакций: ${error}`,
-                                  );
+                              this._errorHandler.handleError({
+                                  error,
+                                  chatId: messagingInfo.chatId,
+                                  message: `Ошибка при скачивании транзакций: ${error}`
+                              });
                             }
                             throw error;
                         }
@@ -107,10 +68,11 @@ export class ZerionApiFetchTransactionsConsumer {
                             return result;
                         } catch (error) {
                             if (messagingInfo) {
-                                await this._telegramJobApiService.sendMessage(
-                                    messagingInfo.chatId,
-                                    `Ошибка при скачивании транзакций: ${error}`,
-                                  );
+                              this._errorHandler.handleError({
+                                  error,
+                                  chatId: messagingInfo.chatId,
+                                  message: `Ошибка при скачивании транзакций: ${error}`
+                              });
                             }
                             throw error;
                         }
@@ -126,23 +88,10 @@ export class ZerionApiFetchTransactionsConsumer {
         name: 'getFungiblePositionsCsv'
     })
     async getFungiblePositionsCsv(job: Job<FetchTransactionsJob>) {
-        const { walletHash, take = 0, apiKeyQueueName, reportingFn = 'none' } = job.data;
-        
+        const { walletHash, take = 0, apiKeyQueueName} = job.data;
+
         const fungiblePositions = await this._zerionApiService.getTransactions<FungiblePosition>({
             walletHash,
-            onNextRequest: async () => {
-                switch (reportingFn) {
-                    case 'telegram_full':
-                        // TODO implement it
-                        break;
-                    case 'telegram_short':
-                        // TODO implement it
-                        break;
-                    case 'none':
-                        Promise.resolve();
-                        break;
-                }
-            },
             take,
             urlTemplate: (walletId) =>
                 `https://api.zerion.io/v1/wallets/${walletId}/positions/?currency=usd&filter%5Btrash%5D=only_non_trash&sort=value`,

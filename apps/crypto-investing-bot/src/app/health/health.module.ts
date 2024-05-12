@@ -1,11 +1,11 @@
 import { Module } from "@nestjs/common";
 import { HealthController } from "./health.controller";
 import { HealthService } from "./health.service";
-import { TelegrafModule } from "../telegraf/telegraf.module";
+import { TelegramBotLogicModule } from '../telegram-bot-logic/telegram-bot-logic.module';
 
 @Module({
     imports: [
-        TelegrafModule.register(),
+        TelegramBotLogicModule,
     ],
     providers: [HealthService],
     controllers: [HealthController]

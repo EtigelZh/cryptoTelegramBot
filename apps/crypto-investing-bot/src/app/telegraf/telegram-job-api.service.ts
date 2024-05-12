@@ -5,7 +5,9 @@ import { Queue } from 'bull';
 
 @Injectable()
 export class TelegramJobApiService {
-  constructor(@InjectQueue(telegramQueueName) private telegramQueue: Queue) {
+  constructor(
+    @InjectQueue(telegramQueueName) private telegramQueue: Queue,
+  ) {
     this.telegramQueue.isPaused().then((paused) => {
       if (paused) {
         this.telegramQueue.resume();
@@ -116,7 +118,7 @@ export class TelegramJobApiService {
     }
   }
 
- 
+
 
   private async handleRateLimit(message: string) {
     Logger.error('Hit rate limit, pausing queue');

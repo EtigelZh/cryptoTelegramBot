@@ -6,6 +6,9 @@ import { Migrations1714400814639 } from './1714400814639-migrations';
 import { Migrations1714453902690 } from './1714453902690-migrations';
 import { Migrations1714454032574 } from './1714454032574-migrations';
 import { Migrations1714455317066 } from './1714455317066-migrations';
+import { LongTermProcessing1715506426489 } from './1715506426489-long-term-processing';
+import { AddBurnTransaction1715507835070 } from './1715507835070-add-burn-transaction';
+import { UpdateFinancialData1715530227847 } from './1715530227847-update-financial-data';
 
 export const migrations = [
   Migrations1710903030686,
@@ -16,4 +19,7 @@ export const migrations = [
   Migrations1714453902690,
   Migrations1714454032574,
   Migrations1714455317066,
+  LongTermProcessing1715506426489,
+  AddBurnTransaction1715507835070,
+  UpdateFinancialData1715530227847,
 ];

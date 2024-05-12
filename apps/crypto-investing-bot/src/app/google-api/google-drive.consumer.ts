@@ -1,5 +1,5 @@
 import { Process, Processor } from '@nestjs/bull';
-import { GoogleDriveService } from '../google-sheet/google-drive.service';
+import { GoogleDriveService } from '../google-api/google-drive.service';
 import { Job } from 'bull';
 
 export const googleDriveQueueName = 'googleDriveQueue';

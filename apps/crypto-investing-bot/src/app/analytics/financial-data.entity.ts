@@ -1,8 +1,9 @@
-import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
-import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { FinanceData } from '../google-api/google-sheets/google-sheets.models';
+import { WithUpdatedAndCreatedAt } from '../utils/base.entity';
 
 @Entity()
-export class FinanceDataEntity implements FinanceData {
+export class FinanceDataEntity extends WithUpdatedAndCreatedAt implements FinanceData  {
   @PrimaryGeneratedColumn()
   id: number;
 

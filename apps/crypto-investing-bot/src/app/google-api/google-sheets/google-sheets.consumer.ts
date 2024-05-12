@@ -1,12 +1,9 @@
 import { Process, Processor } from '@nestjs/bull';
-import { GoogleSheetsService } from '../google-sheet/google-sheets/google-sheets.service';
 import { Job } from 'bull';
-import { Inject, Logger } from '@nestjs/common';
-import { humanizeHash } from '../utils/humanized-hash';
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
-import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
-import { WalletService } from '../wallet/wallet.service';
-import { captureException } from '@sentry/node';
+import { Logger } from '@nestjs/common';
+import { FinanceData } from './google-sheets.models';
+import { GoogleSheetsService } from './google-sheets.service';
+import { WalletService } from '../../wallet/wallet.service';
 
 export const googleSheetsApiQueueName = 'googleApiQueue';
 
@@ -42,11 +39,12 @@ export class GoogleSheetsConsumer {
   constructor(
     private readonly _googleSheets: GoogleSheetsService,
     private _walletService: WalletService,
-  ) {}
+  ) {
+  }
 
   @Process({
     name: 'sheetValuesUpdate',
-    concurrency: 1,
+    concurrency: 1
   })
   async updateSheetValues(job: Job<UpdateSheetValuesArgs>) {
     try {
@@ -55,7 +53,7 @@ export class GoogleSheetsConsumer {
         spreadsheetId: job.data.spreadsheetId,
         range: job.data.range,
         valueInputOption: job.data.valueInputOption,
-        requestBody: job.data.requestBody,
+        requestBody: job.data.requestBody
       });
     } catch (error) {
       console.error('updateSheetValues error', error);
@@ -72,7 +70,7 @@ export class GoogleSheetsConsumer {
    */
   @Process({
     name: 'createOrUpdateWallet',
-    concurrency: 1,
+    concurrency: 1
   })
   async createOrUpdateWallet(
     job: Job<CreateOrUpdateWalletArgs>
@@ -84,7 +82,7 @@ export class GoogleSheetsConsumer {
       const range = 'Лист1'; // Название вашего листа
       const response = await sheetsApi.spreadsheets.values.get({
         spreadsheetId,
-        range: `${range}!A:B`,
+        range: `${range}!A:B`
       });
 
       const rows = response.data.values || [];
@@ -108,10 +106,10 @@ export class GoogleSheetsConsumer {
               [
                 'NOT_TRACKABLE',
                 null,
-                this._googleSheets.getFormattedCurrentDate(),
-              ],
-            ],
-          },
+                this._googleSheets.getFormattedCurrentDate()
+              ]
+            ]
+          }
         });
         // TODO Обновить в базе что кошелек NOT_TRACKABLE
         return;
@@ -124,8 +122,8 @@ export class GoogleSheetsConsumer {
           range: `${range}!A${foundRowIndex + 1}`, // Нумерация строк начинается с 1
           valueInputOption: 'USER_ENTERED',
           requestBody: {
-            values: [this._googleSheets.mapItems(walletData[0], walletData[1])],
-          },
+            values: [this._googleSheets.mapItems(walletData[0], walletData[1])]
+          }
         });
       } else {
         // Добавление нового кошелька, если он не найден
@@ -135,9 +133,9 @@ export class GoogleSheetsConsumer {
           valueInputOption: 'USER_ENTERED',
           requestBody: {
             values: [
-              this._googleSheets.mapItems(walletData[0], walletData[1], true),
-            ],
-          },
+              this._googleSheets.mapItems(walletData[0], walletData[1], true)
+            ]
+          }
         });
       }
     } catch (error) {
@@ -148,7 +146,7 @@ export class GoogleSheetsConsumer {
 
   @Process({
     name: 'getOldWallets',
-    concurrency: 1,
+    concurrency: 1
   })
   async getOldWallets(job: Job<GetOldWalletsArgs>): Promise<string[]> {
     const { spreadsheetId, numberOfWalletsToUpdate } = job.data;
@@ -158,7 +156,7 @@ export class GoogleSheetsConsumer {
       const range = 'Лист1'; // Название вашего листа
       const response = await sheetsApi.spreadsheets.values.get({
         spreadsheetId,
-        range: `${range}!A3:G`, // Предполагается, что искомые данные находятся в колонках A-C
+        range: `${range}!A3:G` // Предполагается, что искомые данные находятся в колонках A-C
       });
 
       const rows = response.data.values || [];
@@ -182,7 +180,7 @@ export class GoogleSheetsConsumer {
           const [day, month, year] = row[lastUpdateDateIndex].split('.');
           return {
             walletHash,
-            updateDate: new Date(`${year}-${month}-${day}`),
+            updateDate: new Date(`${year}-${month}-${day}`)
           };
         })
         .sort((a, b) => a.updateDate.getTime() - b.updateDate.getTime())
@@ -199,7 +197,7 @@ export class GoogleSheetsConsumer {
 
   @Process({
     name: 'fillFinanceDataFromSheets',
-    concurrency: 1,
+    concurrency: 1
   })
   async fillFinanceDataFromSheets(
     job: Job<FillFinanceDataFromSheetsArgs>
@@ -213,7 +211,7 @@ export class GoogleSheetsConsumer {
         spreadsheetId,
         ranges: Object.values(GoogleSheetsService.ranges).map(
           (r) => `${sheetName}!${r}`
-        ),
+        )
       });
 
       // Преобразование полученных данных в объект с ключами для удобного доступа
@@ -279,7 +277,7 @@ export class GoogleSheetsConsumer {
         averageCommission: valuesMap.averageCommission,
         copyTradingThreshold: valuesMap.copyTradingThreshold,
         PLRCT: valuesMap.PLRCT,
-        winRateRCT: valuesMap.winRateRCT,
+        winRateRCT: valuesMap.winRateRCT
       };
 
       return data;

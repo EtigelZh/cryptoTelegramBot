@@ -1,9 +1,11 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
-import { AnalyticsService } from '../analytics/analytics.service';
 import { Injectable } from '@nestjs/common';
 import { Job, Queue } from 'bull';
-import { FinanceData } from '../google-sheet/google-sheets/google-sheets.models';
+import { FinanceData } from '../google-api/google-sheets/google-sheets.models';
 import { TransformMethodArguments } from '../utils/type.helpers';
+import { AnalyticsService } from './analytics.service';
+import { FinanceDataEntity } from './financial-data.entity';
+
 export const saveToDbQueueName = 'saveToDbQueue';
 
 @Processor(saveToDbQueueName)
@@ -13,7 +15,7 @@ export class SaveToDbConsumer {
   @Process({
     name: 'saveToDbFinancialData',
   })
-  async saveToDbFinancialData(job: Job<FinanceData>) {
+  async saveToDbFinancialData(job: Job<FinanceData>): Promise<FinanceDataEntity> {
     return await this._analyticsService.saveFinancialData(job.data);
   }
 }
