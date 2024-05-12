@@ -5,6 +5,8 @@ import { ProcessingWalletsModule } from '../processing-wallets/processing-wallet
 import { AppConfigModule } from '../app.config';
 import { ZerionApiModule } from '../zerion-api/zerion-api.module';
 import { GoogleDriveModule } from '../google-api/google-drive.module';
+import { TelegramReportingService } from './telegram-reporting.service';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
@@ -13,8 +15,9 @@ import { GoogleDriveModule } from '../google-api/google-drive.module';
     ZerionApiModule,
     GoogleDriveModule,
     ProcessingWalletsModule,
+    AnalyticsModule,
   ],
-  providers: [TelegramBotLogicService],
+  providers: [TelegramBotLogicService, TelegramReportingService],
   exports: [TelegramBotLogicService],
 })
 export class TelegramBotLogicModule {

@@ -184,6 +184,7 @@ export class TelegramBotLogicService implements OnModuleInit {
 
     const oldWallets = await this._googleSheetsJobApiService.getOldWallets(numberOfWalletsToUpdate);
 
+    let parentMessageId = null;
     for (const walletHash of oldWallets) {
       const index = oldWallets.indexOf(walletHash);
       let suffix = '';
@@ -191,13 +192,13 @@ export class TelegramBotLogicService implements OnModuleInit {
         suffix = `(${index + 1} из ${oldWallets.length})`;
       }
 
-      let parentMessageId = null;
+
       try {
-        const message = await this._telegramJobApiService.sendMessage(
+        parentMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(
+          parentMessageId,
+          `Кошелек ${walletHash} добавлен в очередь ${suffix}`,
           this._appConfig.dailyUpdateReportChatId,
-          `Кошелек ${walletHash} добавлен в очередь ${suffix}`
         );
-        parentMessageId = message.message_id;
       } catch (e) {
         Logger.log(`Error sending message: ${e}`);
       }
@@ -207,6 +208,7 @@ export class TelegramBotLogicService implements OnModuleInit {
         chatId: this._appConfig.dailyUpdateReportChatId,
         suffix,
         parentMessageId,
+        silent: true,
         apiKeyQueueName: 'updating'
       } as ProcessingWalletArguments);
     }

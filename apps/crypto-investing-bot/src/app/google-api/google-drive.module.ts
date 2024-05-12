@@ -6,11 +6,13 @@ import { BullModule } from '@nestjs/bull';
 import { GoogleDriveConsumer, googleDriveQueueName } from './google-drive.consumer';
 import { GoogleDriveJobApiService } from './google-drive-job-api.service';
 import { AppConfigModule } from '../app.config';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
     AppConfigModule,
     GoogleSheetsModule.register(GS_CREDENTIALS),
+    AnalyticsModule,
     BullModule.registerQueue({
       name: googleDriveQueueName,
       limiter: {

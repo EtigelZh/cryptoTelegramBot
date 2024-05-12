@@ -15,10 +15,12 @@ import { ZerionApiManualConsumer, zerionApiManualQueueName } from './zerion-api-
 import { ZerionApiUpdatingConsumer, zerionApiUpdatingQueueName } from './zerion-api-updating.consumer';
 import { ZerionClientJobApiService } from './zerion-client-job-api.service';
 import { ErrorHandlingModule } from '../error-handling/error-handling-module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    AnalyticsModule,
     BullModule.registerQueue({
       name: zerionApiFetchTransactionsQueueName,
       defaultJobOptions: {

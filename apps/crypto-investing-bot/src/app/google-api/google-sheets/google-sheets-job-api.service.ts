@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   CreateOrUpdateWalletArgs,
   FillFinanceDataFromSheetsArgs,
@@ -10,6 +10,8 @@ import { AppConfig } from '../../app.config';
 import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { FinanceData } from './google-sheets.models';
+import { AnalyticsService, Metric } from '../../analytics/analytics.service';
+import { captureException } from '@sentry/node';
 
 @Injectable()
 export class GoogleSheetsJobApiService {
@@ -17,6 +19,7 @@ export class GoogleSheetsJobApiService {
   constructor(
     private _appConfig: AppConfig,
     @InjectQueue(googleSheetsApiQueueName) private _googleSheetsQueue: Queue,
+    private _analyticsService: AnalyticsService
   ) {
   }
 
@@ -25,11 +28,14 @@ export class GoogleSheetsJobApiService {
       'getOldWallets',
       <GetOldWalletsArgs>{
         spreadsheetId,
-        numberOfWalletsToUpdate,
+        numberOfWalletsToUpdate
       },
       { removeOnComplete: true }
     );
-    return await job.finished();
+    return await job.finished().finally(() => this._analyticsService.incrementMetric(Metric.googleSheetsRequests).catch(error => {
+      Logger.error(`Error incrementing metric: ${error.message}`);
+      captureException(error);
+    }));
   }
 
   async updateSheetValues(
@@ -45,7 +51,10 @@ export class GoogleSheetsJobApiService {
       range,
       valueInputOption,
       requestBody
-    });
+    }).finally(() => this._analyticsService.incrementMetric(Metric.googleSheetsRequests).catch(error => {
+      Logger.error(`Error incrementing metric: ${error.message}`);
+      captureException(error);
+    }));
   }
 
   async updateOrAddWallet(
@@ -61,7 +70,10 @@ export class GoogleSheetsJobApiService {
       walletHash,
       walletData: [summary7days, summary30days],
       error
-    });
+    }).finally(() => this._analyticsService.incrementMetric(Metric.googleSheetsRequests).catch(error => {
+      Logger.error(`Error incrementing metric: ${error.message}`);
+      captureException(error);
+    }));
   }
 
   async fillFinanceDataFromSheets(
@@ -76,6 +88,9 @@ export class GoogleSheetsJobApiService {
       walletHash,
       sheetName
     });
-    return job.finished();
+    return job.finished().finally(() => this._analyticsService.incrementMetric(Metric.googleSheetsRequests).catch(error => {
+      Logger.error(`Error incrementing metric: ${error.message}`);
+      captureException(error);
+    }));
   }
 }

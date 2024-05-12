@@ -6,6 +6,7 @@ import { GoogleSheetsJobApiService } from './google-sheets-job-api.service';
 import { WalletModule } from '../../wallet/wallet.module';
 import { BullModule } from '@nestjs/bull';
 import { AppConfigModule } from '../../app.config';
+import { AnalyticsModule } from '../../analytics/analytics.module';
 
 @Module({})
 export class GoogleSheetsModule {
@@ -15,6 +16,7 @@ export class GoogleSheetsModule {
       imports: [
         AppConfigModule,
         WalletModule,
+        AnalyticsModule,
         BullModule.registerQueue({
           name: googleSheetsApiQueueName,
           limiter: {

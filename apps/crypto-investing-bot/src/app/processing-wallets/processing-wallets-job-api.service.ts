@@ -9,6 +9,7 @@ import { Cron } from '@nestjs/schedule';
 import { captureException } from '@sentry/node';
 import { ProcessingWalletArguments } from './processing-wallet.models';
 import { AppConfig } from '../app.config';
+import { AnalyticsService, Metric } from '../analytics/analytics.service';
 
 @Injectable()
 export class ProcessingWalletsJobApiService {
@@ -17,6 +18,7 @@ export class ProcessingWalletsJobApiService {
     private _zerionApiService: ZerionApiService,
     private _longTermProcessingWalletsService: LongTermProcessingWalletsService,
     private _appConfig: AppConfig,
+    private _analyticsService: AnalyticsService,
   ) {
     this._resumeQueueIfPaused();
   }
@@ -55,7 +57,10 @@ export class ProcessingWalletsJobApiService {
       }
     );
     try {
-      return await job.finished();
+      return await job.finished().finally(() => this._analyticsService.incrementMetric(Metric.processedWallets).catch(error => {
+        Logger.error(`Error incrementing metric: ${error.message}`);
+        captureException(error);
+      }));
     } catch (error) {
       if (error instanceof ZerionApiLimitReachedError) {
         await this._processingWalletQueue.pause();
@@ -76,12 +81,10 @@ export class ProcessingWalletsJobApiService {
   }
 
   /**
-   * Раз в 20 минут обрабатываем следующие 100 кошельков из long term queue
-   * примерно 300 кошельков в час должны хавать => 100 раз в 20 минут
+   * Раз в минуту смотрим загружена ли очередь, если нет - добавляем задачи из long term
    * */
-  @Cron('*/1 * * * *')
+  @Cron(AppConfig.longTermProcessingCron)
   async calculateNextBatchOfLongTermWallets() {
-    Logger.log('Calculating next batch of long term wallets');
     const { allLimitsReached } = this._getLimits();
     if (allLimitsReached) {
       Logger.log('All limits reached, skipping');
@@ -93,6 +96,12 @@ export class ProcessingWalletsJobApiService {
       return;
     }
     const tasks = await this._longTermProcessingWalletsService.getBatchForProcessing();
+    if (!tasks.length) {
+      Logger.log('No tasks to process');
+      return;
+    }
+
+    Logger.log('Calculating next batch of long term wallets');
     for (const task of tasks) {
       this.processWallet({
         ...task.taskArguments,

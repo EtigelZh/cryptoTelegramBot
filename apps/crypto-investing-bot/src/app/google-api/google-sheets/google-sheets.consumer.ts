@@ -5,7 +5,6 @@ import { FinanceData } from './google-sheets.models';
 import { GoogleSheetsService } from './google-sheets.service';
 import { WalletService } from '../../wallet/wallet.service';
 
-
 export const googleSheetsApiQueueName = 'googleApiQueue';
 
 export type UpdateSheetValuesArgs = {
@@ -39,7 +38,7 @@ type Range = typeof GoogleSheetsService.ranges;
 export class GoogleSheetsConsumer {
   constructor(
     private readonly _googleSheets: GoogleSheetsService,
-    private _walletService: WalletService
+    private _walletService: WalletService,
   ) {
   }
 
