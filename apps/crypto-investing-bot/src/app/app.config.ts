@@ -7,6 +7,7 @@ import { ProfilingIntegration } from "@sentry/profiling-node";
 
 import { inspect } from 'util';
 import { QueueOptions } from 'bull';
+import * as process from 'node:process';
 
 let defaultEnvPath = resolve(__dirname, 'assets', 'config', 'default.env');
 let privateEnvPath = resolve(__dirname, 'assets', 'config', 'private.env');
@@ -48,18 +49,21 @@ init({
     new ProfilingIntegration(),
   ],
 });
-process.on('uncaughtException', (err) => {
-  Logger.error(`Uncaught exception: ${err}`);
-  captureException(err);
-});
-process.on('unhandledRejection', (reason, promise) => {
-  Logger.error(`Unhandled rejection: ${reason}`);
-  captureException(reason, {
-    extra: {
-      promise: inspect(promise),
-    },
+if (typeof process.on === 'function') {
+  process.on('uncaughtException', (err) => {
+    Logger.error(`Uncaught exception: ${err}`);
+    captureException(err);
   });
-});
+  process.on('unhandledRejection', (reason, promise) => {
+    Logger.error(`Unhandled rejection: ${reason}`);
+    captureException(reason, {
+      extra: {
+        promise: inspect(promise),
+      },
+    });
+  });
+}
+
 
 export type ApiKeyAndLimit = { token: string; limit: number };
 
@@ -78,6 +82,7 @@ export class AppConfig {
   etherscanApiKey: string = process.env.ETHERSCAN_API_KEY || '';
   coinmarketCupApiKey: string = process.env.COINMARKETCUP_API_KEY || '';
   zerionApiKey: string = process.env.ZERION_API_KEY || '';
+  longTermProcessingBatchSize: number = +(process.env.LONG_TERM_PROCESSING_BATCH_SIZE || 100);
 
   zerionUpdatingApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_UPDATING_API_KEYS ?? '');
   zerionManualApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_MANUAL_API_KEYS ?? '');

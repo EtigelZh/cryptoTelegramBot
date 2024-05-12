@@ -1,26 +1,48 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import { ProcessingWalletArguments, walletQueueName } from './processing-wallets.consumer';
+import { walletQueueName } from './processing-wallets.consumer';
 import { ZerionApiLimitReachedError } from '../error-handling/custom-errors';
 import { ZerionApiService } from '../zerion-api/zerion-api.service';
+import { LongTermProcessingWalletsService } from './long-term-processing-wallets.service';
+import { Cron } from '@nestjs/schedule';
+import { captureException } from '@sentry/node';
+import { ProcessingWalletArguments } from './processing-wallet.models';
+import { AppConfig } from '../app.config';
 
 @Injectable()
 export class ProcessingWalletsJobApiService {
   constructor(
     @InjectQueue(walletQueueName) private _processingWalletQueue: Queue,
     private _zerionApiService: ZerionApiService,
-  ) {}
-  // long term queue
+    private _longTermProcessingWalletsService: LongTermProcessingWalletsService,
+    private _appConfig: AppConfig,
+  ) {
+    this._resumeQueueIfPaused();
+  }
+
+  async addToLongTermProcessingQueue(walletHash: string, walletArguments: ProcessingWalletArguments) {
+    return await this._longTermProcessingWalletsService.createLongTermProcessingWalletTask(walletArguments.walletHash, walletArguments);
+  }
+
   async processWallet(walletArguments: ProcessingWalletArguments) {
+    const waitingCount = await this._processingWalletQueue.getWaitingCount();
+    if (waitingCount > this._appConfig.longTermProcessingBatchSize) {
+      Logger.log(`Hash ${walletArguments.walletHash} Moving to long term queue`);
+      await this.addToLongTermProcessingQueue(walletArguments.walletHash, walletArguments);
+      return;
+    }
+
     if (walletArguments.apiKeyQueueName === 'manual') {
-      const manualLimits = this._zerionApiService.getRequestLimits('manual');
-      const updateLimits = this._zerionApiService.getRequestLimits('updating');
-      const manualLimitReached = manualLimits.used >= manualLimits.limit;
-      const updateLimitReached = updateLimits.used >= updateLimits.limit;
+      const { manualLimitReached, updateLimitReached } = this._getLimits();
       // Пытаемся использовать updating api calls, если manual api calls закончились
       if (manualLimitReached && !updateLimitReached) {
         walletArguments.apiKeyQueueName = 'updating';
+      } else if (manualLimitReached && updateLimitReached) {
+        // Если оба лимита исчерпаны, то приостанавливаем обработку
+        await this._processingWalletQueue.pause();
+        await this.addToLongTermProcessingQueue(walletArguments.walletHash, walletArguments);
+        return;
       }
     }
 
@@ -36,11 +58,60 @@ export class ProcessingWalletsJobApiService {
       return await job.finished();
     } catch (error) {
       if (error instanceof ZerionApiLimitReachedError) {
-        // TODO приостановить long term очередь
+        await this._processingWalletQueue.pause();
+        await this.addToLongTermProcessingQueue(walletArguments.walletHash, walletArguments);
       } else {
         throw error;
       }
     }
+  }
 
+  private _getLimits() {
+    const manualLimits = this._zerionApiService.getRequestLimits('manual');
+    const updateLimits = this._zerionApiService.getRequestLimits('updating');
+    const manualLimitReached = manualLimits.used >= manualLimits.limit;
+    const updateLimitReached = updateLimits.used >= updateLimits.limit;
+
+    return { manualLimitReached, updateLimitReached, manualLimits, updateLimits, allLimitsReached: manualLimitReached && updateLimitReached };
+  }
+
+  /**
+   * Раз в 20 минут обрабатываем следующие 100 кошельков из long term queue
+   * примерно 300 кошельков в час должны хавать => 100 раз в 20 минут
+   * */
+  @Cron('*/1 * * * *')
+  async calculateNextBatchOfLongTermWallets() {
+    Logger.log('Calculating next batch of long term wallets');
+    const { allLimitsReached } = this._getLimits();
+    if (allLimitsReached) {
+      Logger.log('All limits reached, skipping');
+      return;
+    }
+    const waitingCount = await this._processingWalletQueue.getWaitingCount();
+    if (waitingCount > this._appConfig.longTermProcessingBatchSize) {
+      Logger.log(`Waiting count is more than ${this._appConfig.longTermProcessingBatchSize}, skipping`);
+      return;
+    }
+    const tasks = await this._longTermProcessingWalletsService.getBatchForProcessing();
+    for (const task of tasks) {
+      this.processWallet({
+        ...task.taskArguments,
+        walletHash: task.walletHash,
+        longTermTaskId: task.id
+      }).catch( (err) => {
+        Logger.error(err);
+        captureException(err);
+      });
+    }
+    this._resumeQueueIfPaused();
+  }
+
+  private _resumeQueueIfPaused() {
+    this._processingWalletQueue.isPaused().then((paused) => {
+      const { allLimitsReached } = this._getLimits();
+      if (paused && !allLimitsReached) {
+        this._processingWalletQueue.resume();
+      }
+    });
   }
 }

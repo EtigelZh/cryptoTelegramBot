@@ -17,6 +17,7 @@ export enum TransactionType {
   withdraw = 'withdraw',
   deposit = 'deposit',
   mint = 'mint',
+  burn = 'burn',
   unknown = 'unknown',
 }
 

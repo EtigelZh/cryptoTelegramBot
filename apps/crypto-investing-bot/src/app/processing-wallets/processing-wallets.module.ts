@@ -8,6 +8,9 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { AppConfigModule } from '../app.config';
 import { TelegrafModule } from '../telegraf/telegraf.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { LongTermProcessingWalletTaskEntity } from './long-term-processing-wallet-task.entity';
+import { LongTermProcessingWalletsService } from './long-term-processing-wallets.service';
 
 @Module({
   imports: [
@@ -17,6 +20,7 @@ import { TelegrafModule } from '../telegraf/telegraf.module';
     AnalyticsModule,
     WalletModule,
     TelegrafModule,
+    TypeOrmModule.forFeature([LongTermProcessingWalletTaskEntity]),
     BullModule.registerQueue({
       name: walletQueueName,
       defaultJobOptions: {
@@ -26,6 +30,7 @@ import { TelegrafModule } from '../telegraf/telegraf.module';
   ],
   controllers: [],
   providers: [
+    LongTermProcessingWalletsService,
     ProcessingWalletsConsumer,
     ProcessingWalletsJobApiService,
   ],

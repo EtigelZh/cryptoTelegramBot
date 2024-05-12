@@ -10,10 +10,10 @@ import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { Cron } from '@nestjs/schedule';
 import { ZerionApiQueueName } from '../zerion-api/zerion-api.models';
 import { GoogleSheetsJobApiService } from '../google-api/google-sheets/google-sheets-job-api.service';
-import { ProcessingWalletArguments } from '../processing-wallets/processing-wallets.consumer';
 import { ProcessingWalletsJobApiService } from '../processing-wallets/processing-wallets-job-api.service';
 import { TELEGRAF } from '../telegraf/telegraf.token';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
+import { ProcessingWalletArguments } from '../processing-wallets/processing-wallet.models';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =

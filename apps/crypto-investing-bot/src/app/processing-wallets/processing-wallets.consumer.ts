@@ -1,30 +1,22 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import {
-  ZerionApiService
-} from '../zerion-api/zerion-api.service';
+import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { AppConfig } from '../app.config';
 import { AxiosError } from 'axios';
 import { inspect } from 'util';
 import { Job } from 'bull';
 import { RequestErrorData, ZerionApiQueueName } from '../zerion-api/zerion-api.models';
-import {
-  FetchTransactionsJob,
-} from '../zerion-api/zerion-api-fetch-transactions.consumer';
+import { FetchTransactionsJob } from '../zerion-api/zerion-api-fetch-transactions.consumer';
 import { WalletService } from '../wallet/wallet.service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
 import { GoogleSheetsJobApiService } from '../google-api/google-sheets/google-sheets-job-api.service';
 import { SaveToDbApiJobService } from '../analytics/save-to-db.consumer';
 import { ZerionClientJobApiService } from '../zerion-api/zerion-client-job-api.service';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
-
-export type ProcessingWalletArguments = {
-  walletHash: string;
-  chatId: number;
-  suffix: string;
-  parentMessageId: number | null;
-  apiKeyQueueName: ZerionApiQueueName;
-};
+import { WalletStatus } from '../wallet/wallet.entity';
+import { LongTermProcessingWalletsService } from './long-term-processing-wallets.service';
+import { captureException } from '@sentry/node';
+import { ProcessingWalletArguments } from './processing-wallet.models';
 
 export const walletQueueName = 'processingWallet';
 
@@ -38,6 +30,7 @@ export class ProcessingWalletsConsumer {
     private _googleSheetsJobApiService: GoogleSheetsJobApiService,
     private _googleDriveJobApiService: GoogleDriveJobApiService,
     private _zerionClientJobApiService: ZerionClientJobApiService,
+    private _longTermProcessingWalletsService: LongTermProcessingWalletsService
   ) {
   }
 
@@ -48,13 +41,37 @@ export class ProcessingWalletsConsumer {
   async process(
     job: Job<ProcessingWalletArguments>
   ) {
-    return await this.processWallet(
-      job.data.walletHash,
-      job.data.chatId,
-      job.data.suffix,
-      job.data.parentMessageId,
-      job.data.apiKeyQueueName
-    );
+    if (job.data.longTermTaskId) {
+      try {
+        const result = await this.processWallet(
+          job.data.walletHash,
+          job.data.chatId,
+          job.data.suffix,
+          job.data.parentMessageId,
+          job.data.apiKeyQueueName,
+          job.data.silent,
+        );
+        this._longTermProcessingWalletsService.setTaskFinished(job.data.longTermTaskId, result).catch((error) => {
+          Logger.error('Error finishing long term task', error);
+          captureException(error);
+        });
+        return result;
+      } catch (error) {
+        const errorMessage = this.formatErrorMessage(error);
+        await this._longTermProcessingWalletsService.setTaskFinished(job.data.longTermTaskId, null, errorMessage.join('|'));
+      }
+    } else {
+      return await this.processWallet(
+        job.data.walletHash,
+        job.data.chatId,
+        job.data.suffix,
+        job.data.parentMessageId,
+        job.data.apiKeyQueueName,
+        job.data.silent,
+      );
+    }
+
+
   }
 
   private async processWallet(
@@ -62,23 +79,28 @@ export class ProcessingWalletsConsumer {
     chatId: number,
     suffix: string,
     parentMessageId: number | null,
-    apiKeyQueueName: ZerionApiQueueName
+    apiKeyQueueName: ZerionApiQueueName,
+    silent = false
   ): Promise<{ summarySheetUpdated?: boolean }> {
     let walletAlias = '';
 
-    walletAlias = await this._walletService.generateWalletEntityAndReturnAlias(walletHash);
+    const walletEntity = await this._walletService.createWalletEntityIfNotExists(walletHash);
 
+    walletAlias = walletEntity?.alias || '';
 
     const globalPrefix = `Скачиваю транзакции для кошелька ${walletHash}(${walletAlias}). ${suffix}`;
 
     let lastApiCallMessageId = parentMessageId;
     const lastText = globalPrefix;
     try {
-      lastApiCallMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(
-        parentMessageId,
-        globalPrefix,
-        chatId
-      );
+      if (!silent) {
+        lastApiCallMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(
+          parentMessageId,
+          globalPrefix,
+          chatId
+        );
+      }
+
 
       const transactions = await this._zerionClientJobApiService.getTransactions({
         walletHash,
@@ -93,15 +115,18 @@ export class ProcessingWalletsConsumer {
       } as FetchTransactionsJob);
       if (transactions.error) {
         const [text, status] = this.formatErrorMessage(transactions.error);
-        this._telegramJobApiService.createOrUpdateLastMessage(
-          lastApiCallMessageId,
-          `${lastText}\nОшибка при скачивании транзакций: ${text} ${status}`,
-          chatId
-        );
+        if (!silent) {
+          this._telegramJobApiService.createOrUpdateLastMessage(
+            lastApiCallMessageId,
+            `${lastText}\nОшибка при скачивании транзакций: ${text} ${status}`,
+            chatId
+          );
+        }
+
 
         if (status === 'HTTP_400') {
           await this._googleSheetsJobApiService.updateOrAddWallet(walletHash, null, null, [text, status]);
-          // TODO add not TRACKABLE status to wallet
+          await this._walletService.setWalletStatus(walletHash, WalletStatus.NOT_TRACKABLE);
         }
 
         return {};
@@ -113,11 +138,13 @@ export class ProcessingWalletsConsumer {
         const errorMessages = csvData.errors
           .map((error) => `Строка ${error.rowIndex}: ${error.message}`)
           .join('\n');
-        this._telegramJobApiService.createOrUpdateLastMessage(
-          lastApiCallMessageId,
-          `${lastText}\nОшибка при трансформации csv транзакций: ${errorMessages}`,
-          chatId
-        );
+        if (!silent) {
+          this._telegramJobApiService.createOrUpdateLastMessage(
+            lastApiCallMessageId,
+            `${lastText}\nОшибка при трансформации csv транзакций: ${errorMessages}`,
+            chatId
+          );
+        }
 
         return {};
       }
@@ -131,13 +158,15 @@ export class ProcessingWalletsConsumer {
         Logger.error(
           `Error fetching transactions for wallet ${walletHash}: ${error}`
         );
-        this._telegramJobApiService.createOrUpdateLastMessage(
-          lastApiCallMessageId,
-          `${lastText}\nОшибка при скачивании текущего потфеля: ${this.formatErrorMessage(
-            error
-          )}`,
-          chatId
-        );
+        if (!silent) {
+          this._telegramJobApiService.createOrUpdateLastMessage(
+            lastApiCallMessageId,
+            `${lastText}\nОшибка при скачивании текущего потфеля: ${this.formatErrorMessage(
+              error
+            )}`,
+            chatId
+          );
+        }
       }
 
       const startTransactionDate = (
@@ -177,13 +206,16 @@ export class ProcessingWalletsConsumer {
         );
         updates.push(job.finished());
       }
-      updates.push(
-        this._telegramJobApiService.createOrUpdateLastMessage(
-          lastApiCallMessageId,
-          lastText + `\nСоздан новый документ: ${url}\n`,
-          chatId
-        )
-      );
+      if (!silent) {
+        updates.push(
+          this._telegramJobApiService.createOrUpdateLastMessage(
+            lastApiCallMessageId,
+            lastText + `\nСоздан новый документ: ${url}\n`,
+            chatId
+          )
+        );
+      }
+
       await Promise.allSettled(updates);
       // Gap for google sheets to update (5 seconds) we are have floating bag, when put incorrect data to aggregated google sheets
       await new Promise((resolve) => setTimeout(resolve, 5_000));
@@ -213,11 +245,14 @@ export class ProcessingWalletsConsumer {
       Logger.error(
         `Error fetching transactions for wallet ${walletHash}: ${error}`
       );
-      this._telegramJobApiService.createOrUpdateLastMessage(
-        lastApiCallMessageId,
-        `${lastText}\nОшибка при скачивании транзакций: ${this.formatErrorMessage(error)}`,
-        chatId
-      );
+      if (!silent) {
+        this._telegramJobApiService.createOrUpdateLastMessage(
+          lastApiCallMessageId,
+          `${lastText}\nОшибка при скачивании транзакций: ${this.formatErrorMessage(error)}`,
+          chatId
+        );
+      }
+
     }
   }
 
