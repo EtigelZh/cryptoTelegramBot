@@ -75,7 +75,7 @@ export class AppConfig {
   static readonly updateOldWalletsCron = process.env.UPDATE_OLD_WALLETS_CRON || '10 */6 * * *';
   static readonly longTermProcessingCron = process.env.LONG_TERM_PROCESSING_CRON || '*/1 * * * *';
   static readonly telegramReportingCron = process.env.TELEGRAM_REPORTING_CRON || '*/1 * * * *';
-  static readonly newMessageTelegramReportingCron = process.env.TELEGRAM_REPORTING_CRON || '0 * * * *';
+  static readonly newMessageTelegramReportingCron = process.env.NEW_MESSAGE_TELEGRAM_REPORTING_CRON || '0 * * * *';
 
   minioEndpoint: string = process.env.MINIO_ENDPOINT || '';
   minioEndpointPort: number = +(process.env.MINIO_ENDPOINT_PORT || 9000);
