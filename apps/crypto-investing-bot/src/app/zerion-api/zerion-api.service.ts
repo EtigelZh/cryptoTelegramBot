@@ -168,6 +168,7 @@ export class ZerionApiService {
             const firstTransaction = allTransactions[allTransactions.length - 1]  as ZerionTransaction;
             walletEntity.firstTransactionDate = new Date(firstTransaction.attributes.mined_at);
             walletEntity.status = WalletStatus.ACTIVE;
+            walletEntity.lastCalculatedAt = new Date();
           } else {
             // Дополняем ответ сохраненными в базе транзакциями
             const savedInDbOldTransactions = await this._transactionService.getTransactionsByWallet(walletHash, walletEntity.lastTransactionDate);
@@ -178,6 +179,7 @@ export class ZerionApiService {
             // Обновляем дату последней транзакции
             const lastTransaction = allTransactions[0] as ZerionTransaction;
             walletEntity.lastTransactionDate = new Date(lastTransaction.attributes.mined_at);
+            walletEntity.lastCalculatedAt = new Date();
             await this._walletService.saveWallet(walletEntity);
           }
         } catch (error) {
