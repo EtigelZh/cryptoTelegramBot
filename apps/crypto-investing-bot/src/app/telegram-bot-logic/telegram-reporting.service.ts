@@ -72,7 +72,10 @@ export class TelegramReportingService {
       })}`
     ].join('\n\n');
 
-    this._lastMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(lastMessageId, fullReport, chatId);
-    await this._cacheManager.set(getDailyRedisKey(), lastMessageId);
+    const updatedLastMessageId =  await this._telegramJobApiService.createOrUpdateLastMessage(lastMessageId, fullReport, chatId);
+    if (lastMessageId === this._lastMessageId && chatId === this._appConfig.dailyUpdateReportChatId) {
+      this._lastMessageId = updatedLastMessageId;
+      await this._cacheManager.set(getDailyRedisKey(), lastMessageId);
+    }
   }
 }
