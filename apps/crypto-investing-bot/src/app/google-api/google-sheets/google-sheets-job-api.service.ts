@@ -12,6 +12,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { FinanceData } from './google-sheets.models';
 import { AnalyticsService, Metric } from '../../analytics/analytics.service';
 import { captureException } from '@sentry/node';
+import { ErrorHandlingService } from '../../error-handling/error-handling-service';
 
 @Injectable()
 export class GoogleSheetsJobApiService {
@@ -33,8 +34,7 @@ export class GoogleSheetsJobApiService {
       { removeOnComplete: true }
     );
     return await job.finished().finally(() => this._analyticsService.incrementMetric(Metric.googleSheetsRequests).catch(error => {
-      Logger.error(`Error incrementing metric: ${error.message}`);
-      captureException(error);
+      ErrorHandlingService.handleError({ error, message: `Error incrementing metric` });
     }));
   }
 
@@ -52,8 +52,7 @@ export class GoogleSheetsJobApiService {
       valueInputOption,
       requestBody
     }).finally(() => this._analyticsService.incrementMetric(Metric.googleSheetsRequests).catch(error => {
-      Logger.error(`Error incrementing metric: ${error.message}`);
-      captureException(error);
+      ErrorHandlingService.handleError({ error, message: `Error incrementing metric` });
     }));
   }
 
@@ -71,8 +70,7 @@ export class GoogleSheetsJobApiService {
       walletData: [summary7days, summary30days],
       error
     }).finally(() => this._analyticsService.incrementMetric(Metric.googleSheetsRequests).catch(error => {
-      Logger.error(`Error incrementing metric: ${error.message}`);
-      captureException(error);
+      ErrorHandlingService.handleError({ error, message: `Error incrementing metric` });
     }));
   }
 
@@ -89,8 +87,7 @@ export class GoogleSheetsJobApiService {
       sheetName
     });
     return job.finished().finally(() => this._analyticsService.incrementMetric(Metric.googleSheetsRequests).catch(error => {
-      Logger.error(`Error incrementing metric: ${error.message}`);
-      captureException(error);
+      ErrorHandlingService.handleError({ error, message: `Error incrementing metric` });
     }));
   }
 }

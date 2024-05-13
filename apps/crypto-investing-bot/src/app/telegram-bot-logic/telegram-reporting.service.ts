@@ -55,7 +55,7 @@ export class TelegramReportingService {
       `Запросов сегодня: `,
       `Ручные запросы: ${manualApiRequests.used}/${manualApiRequests.limit}`,
       `Запросы для обновлений: ${updatingApiRequests.used}/${updatingApiRequests.limit}`,
-      `Ошибок: ${this._errorHandlingService.getErrorsCount()}`,
+      `Ошибок: ${ErrorHandlingService.getErrorsCount()}`,
       `Кошельков в горячей очереди: ${waitingCount}`,
     ].join('\n');
 

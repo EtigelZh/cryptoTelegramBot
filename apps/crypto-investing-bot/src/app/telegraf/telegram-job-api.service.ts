@@ -2,6 +2,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger } from '@nestjs/common';
 import { telegramQueueName } from './queues';
 import { Queue } from 'bull';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 @Injectable()
 export class TelegramJobApiService {
@@ -86,8 +87,8 @@ export class TelegramJobApiService {
         Logger.log(`Removing old job ${jobId}`);
         try {
           await foundJob.remove();
-        } catch (e) {
-          Logger.error(`Error removing old job: ${e}`);
+        } catch (error) {
+          ErrorHandlingService.handleError({ error, message: `Error removing old job` });
         }
       }
       const job = await this.telegramQueue.add(
@@ -109,19 +110,19 @@ export class TelegramJobApiService {
         }
       );
       return job;
-    } catch (e) {
-      if (e.response && e.response.statusCode === 429) {
-        await this.handleRateLimit(e.response.message);
+    } catch (error) {
+      if (error.response && error.response.statusCode === 429) {
+        await this.handleRateLimit(error.response.message);
       }
-      Logger.error(`Error editing message: ${e}`);
-      throw e;
+      ErrorHandlingService.handleError({ error, message: `Error editing message` });
+      throw error;
     }
   }
 
 
 
   private async handleRateLimit(message: string) {
-    Logger.error('Hit rate limit, pausing queue');
+    Logger.warn('Hit rate limit, pausing queue');
     await this.telegramQueue.pause();
     const pauseSeconds = this._extractRetrySeconds(message) + 10;
     setTimeout(() => this.telegramQueue.resume(), 1000 * pauseSeconds);

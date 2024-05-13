@@ -6,6 +6,7 @@ import { ZerionTransaction } from "../zerion-api/zerion-api.models";
 import { TransferService } from "../transfer/transfer.service";
 import { calculateInOutTransferByZerionTransaction } from "../utils/pure-calculations";
 import { captureException } from "@sentry/node";
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 @Injectable()
 export class TransactionService {
@@ -66,9 +67,8 @@ export class TransactionService {
 
             return transaction;
         });
-        this._transferService.createTransfersFromZerionTransaction(zerionTransactions).catch(err => {
-          Logger.error(err);
-          captureException(err, { tags: { source: 'TransactionService.createNotExistZerionTransactions', call: 'TransferService.createTransfersFromZerionTransaction' }});
+        this._transferService.createTransfersFromZerionTransaction(zerionTransactions).catch(error => {
+          ErrorHandlingService.handleError({ error, message: `TransferService.createTransfersFromZerionTransaction` });
         });
         return this._transactionRepository.save(transactions);
     }

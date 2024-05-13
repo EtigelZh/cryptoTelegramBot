@@ -6,6 +6,7 @@ import { FungibleInfo, ZerionTransaction } from '../zerion-api/zerion-api.models
 import { CurrencySymbol } from '../utils/models';
 import { FungibleConsumerApiService } from '../fungible/fungible-consumer-api.service';
 import { captureException } from '@sentry/node';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 @Injectable()
 export class TransferService {
@@ -48,11 +49,9 @@ export class TransferService {
       );
     }
 
-    this._fungibleConsumerApiService.addZerionFundsIfNotExists(Object.values(fungiblePositions)).catch(err => {
-      Logger.error(err);
-      captureException(err, { tags: { source: 'TransferService.createTransfersFromZerionTransaction', call: 'FungibleConsumerApiService.addZerionFundsIfNotExists' }})
-    }
-    );
+    this._fungibleConsumerApiService.addZerionFundsIfNotExists(Object.values(fungiblePositions)).catch(error => {
+        ErrorHandlingService.handleError({ error, message: `TransferService.createTransfersFromZerionTransaction -> FungibleConsumerApiService.addZerionFundsIfNotExists` });
+    });
 
     return await this._transferRepository.save(transfers);
   }

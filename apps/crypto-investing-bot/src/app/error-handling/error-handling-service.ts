@@ -1,20 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { captureException } from '@sentry/node';
 
 export type ErrorContainer = {
   error: Error;
-  chatId: number;
-  message: string;
+  chatId?: number;
+  message?: string;
 }
 
 @Injectable()
 export class ErrorHandlingService {
+  private static _errorsCount = 0;
   private readonly _errors: ErrorContainer[] = [];
-  private errorsCount = 0;
-  handleError(errorContainer: ErrorContainer): void {
-    this.errorsCount++;
-    if (this._errors.length < 100) {
-      this._errors.push(errorContainer);
-    }
+
+  static handleError(errorContainer: ErrorContainer): void {
+    ErrorHandlingService._errorsCount++;
+    Logger.error(`Error: ${errorContainer.error.message} chatId: ${errorContainer.chatId} message: ${errorContainer.message}`);
+    captureException(errorContainer.error);
   }
 
   getErrors(): ErrorContainer[] {
@@ -22,11 +23,11 @@ export class ErrorHandlingService {
   }
 
   getErrorsReport(): string {
-    // counts errors by type
+    // TODO implement it counts errors by type
     return `${this._errors.length}`;
   }
 
-  getErrorsCount(): number {
-    return this.errorsCount;
+  static getErrorsCount(): number {
+    return ErrorHandlingService._errorsCount;
   }
 }

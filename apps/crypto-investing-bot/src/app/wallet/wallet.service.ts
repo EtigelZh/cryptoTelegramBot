@@ -6,6 +6,7 @@ import { WalletHash } from '../utils/models';
 import { humanizeHash } from '../utils/humanized-hash';
 import { captureException } from '@sentry/node';
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 @Injectable()
 export class WalletService {
@@ -32,7 +33,7 @@ export class WalletService {
 
       return walletEntity;
     } catch (error) {
-      Logger.error('fillFinanceDataFromSheets humanizeHash error', error);
+      ErrorHandlingService.handleError({ error, message: `fillFinanceDataFromSheets humanizeHash error` });
     }
     return null;
   }
@@ -68,7 +69,8 @@ export class WalletService {
     let alias: string | null = null;
     try {
       alias = await humanizeHash(walletHash, async (key) => {
-        const hash = await this._cacheManager.get(`name:${key}`);
+        const walletEntity = await this._walletRepository.findOne({ select: ['hash'], where: { alias: key } });
+        const hash = walletEntity?.hash;
         Logger.log(`check collision ${key} ${hash}`);
         if (!hash) {
           return false;
@@ -78,11 +80,7 @@ export class WalletService {
 
       return this.saveWallet({ hash: walletHash, alias });
     } catch (error) {
-      Logger.error(error);
-      captureException(error, {
-        extra: { walletHash, alias },
-        tags: { source: 'GoogleSheetsConsumer.fillFinanceDataFromSheets', target: 'WalletService.save' }
-      });
+      ErrorHandlingService.handleError({ error, message: `GoogleSheetsConsumer.fillFinanceDataFromSheets WalletService.save` });
       return null;
     }
   }

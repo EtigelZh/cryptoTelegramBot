@@ -2,12 +2,13 @@ import { Injectable, Module, Logger } from '@nestjs/common';
 import { resolve } from 'path';
 import * as dotenv from 'dotenv';
 import { dataSourceOptions } from '../data-source.options';
-import { init, captureException } from '@sentry/node';
+import { init } from '@sentry/node';
 import { ProfilingIntegration } from "@sentry/profiling-node";
 
 import { inspect } from 'util';
 import { QueueOptions } from 'bull';
 import * as process from 'node:process';
+import { ErrorHandlingService } from './error-handling/error-handling-service';
 
 let defaultEnvPath = resolve(__dirname, 'assets', 'config', 'default.env');
 let privateEnvPath = resolve(__dirname, 'assets', 'config', 'private.env');
@@ -50,17 +51,12 @@ init({
   ],
 });
 if (typeof process.on === 'function') {
-  process.on('uncaughtException', (err) => {
-    Logger.error(`Uncaught exception: ${err}`);
-    captureException(err);
+  process.on('uncaughtException', (error) => {
+    ErrorHandlingService.handleError({ error });
   });
   process.on('unhandledRejection', (reason, promise) => {
-    Logger.error(`Unhandled rejection: ${reason}`);
-    captureException(reason, {
-      extra: {
-        promise: inspect(promise),
-      },
-    });
+    const unhandledRejection=  new Error(`Unhandled rejection: ${reason} ${inspect(promise)}`);
+    ErrorHandlingService.handleError({ error: unhandledRejection });
   });
 }
 
