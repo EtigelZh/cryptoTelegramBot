@@ -14,6 +14,7 @@ import { ProcessingWalletsJobApiService } from '../processing-wallets/processing
 import { TELEGRAF } from '../telegraf/telegraf.token';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { ProcessingWalletArguments } from '../processing-wallets/processing-wallet.models';
+import { WalletSearcherService } from '../wallets-searcher/wallet-searcher.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -29,6 +30,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _telegramJobApiService: TelegramJobApiService,
     @Inject(TELEGRAF)
     public readonly _bot: Telegraf,
+    private _walletSearcherService: WalletSearcherService,
   ) {}
 
   onModuleInit() {
@@ -48,8 +50,13 @@ export class TelegramBotLogicService implements OnModuleInit {
       this.handleUpdateOldWalletsCommand.bind(this)
     );
     this._bot.command('restart', this.handleRestart.bind(this));
+    this._bot.command('search', this.handleSearch.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
+  }
+
+  private async handleSearch() {
+    await this._walletSearcherService.getNewWallets();
   }
 
   private async handleRestart(

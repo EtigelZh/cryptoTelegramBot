@@ -8,6 +8,7 @@ import { GoogleDriveModule } from '../google-api/google-drive.module';
 import { TelegramReportingService } from './telegram-reporting.service';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { ErrorHandlingModule } from '../error-handling/error-handling-module';
+import { WalletSearcherModule } from '../wallets-searcher/wallet-searcher.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ErrorHandlingModule } from '../error-handling/error-handling-module';
     ProcessingWalletsModule,
     AnalyticsModule,
     ErrorHandlingModule,
+    WalletSearcherModule,
   ],
   providers: [TelegramBotLogicService, TelegramReportingService],
   exports: [TelegramBotLogicService],

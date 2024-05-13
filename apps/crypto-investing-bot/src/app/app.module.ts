@@ -10,6 +10,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-store';
 import { ScheduleModule } from '@nestjs/schedule';
 import type { RedisClientOptions } from 'redis';
+import { WalletSearcherModule } from './wallets-searcher/wallet-searcher.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import type { RedisClientOptions } from 'redis';
     }),
     ScheduleModule.forRoot(),
     HealthModule,
+    WalletSearcherModule,
   ],
   controllers: [AppController],
   providers: [AppService],

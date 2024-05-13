@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { WalletEntity, WalletStatus } from './wallet.entity';
 import { WalletHash } from '../utils/models';
 import { humanizeHash } from '../utils/humanized-hash';
@@ -35,6 +35,17 @@ export class WalletService {
       Logger.error('fillFinanceDataFromSheets humanizeHash error', error);
     }
     return null;
+  }
+
+  async createWalletsEntitiesIfNotExists(walletHashes: string[]): Promise<{ exists: string[], notExits: string[] }> {
+    const existsWallets = await this._walletRepository.find({ select: ['hash'], where: { hash: In(walletHashes)} });
+    const existsWalletsHashes = existsWallets.map(wallet => wallet.hash);
+    const notExistsWalletsHashes = walletHashes.filter(hash => !existsWalletsHashes.includes(hash));
+    for (const walletHash of notExistsWalletsHashes) {
+      // TODO оптимизировать этот процесс за счет батчевой вставки
+      await this.createWalletEntityIfNotExists(walletHash);
+    }
+    return { exists: existsWalletsHashes, notExits: notExistsWalletsHashes };
   }
 
   async setWalletStatus(walletHash: string, walletStatus: WalletStatus) {

@@ -91,6 +91,9 @@ export class AppConfig {
   zerionUpdatingApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_UPDATING_API_KEYS ?? '');
   zerionManualApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_MANUAL_API_KEYS ?? '');
 
+  walletSearcherSourceWallets: string[] = (process.env.WALLET_SEARCHER_SOURCE_WALLETS || '0xb0999731f7c2581844658a9d2ced1be0077b7397').split(',');
+  walletSearcherBatchSize: number = +(process.env.WALLET_SEARCHER_BATCH_SIZE || 1000);
+
   cacheTTL: number = +(process.env.CACHE_TTL || 60_000 * 60 * 24);
   maxWalletsToUpdate: number = +(process.env.MAX_WALLETS_TO_UPDATE || 5);
 

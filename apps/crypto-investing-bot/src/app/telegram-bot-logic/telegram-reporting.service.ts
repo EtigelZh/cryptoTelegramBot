@@ -32,7 +32,6 @@ export class TelegramReportingService {
   }
 
 
-
   @Cron(AppConfig.newMessageTelegramReportingCron)
   async resetReportingMessage() {
     this._lastMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(null, 'Генерация отчета...',  this._appConfig.dailyUpdateReportChatId);

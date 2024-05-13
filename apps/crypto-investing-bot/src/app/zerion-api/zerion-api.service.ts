@@ -25,16 +25,12 @@ import { WalletService } from '../wallet/wallet.service';
 import { WalletEntity, WalletStatus } from '../wallet/wallet.entity';
 import { Cron } from '@nestjs/schedule';
 import { ZerionApiLimitReachedError } from '../error-handling/custom-errors';
+import { transactionsUrlTemplate } from './zerion-api.url-templates';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
 }
-const transactionsUrlTemplate = (
-  walletHash,
-  perPage,
-  lastTransactionDateTimestamp?: number
-) =>
-  `https://api.zerion.io/v1/wallets/${walletHash}/transactions/?currency=usd&page[size]=${perPage}&filter[chain_ids]=ethereum&filter[trash]=only_non_trash${lastTransactionDateTimestamp ? `&filter[min_mined_at]=${lastTransactionDateTimestamp}` : ''}`;
+
 @Injectable()
 export class ZerionApiService {
   constructor(
@@ -93,9 +89,11 @@ export class ZerionApiService {
       apiKeyQueueName,
       take = 0,
       urlTemplate = transactionsUrlTemplate,
+      requestType ,
       getNextChunk = this.fetchTransactionsChunk
     } = options;
-    const isTransactionsRequest = urlTemplate === transactionsUrlTemplate;
+    const isTransactionsRequest = requestType === 'transactions';
+    const isFungiblePositionsRequest = requestType === 'fungible_positions';
     const perPage = Math.min(take || 100, 100);
 
     let walletEntity: WalletEntity | null = null;
@@ -107,8 +105,12 @@ export class ZerionApiService {
       captureException(e, { tags: { source: 'getTransactions', target: 'savingToDbWalletStatistics' } })
     }
 
+    const lastTransactionDate = requestType === 'receive_transactions' ?
+      await this._transactionService.getLastReceivedTransactionDate(walletHash)
+      : +(walletEntity?.lastTransactionDate || 0);
+
     let allTransactions: T[] = [];
-    let url = urlTemplate(walletHash, perPage,  +(walletEntity?.lastTransactionDate || 0));
+    let url = urlTemplate(walletHash, perPage,  lastTransactionDate);
 
     try {
       while (url) {
@@ -117,7 +119,7 @@ export class ZerionApiService {
 
         // TODO вынести получение транзакций и fungible_positions в отдельные методы
         const urlCacheKey = createMD5Hash(url);
-        if (!isTransactionsRequest) {
+        if (isFungiblePositionsRequest) {
           try {
             const zerionResponseRaw = await this._cacheManager.get(urlCacheKey);
             if (typeof zerionResponseRaw === 'string') {
@@ -135,7 +137,7 @@ export class ZerionApiService {
           if (zerionResponse.error) {
             throw new Error('Failed to fetch transactions');
           }
-          if (!isTransactionsRequest) {
+          if (isFungiblePositionsRequest) {
             this._cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
           } else {
             try {
@@ -203,10 +205,6 @@ export class ZerionApiService {
       };
     }
   }
-
-  // async getReceiveTransactions(walletHash: string, startingDateTimestamp: number): Promise<ZerionTransaction[]> {
-  //   transactionsUrlTemplate(walletHash, 100, startingDateTimestamp);
-  // }
 
   /** каждый час синхронизируем использование токенов */
   @Cron('0 * * * *')

@@ -10,7 +10,8 @@ export class ZerionClientJobApiService {
   constructor(
     @InjectQueue(zerionApiFetchTransactionsQueueName) private _zerionApiFetchTransactionsQueue: Queue,
     private _analyticsService: AnalyticsService
-    ) {}
+  ) {
+  }
 
   async getTransactions(jobParams: FetchTransactionsJob) {
     const getTransactionsJob = await this._zerionApiFetchTransactionsQueue.add('getTransactions', jobParams);
@@ -23,6 +24,14 @@ export class ZerionClientJobApiService {
   async getFungiblePositionsCsv(jobParams: FetchTransactionsJob) {
     const job = await this._zerionApiFetchTransactionsQueue.add('getFungiblePositionsCsv', jobParams);
     return await job.finished().finally(() => this._analyticsService.incrementMetric(Metric.zerionRequests).catch(error => {
+      Logger.error(`Error incrementing metric: ${error.message}`);
+      captureException(error);
+    }));
+  }
+
+  async getReceiveTransactions(jobParams: FetchTransactionsJob) {
+    const getTransactionsJob = await this._zerionApiFetchTransactionsQueue.add('getReceiveTransactions', jobParams);
+    return await getTransactionsJob.finished().finally(() => this._analyticsService.incrementMetric(Metric.zerionRequests).catch(error => {
       Logger.error(`Error incrementing metric: ${error.message}`);
       captureException(error);
     }));

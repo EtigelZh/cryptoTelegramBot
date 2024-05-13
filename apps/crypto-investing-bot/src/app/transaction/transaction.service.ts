@@ -25,6 +25,15 @@ export class TransactionService {
       });
     }
 
+    async getLastReceivedTransactionDate(walletHash: string): Promise<number> {
+      const result =  this._transactionRepository.createQueryBuilder('transaction')
+        .select('MAX(transaction.date)')
+        .where('transaction.to = :walletHash', { walletHash })
+        .andWhere('transaction.transaction_type = :transactionType', { transactionType: 'receive' })
+        .getRawOne();
+      return +(result['max'] || 0);
+    }
+
     createNotExistZerionTransactions(zerionTransactions: ZerionTransaction[]): Promise<TransactionEntity[]> {
         const transactions: Partial<TransactionEntity>[] = zerionTransactions.map(zerionTransaction => {
             const data = calculateInOutTransferByZerionTransaction(zerionTransaction)

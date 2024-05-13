@@ -9,16 +9,22 @@ export type WalletHash = string;
 export type TransactionHash = string;
 
 export enum TransactionType {
-  send = 'send',
-  receive = 'receive',
-  execute = 'execute',
-  trade = 'trade',
   approve = 'approve',
-  withdraw = 'withdraw',
-  deposit = 'deposit',
-  mint = 'mint',
+  borrow = 'borrow',
   burn = 'burn',
-  unknown = 'unknown',
+  cancel = 'cancel',
+  claim = 'claim',
+  deploy = 'deploy',
+  deposit = 'deposit',
+  execute = 'execute',
+  mint = 'mint',
+  receive = 'receive',
+  repay = 'repay',
+  send = 'send',
+  stake = 'stake',
+  trade = 'trade',
+  unstake = 'unstake',
+  withdraw = 'withdraw',
 }
 
 export enum TransactionStatus {
@@ -59,20 +65,20 @@ export type InOutTransactionFields = {
   spentCurrency: CurrencySymbol;
   spentUsd: number;
   spentUsdRate: number;
-}
+};
 
 export type AmountGroup = {
   amount: number;
   amountCurrency: CurrencySymbol;
   amountUsd: number | null;
   amountUsdRate: number | null;
-}
+};
 
 export type AddIfNotExistsResult = {
   isAdded: boolean;
-}
+};
 
 export type AddButchIfNotExistsResult<Key = string, SavedEntity = unknown> = {
   added: SavedEntity[];
   exists: Key[];
-}
+};

@@ -162,6 +162,7 @@ export type GetTransactionsArguments<T> = {
         cacheHitsToday: number,
         data: T[]
       ) => Promise<void>;
+    requestType: 'transactions' | 'fungible_positions' | 'receive_transactions';
     getNextChunk?: <T>(url: string, apiKeyQueueName: ZerionApiQueueName) => Promise<ZerionResponse<T>>
 }
 
