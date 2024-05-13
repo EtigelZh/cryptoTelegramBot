@@ -30,17 +30,17 @@ export class WalletSearcherService {
 
 
 
-  @Cron('*/20 * * * *')
+  @Cron(AppConfig.zerionSearcherCron)
   async getNewZerionWallets() {
-    Logger.log('Searching for new wallets');
+    Logger.log('Searching for new wallets using zerion');
     for (const walletHash of this._appConfig.walletSearcherZerionSourceWallets) {
       await this._getRelatedZerionWallets(walletHash);
     }
   }
 
-  @Cron('0 * * * *')
+  @Cron(AppConfig.etherscanSearcherCron)
   async getNewEtherscanWallets() {
-    Logger.log('Searching for new wallets');
+    Logger.log('Searching for new wallets using etherscan');
     for (const walletHash of this._appConfig.walletSearcherSourceEtherscanWallets) {
       await this._getRelatedEtherscanWallets(walletHash);
     }

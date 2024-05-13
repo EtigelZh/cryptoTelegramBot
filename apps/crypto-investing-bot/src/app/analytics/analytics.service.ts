@@ -213,6 +213,14 @@ export class AnalyticsService {
     return data.map(({count, kind}) => `${kind}: ${count}`).sort().join('\n');
   }
 
+  async getColdQueueSize(): Promise<number> {
+    const data = this._repository.query(`SELECT
+        COUNT(ltpw.id) count,
+      FROM long_term_processing_wallet_tasks ltpw
+      WHERE ltpw.started_processing_at IS NULL`);
+    return +(data[0]?.count || 0);
+  }
+
   private _getRedisClient() {
     return (this._cacheManager.store as unknown as RedisStore).getClient();
   }

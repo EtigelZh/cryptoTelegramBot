@@ -72,6 +72,8 @@ export class AppConfig {
   static readonly longTermProcessingCron = process.env.LONG_TERM_PROCESSING_CRON || '*/1 * * * *';
   static readonly telegramReportingCron = process.env.TELEGRAM_REPORTING_CRON || '*/1 * * * *';
   static readonly newMessageTelegramReportingCron = process.env.NEW_MESSAGE_TELEGRAM_REPORTING_CRON || '0 * * * *';
+  static readonly zerionSearcherCron = process.env.ZERION_SEARCHER_CRON || '*/20 * * * *';
+  static readonly etherscanSearcherCron = process.env.ETHERSCAN_SEARCHER_CRON || '0 0 * * *';
 
   minioEndpoint: string = process.env.MINIO_ENDPOINT || '';
   minioEndpointPort: number = +(process.env.MINIO_ENDPOINT_PORT || 9000);
