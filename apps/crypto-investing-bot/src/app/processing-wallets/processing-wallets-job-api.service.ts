@@ -23,6 +23,10 @@ export class ProcessingWalletsJobApiService {
     this._resumeQueueIfPaused();
   }
 
+  async getWaitingCount() {
+    return await this._processingWalletQueue.getWaitingCount();
+  }
+
   async addToLongTermProcessingQueue(walletHash: string, walletArguments: ProcessingWalletArguments) {
     return await this._longTermProcessingWalletsService.createLongTermProcessingWalletTask(walletArguments.walletHash, walletArguments);
   }
