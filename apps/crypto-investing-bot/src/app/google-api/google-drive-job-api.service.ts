@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Queue } from 'bull';
 import { googleDriveQueueName } from './google-drive.consumer';
 import { InjectQueue } from '@nestjs/bull';
 import { AppConfig } from '../app.config';
 import { AnalyticsService, Metric } from '../analytics/analytics.service';
-import { captureException } from '@sentry/node';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 @Injectable()
 export class GoogleDriveJobApiService {
@@ -21,8 +21,7 @@ export class GoogleDriveJobApiService {
       targetGoogleSheetDirectoryId: this._appConfig.targetGoogleSheetDirectoryId
     });
     return await job.finished().finally(() => this._analyticsService.incrementMetric(Metric.googleDriveRequests).catch(error => {
-      Logger.error(`Error incrementing metric: ${error.message}`);
-      captureException(error);
+      ErrorHandlingService.handleError({ error, message: `Error incrementing metric` });
     }));
   }
 }

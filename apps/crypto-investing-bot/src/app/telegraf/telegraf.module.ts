@@ -7,6 +7,7 @@ import { BullModule } from '@nestjs/bull';
 import { telegramQueueName } from './queues';
 import { TelegramConsumer } from './telegram.consumer';
 import { TelegramJobApiService } from './telegram-job-api.service';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 @Module({
   imports: [
@@ -30,7 +31,7 @@ import { TelegramJobApiService } from './telegram-job-api.service';
         const bot = new Telegraf(appConfig.telegramBotToken);
         bot
           .launch()
-          .catch((e) => Logger.error(`Bot launch error: ${inspect(e)}`));
+          .catch((error) => ErrorHandlingService.handleError({ error, message: `Bot launch error` }));
         await bot.telegram.getMe();
         return bot;
       },

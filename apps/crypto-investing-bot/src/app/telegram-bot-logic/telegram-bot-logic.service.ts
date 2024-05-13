@@ -16,6 +16,7 @@ import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { ProcessingWalletArguments } from '../processing-wallets/processing-wallet.models';
 import { WalletSearcherService } from '../wallets-searcher/wallet-searcher.service';
 import { TelegramReportingService } from './telegram-reporting.service';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -322,10 +323,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
   }
 
-  private handleBotError(err: Error, ctx): void {
-    Logger.error(`Telegraf bot error: ${err} Context: ${ctx}`);
-
-    // Implement error-specific handling logic if needed
+  private handleBotError(error: Error, ctx): void {
+    ErrorHandlingService.handleError({ error, message: `Telegraf bot error Context: ${ctx}` });
   }
 
   private _isBotMessage(ctx: Context<MountMap['text']>): boolean {

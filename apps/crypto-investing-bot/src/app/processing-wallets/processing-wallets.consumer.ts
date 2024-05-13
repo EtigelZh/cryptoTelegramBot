@@ -17,6 +17,7 @@ import { WalletStatus } from '../wallet/wallet.entity';
 import { LongTermProcessingWalletsService } from './long-term-processing-wallets.service';
 import { captureException } from '@sentry/node';
 import { ProcessingWalletArguments } from './processing-wallet.models';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 export const walletQueueName = 'processingWallet';
 
@@ -52,8 +53,7 @@ export class ProcessingWalletsConsumer {
           job.data.silent,
         );
         this._longTermProcessingWalletsService.setTaskFinished(job.data.longTermTaskId, result).catch((error) => {
-          Logger.error('Error finishing long term task', error);
-          captureException(error);
+          ErrorHandlingService.handleError({ error, message: `Error finishing long term task` });
         });
         return result;
       } catch (error) {
@@ -155,9 +155,7 @@ export class ProcessingWalletsConsumer {
           apiKeyQueueName
         } as FetchTransactionsJob);
       } catch (error) {
-        Logger.error(
-          `Error fetching transactions for wallet ${walletHash}: ${error}`
-        );
+        ErrorHandlingService.handleError({ error, message: `Error fetching transactions for wallet ${walletHash}` });
         if (!silent) {
           this._telegramJobApiService.createOrUpdateLastMessage(
             lastApiCallMessageId,
@@ -242,9 +240,7 @@ export class ProcessingWalletsConsumer {
         summarySheetUpdated: true
       };
     } catch (error) {
-      Logger.error(
-        `Error fetching transactions for wallet ${walletHash}: ${error}`
-      );
+      ErrorHandlingService.handleError({ error, message: `Error fetching transactions for wallet ${walletHash}` });
       if (!silent) {
         this._telegramJobApiService.createOrUpdateLastMessage(
           lastApiCallMessageId,

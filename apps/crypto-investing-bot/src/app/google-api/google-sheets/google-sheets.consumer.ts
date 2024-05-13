@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { FinanceData } from './google-sheets.models';
 import { GoogleSheetsService } from './google-sheets.service';
 import { WalletService } from '../../wallet/wallet.service';
+import { ErrorHandlingService } from '../../error-handling/error-handling-service';
 
 export const googleSheetsApiQueueName = 'googleApiQueue';
 
@@ -139,8 +140,7 @@ export class GoogleSheetsConsumer {
         });
       }
     } catch (error) {
-      Logger.error('createOrUpdateWallet error', error);
-      Logger.log(job.data);
+      ErrorHandlingService.handleError({ error, message: `Create or update wallet error` });
     }
   }
 
@@ -189,8 +189,7 @@ export class GoogleSheetsConsumer {
 
       return walletsToUpdate; // Возвращаем массив кошельков для обновления
     } catch (error) {
-      Logger.error('selectAndUpdateWallets error', error);
-      Logger.log(job.data);
+      ErrorHandlingService.handleError({ error, message: `selectAndUpdateWallets error` });
       return [];
     }
   }
@@ -243,7 +242,7 @@ export class GoogleSheetsConsumer {
         const walletEntity = await this._walletService.getWallet(walletHash);
         walletAlias = walletEntity.alias;
       } catch (error) {
-        Logger.error('fillFinanceDataFromSheets error', error);
+        ErrorHandlingService.handleError({ error, message: `fillFinanceDataFromSheets error` });
       }
 
       // Заполнение объекта FinanceData с использованием данных из valuesMap
@@ -282,7 +281,7 @@ export class GoogleSheetsConsumer {
 
       return data;
     } catch (error) {
-      Logger.error('fillFinanceDataFromSheets error', error);
+      ErrorHandlingService.handleError({ error, message: `fillFinanceDataFromSheets error` });
     }
   }
 }

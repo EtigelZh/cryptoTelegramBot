@@ -8,6 +8,7 @@ import { captureException } from '@sentry/node';
 import { AppConfig } from '../app.config';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 function getLastBlockKey(walletHash: string): string {
   return `last-search-block:${walletHash}`;
@@ -24,7 +25,7 @@ export class WalletSearcherService {
     private _etherscanClientJobApiService: EtherscanClientJobApiService,
     @Inject(CACHE_MANAGER) private _cache: Cache,
   ) {
-    this._initLastBlocksMap().catch(error => Logger.error(`Error initializing last blocks map: ${error.message}`));
+    this._initLastBlocksMap().catch(error => ErrorHandlingService.handleError({ error, message: `Error initializing last blocks map` }));
   }
 
 
@@ -72,8 +73,7 @@ export class WalletSearcherService {
         silent: true,
         apiKeyQueueName: 'updating',
       }).catch((error) => {
-        Logger.error(`Error processing wallet: ${error.message}`);
-        captureException(error);
+        ErrorHandlingService.handleError({ error, message: `Error processing wallet` });
       });
     }
   }

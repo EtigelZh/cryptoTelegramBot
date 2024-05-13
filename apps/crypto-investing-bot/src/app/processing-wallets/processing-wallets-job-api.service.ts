@@ -10,6 +10,7 @@ import { captureException } from '@sentry/node';
 import { ProcessingWalletArguments } from './processing-wallet.models';
 import { AppConfig } from '../app.config';
 import { AnalyticsService, Metric } from '../analytics/analytics.service';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 @Injectable()
 export class ProcessingWalletsJobApiService {
@@ -62,8 +63,7 @@ export class ProcessingWalletsJobApiService {
     );
     try {
       return await job.finished().finally(() => this._analyticsService.incrementMetric(Metric.processedWallets).catch(error => {
-        Logger.error(`Error incrementing metric: ${error.message}`);
-        captureException(error);
+        ErrorHandlingService.handleError({ error, message: `Error incrementing metric` });
       }));
     } catch (error) {
       if (error instanceof ZerionApiLimitReachedError) {
@@ -111,9 +111,8 @@ export class ProcessingWalletsJobApiService {
         ...task.taskArguments,
         walletHash: task.walletHash,
         longTermTaskId: task.id
-      }).catch( (err) => {
-        Logger.error(err);
-        captureException(err);
+      }).catch( (error) => {
+        ErrorHandlingService.handleError({ error, message: `Error processing wallet` })
       });
     }
     this._resumeQueueIfPaused();

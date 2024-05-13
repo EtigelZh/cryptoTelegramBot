@@ -26,6 +26,7 @@ import { WalletEntity, WalletStatus } from '../wallet/wallet.entity';
 import { Cron } from '@nestjs/schedule';
 import { ZerionApiLimitReachedError } from '../error-handling/custom-errors';
 import { transactionsUrlTemplate } from './zerion-api.url-templates';
+import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
@@ -100,9 +101,8 @@ export class ZerionApiService {
     try {
       walletEntity = await this._walletService.getWallet(walletHash);
       Logger.log(`Wallet status ${walletEntity?.status}`)
-    } catch (e) {
-      Logger.error(e);
-      captureException(e, { tags: { source: 'getTransactions', target: 'savingToDbWalletStatistics' } })
+    } catch (error) {
+      ErrorHandlingService.handleError({ error, message: `Failed to get wallet entity` });
     }
 
     const lastTransactionDate = requestType === 'receive_transactions' ?
@@ -127,8 +127,8 @@ export class ZerionApiService {
             } else {
               zerionResponse = zerionResponseRaw as ZerionResponse<T>;
             }
-          } catch (e) {
-            Logger.error(`Failed to parse cache key ${e}`);
+          } catch (error) {
+            ErrorHandlingService.handleError({ error, message: `Failed to parse cache key ` });
           }
         }
 
@@ -141,9 +141,9 @@ export class ZerionApiService {
             this._cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
           } else {
             try {
-              this._transactionService.createNotExistZerionTransactions(zerionResponse.data as ZerionTransaction[]).catch(e => Logger.error(e));
-            } catch (e) {
-              Logger.error(e);
+              this._transactionService.createNotExistZerionTransactions(zerionResponse.data as ZerionTransaction[]).catch(error => ErrorHandlingService.handleError({ error, message: `TransactionService.createNotExistZerionTransactions` }));
+            } catch (error) {
+              ErrorHandlingService.handleError({ error, message: `createNotExistZerionTransactions` });
             }
           }
         } else {
@@ -180,9 +180,8 @@ export class ZerionApiService {
             walletEntity.lastTransactionDate = new Date(lastTransaction.attributes.mined_at);
             await this._walletService.saveWallet(walletEntity);
           }
-        } catch (e) {
-          Logger.error(e);
-          captureException(e, { tags: { source: 'getTransactions', target: 'savingToDbWalletStatistics' } });
+        } catch (error) {
+          ErrorHandlingService.handleError({ error, message: `savingToDbWalletStatistics` });
         }
       }
 
