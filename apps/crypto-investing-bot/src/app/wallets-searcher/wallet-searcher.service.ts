@@ -87,7 +87,7 @@ export class WalletSearcherService {
       startblock
     });
     if (transactions.length) {
-      await this._cache.set(getLastBlockKey(walletHash), transactions[0].blockNumber);
+      await this._cache.set(getLastBlockKey(walletHash), transactions[0].blockNumber, 0);
       this._lastBlocksMap.set(walletHash, +transactions[0].blockNumber);
     }
 
