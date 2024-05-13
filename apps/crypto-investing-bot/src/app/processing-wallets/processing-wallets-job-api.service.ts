@@ -29,7 +29,7 @@ export class ProcessingWalletsJobApiService {
 
   async processWallet(walletArguments: ProcessingWalletArguments) {
     const waitingCount = await this._processingWalletQueue.getWaitingCount();
-    if (waitingCount > this._appConfig.longTermProcessingBatchSize) {
+    if (waitingCount > (this._appConfig.thresholdForLongTermProcessing)) {
       Logger.log(`Hash ${walletArguments.walletHash} Moving to long term queue`);
       await this.addToLongTermProcessingQueue(walletArguments.walletHash, walletArguments);
       return;
