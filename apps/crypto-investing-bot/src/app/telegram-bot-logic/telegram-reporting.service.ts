@@ -39,7 +39,7 @@ export class TelegramReportingService {
   }
 
   @Cron(AppConfig.telegramReportingCron)
-  async report() {
+  async report(chatId = this._appConfig.dailyUpdateReportChatId, lastMessageId = this._lastMessageId) {
     const [queueReport, dbReport] = await Promise.all([
       this._analyticsService.getQueueReport(),
       this._analyticsService.getDbReport(),
@@ -56,7 +56,7 @@ export class TelegramReportingService {
 
     const fullReport = [queueReport, manualLimits, dbReport].join('\n\n');
 
-    this._lastMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(this._lastMessageId, fullReport,  this._appConfig.dailyUpdateReportChatId);
-    await this._cacheManager.set(getDailyRedisKey(), this._lastMessageId);
+    this._lastMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(lastMessageId, fullReport, chatId);
+    await this._cacheManager.set(getDailyRedisKey(), lastMessageId);
   }
 }

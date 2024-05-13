@@ -15,6 +15,7 @@ import { TELEGRAF } from '../telegraf/telegraf.token';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { ProcessingWalletArguments } from '../processing-wallets/processing-wallet.models';
 import { WalletSearcherService } from '../wallets-searcher/wallet-searcher.service';
+import { TelegramReportingService } from './telegram-reporting.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -31,6 +32,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     @Inject(TELEGRAF)
     public readonly _bot: Telegraf,
     private _walletSearcherService: WalletSearcherService,
+    private _telegramReportingService: TelegramReportingService
   ) {}
 
   onModuleInit() {
@@ -51,11 +53,46 @@ export class TelegramBotLogicService implements OnModuleInit {
     );
     this._bot.command('restart', this.handleRestart.bind(this));
     this._bot.command('search', this.handleSearch.bind(this));
+    this._bot.command('report', this.handleReport.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
 
-  private async handleSearch() {
+  private async handleReport( ctx: Context<MountMap['text']>) {
+    if (this._isBotMessage(ctx)) {
+      return;
+    }
+    // ctx.chat.id <- чат из которого отправили сообщение возможно стоит везде поменять ctx.from?.id на ctx.chat.id
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const message = await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      'Генерируем отчет...'
+    );
+    await this._telegramReportingService.report(ctx.from.id, message.message_id);
+  }
+
+  private async handleSearch( ctx: Context<MountMap['text']>) {
+    if (this._isBotMessage(ctx)) {
+      return;
+    }
+    // ctx.chat.id <- чат из которого отправили сообщение возможно стоит везде поменять ctx.from?.id на ctx.chat.id
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      'Поиск кошельков запущен'
+    );
     await this._walletSearcherService.getNewWallets();
   }
 
