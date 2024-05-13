@@ -52,7 +52,8 @@ export class TelegramBotLogicService implements OnModuleInit {
       this.handleUpdateOldWalletsCommand.bind(this)
     );
     this._bot.command('restart', this.handleRestart.bind(this));
-    this._bot.command('search', this.handleSearch.bind(this));
+    this._bot.command('search_zerion', this.handleZerionSearch.bind(this));
+    this._bot.command('search_etherscan', this.handleEtherscanSearch.bind(this));
     this._bot.command('report', this.handleReport.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
@@ -77,7 +78,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._telegramReportingService.report(ctx.from.id, message.message_id);
   }
 
-  private async handleSearch( ctx: Context<MountMap['text']>) {
+  private async handleZerionSearch( ctx: Context<MountMap['text']>) {
     if (this._isBotMessage(ctx)) {
       return;
     }
@@ -91,9 +92,28 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
     await this._telegramJobApiService.sendMessage(
       ctx.from.id,
-      'Поиск кошельков запущен'
+      'Поиск кошельков через zerion запущен'
     );
-    await this._walletSearcherService.getNewWallets();
+    await this._walletSearcherService.getNewZerionWallets();
+  }
+
+  private async handleEtherscanSearch( ctx: Context<MountMap['text']>) {
+    if (this._isBotMessage(ctx)) {
+      return;
+    }
+    // ctx.chat.id <- чат из которого отправили сообщение возможно стоит везде поменять ctx.from?.id на ctx.chat.id
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      'Поиск кошельков через etherscan запущен'
+    );
+    await this._walletSearcherService.getNewEtherscanWallets();
   }
 
   private async handleRestart(

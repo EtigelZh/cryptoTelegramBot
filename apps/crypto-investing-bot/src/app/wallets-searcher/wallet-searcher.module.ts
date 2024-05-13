@@ -4,6 +4,7 @@ import { AppConfigModule } from '../app.config';
 import { ZerionApiModule } from '../zerion-api/zerion-api.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { ProcessingWalletsModule } from '../processing-wallets/processing-wallets.module';
+import { EtherscanApiModule } from '../etherscan-api/etherscan-api.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { ProcessingWalletsModule } from '../processing-wallets/processing-wallet
     ZerionApiModule,
     WalletModule,
     ProcessingWalletsModule,
+    EtherscanApiModule,
   ],
   controllers: [],
   providers: [WalletSearcherService],

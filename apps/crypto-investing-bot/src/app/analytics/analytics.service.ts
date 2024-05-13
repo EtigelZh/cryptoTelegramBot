@@ -191,9 +191,9 @@ export class AnalyticsService {
       UNION
       SELECT
         COUNT(ltpw.id),
-        'Кошельков в ожидании пересчета' kind
+        'Кошельков в холодной очереди' kind
       FROM long_term_processing_wallet_tasks ltpw
-      WHERE is_finished = FALSE AND ltpw.processed_at IS NOT NULL
+      WHERE ltpw.started_processing_at IS NULL
       UNION
       SELECT
         COUNT(t.id),
@@ -210,7 +210,7 @@ export class AnalyticsService {
         'Кошельков в базе'
       FROM wallets w
     `);
-    return data.map(({count, kind}) => `${kind}: ${count}`).join('\n');
+    return data.map(({count, kind}) => `${kind}: ${count}`).sort().join('\n');
   }
 
   private _getRedisClient() {
