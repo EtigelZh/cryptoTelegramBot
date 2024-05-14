@@ -122,13 +122,14 @@ export class ProcessingWalletsConsumer {
           );
         }
 
-
         if (status === 'HTTP_400') {
-          await this._googleSheetsJobApiService.updateOrAddWallet(walletHash, null, null, [text, status]);
           await this._walletService.setWalletStatus(walletHash, WalletStatus.NOT_TRACKABLE);
         }
 
-        return {};
+        return {
+          summarySheetUpdated: false,
+          reason: `Error fetching transactions: ${text} ${status}`
+        };
       }
       const walletEntity = await this._walletService.getWallet(walletHash);
       if (walletEntity && (walletEntity.status === WalletStatus.NOT_TRACKABLE || walletEntity.status === WalletStatus.LOW_TRADES)) {
