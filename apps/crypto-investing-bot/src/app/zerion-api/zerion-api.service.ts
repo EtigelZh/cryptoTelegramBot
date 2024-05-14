@@ -26,7 +26,7 @@ import { Cron } from '@nestjs/schedule';
 import { ZerionApiLimitReachedError } from '../error-handling/custom-errors';
 import { transactionsUrlTemplate } from './zerion-api.url-templates';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
-import { subtractMonths } from '../utils/dates';
+import { subtractDays, subtractMonths } from '../utils/dates';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
@@ -109,11 +109,11 @@ export class ZerionApiService {
       await this._transactionService.getLastReceivedTransactionDate(walletHash)
       : +(walletEntity?.lastTransactionDate || 0);
 
-    // Получаем транзакции не раньше чем за 2 месяца - что бы не получать лишнего
-    const maxLastDateTimestamp = Math.max(+subtractMonths(new Date(), 2), lastTransactionDate);
+    // Получаем транзакции не раньше чем за 2 месяца - что бы не получать лишнего + отнимаем 1 день, что бы не получать баг с таймзонами
+    const maxLastDateTimestamp = subtractDays(new Date(Math.max(+subtractMonths(new Date(), 2), lastTransactionDate)), 1);
 
     let allTransactions: T[] = [];
-    let url = urlTemplate(walletHash, perPage,  maxLastDateTimestamp);
+    let url = urlTemplate(walletHash, perPage, +maxLastDateTimestamp);
     let isFirstChunk = true;
     try {
       while (url) {
@@ -195,13 +195,19 @@ export class ZerionApiService {
       if (this._walletIsNotEmpty(walletEntity) && isTransactionsRequest) {
         try {
           if (walletEntity.status === WalletStatus.NEW && allTransactions.length > 0 ) {
-            const firstTransaction = allTransactions[allTransactions.length - 1]  as ZerionTransaction;
+            const firstTransaction = allTransactions[allTransactions.length - 1] as ZerionTransaction;
             walletEntity.firstTransactionDate = new Date(firstTransaction.attributes.mined_at);
             walletEntity.status = WalletStatus.ACTIVE;
             walletEntity.lastCalculatedAt = new Date();
           } else {
+            let lastTransactionDate = walletEntity.lastTransactionDate;
+            if (allTransactions.length > 0) {
+              // из базы достаем только недостающие транзакции
+              const lastTransaction = allTransactions[allTransactions.length - 1] as ZerionTransaction;
+              lastTransactionDate = new Date(lastTransaction.attributes.mined_at);
+            }
             // Дополняем ответ сохраненными в базе транзакциями
-            const savedInDbOldTransactions = await this._transactionService.getTransactionsByWallet(walletHash, walletEntity.lastTransactionDate);
+            const savedInDbOldTransactions = await this._transactionService.getTransactionsByWallet(walletHash, lastTransactionDate);
             allTransactions.push(...savedInDbOldTransactions.map(t => t.zerionSource as T));
           }
 
