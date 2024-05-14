@@ -20,4 +20,8 @@ export class FungibleEntity extends WithUpdatedAndCreatedAt {
 
     @Column({ type: 'numeric', nullable: true })
     marketCapUsd: number;
+
+    /** Адрес валюты в сети эфир */
+    @Column({ nullable: true })
+    ethereumAddress?: string;
 }

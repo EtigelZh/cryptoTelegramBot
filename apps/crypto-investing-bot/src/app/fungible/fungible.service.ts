@@ -27,6 +27,7 @@ export class FungibleService {
       name: fund.name,
       symbol: fund.symbol,
       zerionVerified: fund.flags?.verified ?? false,
+      ethereumAddress: fund.implementations?.find( (implementation) => implementation.chain_id === 'ethereum')?.address || '',
       implementations: fund.implementations,
     });
     return { isAdded: true };
@@ -55,6 +56,7 @@ export class FungibleService {
     return {
       name: fund.name,
       symbol: fund?.symbol || '',
+      ethereumAddress: fund.implementations?.find( (implementation) => implementation.chain_id === 'ethereum')?.address || '',
       zerionVerified: fund.flags?.verified || false,
       implementations: fund.implementations,
     };
