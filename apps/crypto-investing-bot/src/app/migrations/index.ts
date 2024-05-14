@@ -11,6 +11,7 @@ import { AddBurnTransaction1715507835070 } from './1715507835070-add-burn-transa
 import { UpdateFinancialData1715530227847 } from './1715530227847-update-financial-data';
 import { AddTransactionTypes1715580298777 } from './1715580298777-add-transaction-types';
 import { AddWalletStatus1715659193275 } from './1715659193275-add-wallet-status';
+import { AddEthAddressToFungible1715698932109 } from './1715698932109-add-eth-address-to-fungible';
 
 export const migrations = [
   Migrations1710903030686,
@@ -26,4 +27,5 @@ export const migrations = [
   UpdateFinancialData1715530227847,
   AddTransactionTypes1715580298777,
   AddWalletStatus1715659193275,
+  AddEthAddressToFungible1715698932109,
 ];
