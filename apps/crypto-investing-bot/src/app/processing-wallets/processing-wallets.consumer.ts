@@ -1,5 +1,4 @@
 import { Process, Processor } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
 import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { AppConfig } from '../app.config';
 import { AxiosError } from 'axios';
@@ -15,9 +14,9 @@ import { ZerionClientJobApiService } from '../zerion-api/zerion-client-job-api.s
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { WalletStatus } from '../wallet/wallet.entity';
 import { LongTermProcessingWalletsService } from './long-term-processing-wallets.service';
-import { captureException } from '@sentry/node';
 import { ProcessingWalletArguments } from './processing-wallet.models';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
+import { Logger } from '@nestjs/common';
 
 export const walletQueueName = 'processingWallet';
 
@@ -81,7 +80,7 @@ export class ProcessingWalletsConsumer {
     parentMessageId: number | null,
     apiKeyQueueName: ZerionApiQueueName,
     silent = false
-  ): Promise<{ summarySheetUpdated?: boolean }> {
+  ): Promise<{ summarySheetUpdated?: boolean, reason?: string }> {
     let walletAlias = '';
 
     const walletEntity = await this._walletService.createWalletEntityIfNotExists(walletHash);
@@ -131,6 +130,23 @@ export class ProcessingWalletsConsumer {
 
         return {};
       }
+      const walletEntity = await this._walletService.getWallet(walletHash);
+      if (walletEntity && (walletEntity.status === WalletStatus.NOT_TRACKABLE || walletEntity.status === WalletStatus.LOW_TRADES)) {
+        // Скипаем анализ и добавление потому что мало trades
+        Logger.log(`Skip wallet ${walletEntity.status}`);
+        // TODO Добавить удаление из excel
+        if (!silent) {
+          this._telegramJobApiService.createOrUpdateLastMessage(
+            lastApiCallMessageId,
+            `${lastText}\nКошелек не будет рассчитан в excel. Кошелек не трейдерский: ${walletEntity.status === WalletStatus.NOT_TRACKABLE ? 'Не отслеживается в zerion - скорей всего контракт' : 'Слишком мало транзакций'}`,
+            chatId
+          );
+        }
+        return {
+          reason: `Wallet status is ${walletEntity.status}`,
+          summarySheetUpdated: false,
+        };
+      }
       const csvData = await this._zerionService.getCsvTransactions(
         transactions.data
       );
@@ -146,7 +162,10 @@ export class ProcessingWalletsConsumer {
           );
         }
 
-        return {};
+        return {
+          summarySheetUpdated: false,
+          reason: 'csv error'
+        };
       }
       let fungiblePositionsCsv = [];
       try {

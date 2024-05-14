@@ -43,10 +43,11 @@ export class TelegramReportingService {
 
   @Cron(AppConfig.telegramReportingCron)
   async report(chatId = this._appConfig.dailyUpdateReportChatId, lastMessageId = this._lastMessageId) {
-    const [queueReport, dbReport, waitingCount] = await Promise.all([
+    const [queueReport, dbReport, waitingCount, telegramWaitingCount] = await Promise.all([
       this._analyticsService.getQueueReport(),
       this._analyticsService.getDbReport(),
-      this._processingWalletsJobApiService.getWaitingCount()
+      this._processingWalletsJobApiService.getWaitingCount(),
+      this._telegramJobApiService.getWaitingQueueSize()
     ]);
 
     const manualApiRequests = this._zerionApiService.getRequestLimits('manual');
@@ -55,6 +56,7 @@ export class TelegramReportingService {
       `Запросов сегодня: `,
       `Ручные запросы: ${manualApiRequests.used}/${manualApiRequests.limit}`,
       `Запросы для обновлений: ${updatingApiRequests.used}/${updatingApiRequests.limit}`,
+      `Очередь отправки сообщений в telegram: ${telegramWaitingCount}`,
       `Ошибок: ${ErrorHandlingService.getErrorsCount()}`,
       `Кошельков в горячей очереди: ${waitingCount}`,
     ].join('\n');

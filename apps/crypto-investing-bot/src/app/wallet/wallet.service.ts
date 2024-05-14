@@ -77,8 +77,9 @@ export class WalletService {
         }
         return hash !== walletHash;
       });
+      const foundWallet = (await this._walletRepository.findOne({where: {hash: walletHash}}) || {});
 
-      return this.saveWallet({ hash: walletHash, alias });
+      return this.saveWallet({...foundWallet, hash: walletHash, alias });
     } catch (error) {
       ErrorHandlingService.handleError({ error, message: `GoogleSheetsConsumer.fillFinanceDataFromSheets WalletService.save` });
       return null;

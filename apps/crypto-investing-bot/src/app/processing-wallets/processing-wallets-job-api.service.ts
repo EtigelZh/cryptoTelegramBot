@@ -29,7 +29,7 @@ export class ProcessingWalletsJobApiService {
   }
 
   async addToLongTermProcessingQueue(walletHash: string, walletArguments: ProcessingWalletArguments) {
-    return await this._longTermProcessingWalletsService.createLongTermProcessingWalletTask(walletArguments.walletHash, walletArguments);
+    return await this._longTermProcessingWalletsService.createLongTermProcessingWalletTask(walletArguments.walletHash, walletArguments,  walletArguments.apiKeyQueueName === 'manual' ? 1 : 10);
   }
 
   async processWallet(walletArguments: ProcessingWalletArguments) {

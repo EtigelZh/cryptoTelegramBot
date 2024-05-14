@@ -10,6 +10,7 @@ import { LongTermProcessing1715506426489 } from './1715506426489-long-term-proce
 import { AddBurnTransaction1715507835070 } from './1715507835070-add-burn-transaction';
 import { UpdateFinancialData1715530227847 } from './1715530227847-update-financial-data';
 import { AddTransactionTypes1715580298777 } from './1715580298777-add-transaction-types';
+import { AddWalletStatus1715659193275 } from './1715659193275-add-wallet-status';
 
 export const migrations = [
   Migrations1710903030686,
@@ -24,4 +25,5 @@ export const migrations = [
   AddBurnTransaction1715507835070,
   UpdateFinancialData1715530227847,
   AddTransactionTypes1715580298777,
+  AddWalletStatus1715659193275,
 ];

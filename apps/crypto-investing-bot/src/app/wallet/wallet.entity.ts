@@ -5,6 +5,7 @@ import { WithUpdatedAndCreatedAt } from "../utils/base.entity";
 
 export enum WalletStatus {
     ACTIVE = 'ACTIVE', // Есть транзакции, заполнены поля firstTransactionDate и lastTransactionDate
+    LOW_TRADES = 'LOW_TRADES', // Есть транзакции, но их мало - неторговый аккаунт - нам не интересен, такие не добавляем в excel
     NEW = 'NEW', // Новый кошелек, еще не ходили в api
     NOT_TRACKABLE = 'NOT_TRACKABLE', // получаем 404 при запросе транзакций
 }
@@ -33,4 +34,8 @@ export class WalletEntity extends WithUpdatedAndCreatedAt {
 
     @Column({ default: false })
     isUseMaestroBot: boolean;
+
+    /** Используется для поиска кошельков */
+    @Column({ type: 'bigint', nullable: true })
+    searchLastBlockNo?: number;
 }

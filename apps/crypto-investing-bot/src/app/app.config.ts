@@ -86,6 +86,8 @@ export class AppConfig {
   longTermProcessingBatchSize: number = +(process.env.LONG_TERM_PROCESSING_BATCH_SIZE || 10);
   thresholdForLongTermProcessing: number = +(process.env.THRESHOLD_FOR_LONG_TERM_PROCESSING || 50);
 
+  minTradesThreshold: number = +(process.env.MIN_TRADES_THRESHOLD || 5);
+
   zerionUpdatingApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_UPDATING_API_KEYS ?? '');
   zerionManualApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_MANUAL_API_KEYS ?? '');
 
@@ -111,7 +113,7 @@ export class AppConfig {
     process.env.ADMINS_CHAT_ID || '-4039511820,254372545,341786440'
   )?.split(',');
 
-  dailyUpdateReportChatId: number = +(process.env.DAILY_UPDATE_REPORT_CHAT_ID || '-1002079084911');
+  dailyUpdateReportChatId: number = +(process.env.DAILY_UPDATE_REPORT_CHAT_ID || '254372545'); // -1002079084911
 
   devPrefix: string = process.env.DEV_MESSAGE_PREFIX || '';
   public async getDbConfig() {
