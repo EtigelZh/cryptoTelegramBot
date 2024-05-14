@@ -6,7 +6,6 @@ import { ZerionApiLimitReachedError } from '../error-handling/custom-errors';
 import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { LongTermProcessingWalletsService } from './long-term-processing-wallets.service';
 import { Cron } from '@nestjs/schedule';
-import { captureException } from '@sentry/node';
 import { ProcessingWalletArguments } from './processing-wallet.models';
 import { AppConfig } from '../app.config';
 import { AnalyticsService, Metric } from '../analytics/analytics.service';

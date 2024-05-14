@@ -1,11 +1,14 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Job } from 'bull';
-import { Logger } from '@nestjs/common';
 import { FinanceData } from './google-sheets.models';
 import { GoogleSheetsService } from './google-sheets.service';
 import { WalletService } from '../../wallet/wallet.service';
 import { ErrorHandlingService } from '../../error-handling/error-handling-service';
-
+import { Inject, Logger } from '@nestjs/common';
+import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
+import type { RedisClientType } from 'redis';
+import { RedisStore } from 'cache-manager-redis-store';
+import { AppConfig } from '../../app.config';
 export const googleSheetsApiQueueName = 'googleApiQueue';
 
 export type UpdateSheetValuesArgs = {
@@ -37,10 +40,35 @@ type Range = typeof GoogleSheetsService.ranges;
 
 @Processor(googleSheetsApiQueueName)
 export class GoogleSheetsConsumer {
+  private static readonly _redisAppendIndexKey = 'shared-counters:google-sheet-append-index';
+  private readonly _redisClient!: RedisClientType;
   constructor(
+    private readonly _appConfig: AppConfig,
     private readonly _googleSheets: GoogleSheetsService,
     private _walletService: WalletService,
+    @Inject(CACHE_MANAGER) _cacheManager: Cache
   ) {
+    this._redisClient = (_cacheManager.store as unknown as RedisStore).getClient();
+    this.initializeCounter(this._appConfig.summaryWalletsSheetId).catch((error) => ErrorHandlingService.handleError({ error, message: `initializeCounter error` }));
+  }
+
+  async initializeCounter(spreadsheetId: string): Promise<void> {
+    const sheetsApi = this._googleSheets.getSheetConnect();
+    const range = 'Лист1';
+    const response = await sheetsApi.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${range}!A:A`
+    });
+
+    const rows = response.data.values || [];
+    const emptyRow = rows.findIndex((row) => row.every(cell => cell === ''));
+    const nextEmptyRow = emptyRow === -1 ? rows.length : emptyRow
+    Logger.log(`Empty row index: ${nextEmptyRow}`);
+    await this._redisClient.set(GoogleSheetsConsumer._redisAppendIndexKey, nextEmptyRow);
+  }
+
+  async getNextAppendIndex() : Promise<number> {
+    return await this._redisClient.incr(GoogleSheetsConsumer._redisAppendIndexKey);
   }
 
   @Process({
@@ -127,10 +155,11 @@ export class GoogleSheetsConsumer {
           }
         });
       } else {
+        const nextEmptyRow = await this.getNextAppendIndex();
         // Добавление нового кошелька, если он не найден
         await sheetsApi.spreadsheets.values.append({
           spreadsheetId,
-          range: `${range}!A:BI`, // Допускается использование всего диапазона для добавления
+          range: `${range}!A${nextEmptyRow}`,  // Допускается использование всего диапазона для добавления
           valueInputOption: 'USER_ENTERED',
           requestBody: {
             values: [
