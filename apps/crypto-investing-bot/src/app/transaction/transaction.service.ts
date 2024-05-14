@@ -1,12 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { TransactionEntity } from "./transaction.entity";
-import { InjectRepository } from "@nestjs/typeorm";
-import { IsNull, LessThan, Not, Repository } from 'typeorm';
-import { ZerionTransaction } from "../zerion-api/zerion-api.models";
-import { TransferService } from "../transfer/transfer.service";
-import { calculateInOutTransferByZerionTransaction } from "../utils/pure-calculations";
-import { captureException } from "@sentry/node";
+import { Injectable } from '@nestjs/common';
+import { TransactionEntity } from './transaction.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, LessThan, MoreThan, Not, Repository } from 'typeorm';
+import { ZerionTransaction } from '../zerion-api/zerion-api.models';
+import { TransferService } from '../transfer/transfer.service';
+import { calculateInOutTransferByZerionTransaction } from '../utils/pure-calculations';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
+import { TransactionType } from '../utils/models';
+import { subtractMonths } from '../utils/dates';
 
 @Injectable()
 export class TransactionService {
@@ -14,6 +15,16 @@ export class TransactionService {
         @InjectRepository(TransactionEntity) private _transactionRepository: Repository<TransactionEntity>,
         private _transferService: TransferService,
     ) {}
+
+    getTradesCountLast30Days(walletHash: string): Promise<number> {
+      const oneMonthAgo = subtractMonths(new Date(), 1);
+      return this._transactionRepository.count({
+        where: [
+          { from: walletHash, date: MoreThan(oneMonthAgo), transactionType: TransactionType.trade, zerionSource: Not(IsNull()) },
+          { to: walletHash, date: MoreThan(oneMonthAgo), transactionType: TransactionType.trade, zerionSource: Not(IsNull()) }
+        ]
+      })
+    }
 
     getTransactionsByWallet(walletHash: string, lastTransactionDate: Date): Promise<TransactionEntity[]> {
       return this._transactionRepository.find({

@@ -4,7 +4,6 @@ import axios from 'axios';
 import { WithSentryPerformance } from '../utils/sentry-performance';
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { createMD5Hash } from '../utils/hash';
-import { captureException } from '@sentry/node';
 import {
   CsvProcessingResponse,
   FungiblePosition,
@@ -27,6 +26,7 @@ import { Cron } from '@nestjs/schedule';
 import { ZerionApiLimitReachedError } from '../error-handling/custom-errors';
 import { transactionsUrlTemplate } from './zerion-api.url-templates';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
+import { subtractMonths } from '../utils/dates';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
@@ -35,7 +35,7 @@ function createFromUserPass(user: string, pass: string): string {
 @Injectable()
 export class ZerionApiService {
   constructor(
-    private readonly config: AppConfig,
+    private readonly _appConfig: AppConfig,
     @Inject(CACHE_MANAGER) private readonly _cacheManager: Cache,
     @Inject(ZERION_MANUAL_API_KEYS) private readonly _manualApiKeys: ApiKeyAndLimitWithUsage[],
     @Inject(ZERION_UPDATING_API_KEYS) private readonly _updatingApiKeys: ApiKeyAndLimitWithUsage[],
@@ -109,9 +109,12 @@ export class ZerionApiService {
       await this._transactionService.getLastReceivedTransactionDate(walletHash)
       : +(walletEntity?.lastTransactionDate || 0);
 
-    let allTransactions: T[] = [];
-    let url = urlTemplate(walletHash, perPage,  lastTransactionDate);
+    // Получаем транзакции не раньше чем за 2 месяца - что бы не получать лишнего
+    const maxLastDateTimestamp = Math.max(+subtractMonths(new Date(), 2), lastTransactionDate);
 
+    let allTransactions: T[] = [];
+    let url = urlTemplate(walletHash, perPage,  maxLastDateTimestamp);
+    let isFirstChunk = true;
     try {
       while (url) {
         let zerionResponse: ZerionResponse<T> = null;
@@ -134,11 +137,38 @@ export class ZerionApiService {
 
         if (!zerionResponse) {
           zerionResponse = await getNextChunk(url, apiKeyQueueName);
+          // Проверяем первый чанк - что бы отфильтровать нужные нам wallets - и не тратить лишние zerion запросы на ненужные wallets
+          if (isTransactionsRequest) {
+            if (isFirstChunk && walletEntity) {
+              // Тут нужно сходить в базу и понять сколько у нас трейдов за последний месяц
+              const dbTrades = await this._transactionService.getTradesCountLast30Days(walletHash)
+              // Прибавляем новые трейды
+              const lastTrades = dbTrades + zerionResponse.data.length;
+              Logger.log(`Wallet ${walletEntity.hash} (${walletEntity.alias}) has total ${lastTrades} trades include db trades ${dbTrades}`);
+              if (lastTrades < this._appConfig.minTradesThreshold && walletEntity) {
+                // обновляем wallet entity и скипаем этот кошелек
+                walletEntity.status = WalletStatus.LOW_TRADES;
+                walletEntity.lastCalculatedAt = new Date();
+                await this._walletService.saveWallet(walletEntity);
+                // Полученные транзакции все равно сохраняем в базу
+                try {
+                  this._transactionService.createNotExistZerionTransactions(zerionResponse.data as ZerionTransaction[]).catch(error => ErrorHandlingService.handleError({ error, message: `TransactionService.createNotExistZerionTransactions` }));
+                } catch (error) {
+                  ErrorHandlingService.handleError({ error, message: `createNotExistZerionTransactions` });
+                }
+                // Не тратим больше запросы на этот кошелек
+                break;
+              }
+            }
+            isFirstChunk = false;
+          }
+
+
           if (zerionResponse.error) {
             throw new Error('Failed to fetch transactions');
           }
           if (isFungiblePositionsRequest) {
-            this._cacheManager.set(urlCacheKey, zerionResponse, this.config.cacheTTL);
+            this._cacheManager.set(urlCacheKey, zerionResponse, this._appConfig.cacheTTL);
           } else {
             try {
               this._transactionService.createNotExistZerionTransactions(zerionResponse.data as ZerionTransaction[]).catch(error => ErrorHandlingService.handleError({ error, message: `TransactionService.createNotExistZerionTransactions` }));

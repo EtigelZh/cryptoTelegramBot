@@ -1,9 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { FetchTransactionsJob, zerionApiFetchTransactionsQueueName } from './zerion-api-fetch-transactions.consumer';
 import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { AnalyticsService, Metric } from '../analytics/analytics.service';
-import { captureException } from '@sentry/node';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
 @Injectable()

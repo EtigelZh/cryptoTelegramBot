@@ -16,6 +16,10 @@ export class TelegramJobApiService {
     });
   }
 
+  async getWaitingQueueSize() {
+    return await this.telegramQueue.getWaitingCount();
+  }
+
   async createOrUpdateLastMessage(
     lastMessageId: number | null,
     messageText: string,
@@ -118,8 +122,6 @@ export class TelegramJobApiService {
       throw error;
     }
   }
-
-
 
   private async handleRateLimit(message: string) {
     Logger.warn('Hit rate limit, pausing queue');
