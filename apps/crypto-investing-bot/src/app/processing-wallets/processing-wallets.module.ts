@@ -11,6 +11,7 @@ import { TelegrafModule } from '../telegraf/telegraf.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LongTermProcessingWalletTaskEntity } from './long-term-processing-wallet-task.entity';
 import { LongTermProcessingWalletsService } from './long-term-processing-wallets.service';
+import { TransactionModule } from '../transaction/transaction.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { LongTermProcessingWalletsService } from './long-term-processing-wallets
     AnalyticsModule,
     WalletModule,
     TelegrafModule,
+    TransactionModule,
     TypeOrmModule.forFeature([LongTermProcessingWalletTaskEntity]),
     BullModule.registerQueue({
       name: walletQueueName,
