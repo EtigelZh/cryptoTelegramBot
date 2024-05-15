@@ -1,7 +1,8 @@
 import { Column, Entity, Index, PrimaryColumn } from "typeorm";
 import { WALLET_HASH_COLUMN } from "../utils/db-utils";
-import { WalletHash } from "../utils/models";
+import { WalletHash } from '../utils/models';
 import { WithUpdatedAndCreatedAt } from "../utils/base.entity";
+import { WalletFinancialStats } from './wallet.models';
 
 export enum WalletStatus {
     ACTIVE = 'ACTIVE', // Есть транзакции, заполнены поля firstTransactionDate и lastTransactionDate
@@ -38,4 +39,7 @@ export class WalletEntity extends WithUpdatedAndCreatedAt {
     /** Используется для поиска кошельков */
     @Column({ type: 'bigint', nullable: true })
     searchLastBlockNo?: number;
+
+    @Column({ type: 'jsonb', nullable: true })
+    walletFinancialStats?: WalletFinancialStats;
 }
