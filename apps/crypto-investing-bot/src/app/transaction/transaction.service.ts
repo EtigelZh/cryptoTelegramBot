@@ -4,12 +4,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, LessThan, MoreThan, Not, Repository } from 'typeorm';
 import { ZerionTransaction } from '../zerion-api/zerion-api.models';
 import { TransferService } from '../transfer/transfer.service';
-import { calculateInOutTransferByZerionTransaction } from '../utils/pure-calculations';
+import { calculateInOutTransferByZerionTransaction, CalculationVersion } from '../utils/transaction-economics';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { TransactionType } from '../utils/models';
 import { subtractDays, subtractMonths } from '../utils/dates';
 import { Period, WalletFinancialStats } from '../wallet/wallet.models';
-import { calculateWalletStats } from '../utils/economics';
+import { calculateWalletStats, TransactionTradeInfo } from '../utils/wallet-economics';
 
 @Injectable()
 export class TransactionService {
@@ -63,15 +63,32 @@ export class TransactionService {
 
   async getWalletFinancialStatistics(walletHash: string): Promise<WalletFinancialStats> {
     const now = new Date();
-    const transactions = await this.getTradesByWallet(walletHash, subtractMonths(now, 3));
+    const transactionsDirty = await this.getTradesByWallet(walletHash, subtractMonths(now, 3));
+    const tradeInfos: TransactionTradeInfo[] = [];
+    for (const transaction of transactionsDirty) {
+      // Если транзакция уже посчитана, то просто добавляем ее в список
+      if (transaction.inOutTransactionFieldsVersion === CalculationVersion.FIXED_SELL_TRANSFERS) {
+        tradeInfos.push(transaction);
+      } else {
+        const calculatedAttributes = calculateInOutTransferByZerionTransaction(transaction.zerionSource);
+        tradeInfos.push({
+          ...calculatedAttributes,
+          date: transaction.date,
+          id: transaction.id,
+          fee: transaction.fee,
+          feeUsd: transaction.feeUsd,
+        });
+        await this._transactionRepository.update(transaction.id, { ...calculatedAttributes });
+      }
+    }
     const lastWeekDate = subtractDays(now, 7);
     const lastMonthDate = subtractMonths(now, 1);
     return {
       calculatedAt: new Date(),
       periods: {
-        [Period.ONE_WEEK]: calculateWalletStats(transactions.filter(transaction => transaction.date > lastWeekDate)),
-        [Period.ONE_MONTH]: calculateWalletStats(transactions.filter(transaction => transaction.date > lastMonthDate)),
-        [Period.THREE_MONTHS]: calculateWalletStats(transactions)
+        [Period.ONE_WEEK]: calculateWalletStats(tradeInfos.filter(transaction => transaction.date > lastWeekDate)),
+        [Period.ONE_MONTH]: calculateWalletStats(tradeInfos.filter(transaction => transaction.date > lastMonthDate)),
+        [Period.THREE_MONTHS]: calculateWalletStats(tradeInfos)
       }
     };
   }
@@ -111,6 +128,7 @@ export class TransactionService {
         // InOutTransactionFields
         ...data,
 
+        inOutTransactionFieldsVersion: 1,
         zerionId: zerionTransaction.id,
         zerionSource: zerionTransaction
       } as TransactionEntity;

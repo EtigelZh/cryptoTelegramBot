@@ -32,3 +32,4 @@ export type FinanceData = {
   annualYield: string;
   averageCommission: string;
 };
+

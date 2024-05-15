@@ -104,7 +104,7 @@ export class AppConfig {
     '10hUgmGxMU6r-s8vGBvLN9Kn018v_dXIKiomFTTJopdQ';
   templateGoogleSheetId: string =
     process.env.TEMPLATE_GOOGLE_SHEET_ID ||
-    '1eK8MiKcSbDup0nghJ5_TI5Bd19B5ZpD784yoyP71gEk';
+    '1Rey85ZLeJmXZZbpNomMhY78yQigq8BMB0nWYjnibV1g';
   targetGoogleSheetDirectoryId: string =
     process.env.TARGET_GOOGLE_SHEET_DIRECTORY_ID ||
     '1wmv8C1oS2L8D9stREL5-DZ2EoNFcaGu9';

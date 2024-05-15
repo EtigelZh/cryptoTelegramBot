@@ -65,6 +65,9 @@ export type InOutTransactionFields = {
   spentCurrency: CurrencySymbol;
   spentUsd: number;
   spentUsdRate: number;
+
+  /** Поле для фикса багов в расчетах, если нужно пересчитать икрементим версию */
+  inOutTransactionFieldsVersion: number;
 };
 
 export type AmountGroup = {

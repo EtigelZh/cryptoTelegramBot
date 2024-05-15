@@ -1,4 +1,4 @@
-import { WalletTradeStatsSummary } from '../utils/economics';
+import { WalletTradeStatsSummary } from '../utils/wallet-economics';
 
 export enum Period {
   ONE_WEEK = 'ONE_WEEK',

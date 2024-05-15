@@ -132,7 +132,7 @@ const stableCoins = [
   'USDC.E'
 ];
 
-export function calculateWalletStats(transactions: TransactionTradeInfo[], RRThreshold = 0.95): WalletTradeStatsSummary {
+export function calculateWalletStats(transactions: TransactionTradeInfo[], now = new Date(), RRThreshold = 0.95): WalletTradeStatsSummary {
   // TODO подумать как обрабатывать транзакции где токены покупаются за другую токены
   // TODO подумать как обрабатывать транзакции где токены покупаются за стейбкоины
   // Группируем sell и buy по валютам
@@ -148,7 +148,9 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], RRThr
   }
   currenciesSet.delete(baseCurrency);
 
-  const tradesWithBaseCurrency = transactions.filter(transaction => transaction.receiveCurrency === baseCurrency || transaction.spentCurrency === baseCurrency);
+  const tradesWithBaseCurrency = transactions.filter(transaction =>
+    currenciesSet.has(transaction.receiveCurrency) && transaction.spentCurrency === baseCurrency
+    || currenciesSet.has(transaction.spentCurrency ) && transaction.receiveCurrency === baseCurrency);
 
   const source: Record<string, CurrencyTradeStats> = {};
 
@@ -185,17 +187,17 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], RRThr
       };
     }
     source[symbol].transactions.push(transaction);
-    source[symbol].commissionAmount += transaction.fee;
-    source[symbol].commissionsUsd += transaction.feeUsd;
+    source[symbol].commissionAmount += +transaction.fee;
+    source[symbol].commissionsUsd += +transaction.feeUsd;
     if (isBuy) {
-      source[symbol].buyAmount += transaction.receiveAmount;
-      source[symbol].sellUsd += transaction.spentUsd;
-      source[symbol].sellEth += transaction.spentAmount;
+      source[symbol].buyAmount += +transaction.receiveAmount;
+      source[symbol].sellUsd += +transaction.spentUsd;
+      source[symbol].sellEth += +transaction.spentAmount;
       source[symbol].buyTransactions.push(transaction);
     } else {
-      source[symbol].sellAmount += transaction.spentAmount;
-      source[symbol].buyUsd += transaction.receiveUsd;
-      source[symbol].buyEth += transaction.receiveAmount;
+      source[symbol].sellAmount += +transaction.spentAmount;
+      source[symbol].buyUsd += +transaction.receiveUsd;
+      source[symbol].buyEth += +transaction.receiveAmount;
       source[symbol].sellTransactions.push(transaction);
     }
   }
@@ -259,8 +261,8 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], RRThr
 
     symbolStats.firstBuy = symbolStats.buyTransactions[0]?.date || new Date();
     symbolStats.lastSell = symbolStats.sellTransactions[symbolStats.sellTransactions.length - 1]?.date || new Date();
-    symbolStats.tradingPeriod = daysDiff(symbolStats.lastSell, symbolStats.firstBuy);
-    symbolStats.tradingPeriodForIncome = daysDiff(symbolStats.endTransactionDate, symbolStats.startTransactionDate) || 1;
+    symbolStats.tradingPeriod = Math.round(daysDiff(symbolStats.lastSell || now, symbolStats.firstBuy || now));
+    symbolStats.tradingPeriodForIncome = Math.max(symbolStats.tradingPeriod, 1);
 
     symbolStats.diffAmount = symbolStats.buyAmount - symbolStats.sellAmount;
     symbolStats.diffAmountPercent = 1 - symbolStats.diffAmount / symbolStats.sellAmount;
@@ -285,14 +287,14 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], RRThr
     usdEntries.push(symbolStats.buyUsd);
 
     // P&L Total
-    PLTotal += symbolStats.diffUsd;
+    PLTotal += +symbolStats.diffUsd;
 
     // Средний срок, д
-    averageTermDaysSum += symbolStats.tradingPeriod;
+    averageTermDaysSum += +symbolStats.tradingPeriod;
 
     // Доходность годовых
-    diffUsdTotalPercent += symbolStats.diffUsdPercent;
-    diffEthTotalPercent += symbolStats.diffEthPercent;
+    diffUsdTotalPercent += +symbolStats.diffUsdPercent;
+    diffEthTotalPercent += +symbolStats.diffEthPercent;
     // Медианное кол-во покупок
     buyCounts.push(symbolStats.buyCount);
     sellCounts.push(symbolStats.sellCount);
@@ -403,3 +405,5 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], RRThr
     transactionsCount: transactions.length,
   };
 }
+
+

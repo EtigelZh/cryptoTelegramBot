@@ -1,13 +1,18 @@
 import type { Transfer, ZerionTransaction } from "../zerion-api/zerion-api.models";
 import type { AmountGroup, CurrencySymbol, InOutTransactionFields } from "./models";
 
+export enum CalculationVersion {
+  FIRST_VERSION = 0, // Бага с тем что в sellTransfers было некорректное условие
+  FIXED_SELL_TRANSFERS = 1, // Исправлена бага с тем что в sellTransfers было некорректное условие
+}
+
 export function calculateInOutTransferByZerionTransaction(zerionTransaction: ZerionTransaction): InOutTransactionFields {
     const buyTransfers = zerionTransaction?.attributes?.transfers?.filter((transfer) => transfer?.direction === 'in') || [];
     const buyAmounts = groupTransfersByCurrency(buyTransfers);
     // TODO доработать этот механизм -> обработать кейсы покупок за стейблкоины и другие токены
     const buyAmount = maxCurrencyAmount(buyAmounts);
 
-    const sellTransfers = zerionTransaction?.attributes?.transfers?.filter((transfer) => transfer?.direction === 'in') || [];
+    const sellTransfers = zerionTransaction?.attributes?.transfers?.filter((transfer) => transfer?.direction === 'out') || [];
     const sellAmounts = groupTransfersByCurrency(sellTransfers)
     const sellAmount = maxCurrencyAmount(sellAmounts);
 
@@ -21,6 +26,8 @@ export function calculateInOutTransferByZerionTransaction(zerionTransaction: Zer
         spentCurrency: sellAmount?.amountCurrency || '',
         spentUsd: sellAmount?.amountUsd || null,
         spentUsdRate: sellAmount?.amountUsdRate || null,
+
+        inOutTransactionFieldsVersion: CalculationVersion.FIXED_SELL_TRANSFERS,
     }
 
 }
