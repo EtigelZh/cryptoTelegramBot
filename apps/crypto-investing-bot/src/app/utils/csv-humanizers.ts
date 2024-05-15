@@ -12,9 +12,9 @@ export function mapFinancialDataToCsvHeader(attributes: WalletFinancialCalculate
       'Медианный вход',
       formatCurrency(attributes.medianEntry),
       'Avg lose',
-      formatCurrency(attributes.avgLose),
+      formatPercent(attributes.avgLose),
       'Avg win',
-      formatCurrency(attributes.avgWin),
+      formatPercent(attributes.avgWin),
       'Медианное кол-во покупок',
       formatNumber(attributes.medianPurchaseCount),
     ],
@@ -24,9 +24,9 @@ export function mapFinancialDataToCsvHeader(attributes: WalletFinancialCalculate
       'Средний вход',
       formatCurrency(attributes.averageEntry),
       'Median lose',
-      formatCurrency(attributes.medianLose),
+      formatPercent(attributes.medianLose),
       'Median win',
-      formatCurrency(attributes.medianWin),
+      formatPercent(attributes.medianWin),
       'Монет проторговано',
       formatNumber(attributes.tradedCoins),
     ],
@@ -56,42 +56,50 @@ export function mapFinancialDataToCsvHeader(attributes: WalletFinancialCalculate
     ]
   ];
 }
+
 function formatNumber(value: number): string {
-  return value.toLocaleString(undefined, {
+  return value.toLocaleString('ru-RU', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+    maximumFractionDigits: 2,
+    useGrouping: true
+  }).replace(/\s/g, '\u00A0');
 }
 
 function formatPercent(value: number): string {
-  return (value * 100).toFixed(2) + '%';
+  const sign = value < 0 ? "-" : "";
+  const formattedValue = Math.abs(value * 100).toFixed(2).replace('.', ',') + '%';
+  return sign + formattedValue;
 }
 
 function formatCurrency(value: number): string {
-  return '$' + value.toLocaleString(undefined, {
+  return value.toLocaleString('ru-RU', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+    maximumFractionDigits: 2,
+    useGrouping: true
+  }).replace(/\s/g, '\u00A0');
 }
-export function mapCurrencyTradeStatsToCSV(data: CurrencyTradeStatsBySymbol): string[][] {
+
+export function mapCurrencyTradeStatsToCSV(data: CurrencyTradeStatsBySymbol): unknown[][] {
   const headers = [
     "Тикеры", "Всего купили", "Всего продали", "Комиссия, usd", "Дельта", "RR, %",
     "Накопление, usd", "Сумма покупок, usd", "Сумма продаж, usd", "Дельта, usd",
     "Дельта, % usd", "Покупок", "Продаж", "Срок сделки, д", "Первая покупка", "Последняя продажа"
   ];
 
-  const rows: string[][] = [headers];
+  const rows: unknown[][] = [headers];
 
   for (const [symbol, stats] of Object.entries(data)) {
     const row: (string | number | undefined)[] = [
       symbol,
-      stats.buyAmount, stats.sellAmount, stats.commissionsUsd, stats.diffAmount, stats.RR,
-      stats.buyUsd - stats.sellUsd, stats.buyUsd, stats.sellUsd, stats.diffUsd,
-      stats.diffUsdPercent, stats.buyCount, stats.sellCount, stats.tradingPeriod,
+      formatCurrency(stats.buyAmount), formatCurrency(stats.sellAmount), formatCurrency(stats.commissionsUsd),
+      formatCurrency(stats.diffAmount), formatPercent(stats.RR),
+      formatCurrency(stats.buyUsd - stats.sellUsd), formatCurrency(stats.buyUsd), formatCurrency(stats.sellUsd),
+      formatCurrency(stats.diffUsd), formatPercent(stats.diffUsdPercent),
+      formatNumber(stats.buyCount), formatNumber(stats.sellCount), formatNumber(stats.tradingPeriod),
       formatDate(stats.firstBuy), formatDate(stats.lastSell)
     ];
 
-    rows.push(row.map(value => value !== undefined ? formatValue(value) : ""));
+    rows.push(row.map(value => value !== undefined ? value : ""));
   }
 
   return rows;
@@ -99,14 +107,4 @@ export function mapCurrencyTradeStatsToCSV(data: CurrencyTradeStatsBySymbol): st
 
 function formatDate(date?: Date): string {
   return date ? date.toISOString().split('T')[0] : "";
-}
-
-function formatValue(value: string | number | undefined): string {
-  if (typeof value === 'number') {
-    return value.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  }
-  return value?.toString() || "";
 }
