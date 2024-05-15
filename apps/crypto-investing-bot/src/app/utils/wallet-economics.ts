@@ -191,13 +191,13 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
     source[symbol].commissionsUsd += +transaction.feeUsd;
     if (isBuy) {
       source[symbol].buyAmount += +transaction.receiveAmount;
-      source[symbol].sellUsd += +transaction.spentUsd;
-      source[symbol].sellEth += +transaction.spentAmount;
+      source[symbol].buyUsd += +transaction.spentUsd;
+      source[symbol].buyEth += +transaction.spentAmount;
       source[symbol].buyTransactions.push(transaction);
     } else {
       source[symbol].sellAmount += +transaction.spentAmount;
-      source[symbol].buyUsd += +transaction.receiveUsd;
-      source[symbol].buyEth += +transaction.receiveAmount;
+      source[symbol].sellUsd += +transaction.receiveUsd;
+      source[symbol].sellEth += +transaction.receiveAmount;
       source[symbol].sellTransactions.push(transaction);
     }
   }
@@ -268,12 +268,12 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
     symbolStats.diffAmountPercent = 1 - symbolStats.diffAmount / symbolStats.sellAmount;
     symbolStats.RR = 1 - symbolStats.diffAmount / (symbolStats.buyAmount || 1); // фикс деления на 0
 
-    symbolStats.diffUsd = symbolStats.buyUsd - symbolStats.sellUsd - symbolStats.commissionsUsd
-    symbolStats.diffUsdPercent = 1 - symbolStats.diffUsd / (symbolStats.sellUsd || 1); // фикс деления на 0
+    symbolStats.diffUsd = symbolStats.sellUsd - symbolStats.buyUsd - symbolStats.commissionsUsd;
+    symbolStats.diffUsdPercent = symbolStats.diffUsd / (symbolStats.buyUsd || 1); // фикс деления на 0
     symbolStats.annualYieldUsdPercent = symbolStats.diffUsdPercent / (symbolStats.tradingPeriodForIncome || 1) * 365; // фикс деления на 0
 
-    symbolStats.diffEth = symbolStats.buyEth - symbolStats.sellEth - symbolStats.commissionAmount;
-    symbolStats.diffEthPercent = 1 - symbolStats.diffEth / (symbolStats.sellEth || 1); // фикс деления на 0
+    symbolStats.diffEth = symbolStats.sellEth - symbolStats.buyEth - symbolStats.commissionAmount;
+    symbolStats.diffEthPercent = symbolStats.diffEth / (symbolStats.buyEth || 1); // фикс деления на 0
     symbolStats.annualYieldEthPercent = symbolStats.diffEthPercent / (symbolStats.tradingPeriodForIncome || 1) * 365; // фикс деления на 0
 
     symbolStats.tradeResultUsd = symbolStats.diffUsd > 0 ? TradeResult.WIN : TradeResult.LOSE;

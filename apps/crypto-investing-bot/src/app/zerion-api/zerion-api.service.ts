@@ -338,7 +338,7 @@ export class ZerionApiService {
             amount: transfer.quantity.float,
             currency: transfer.fungible_info?.symbol ?? '', // Default value if fungible_info is not available
             address:
-              transfer.fungible_info?.implementations.find(
+              transfer.fungible_info?.implementations?.find(
                 (impl) => impl.chain_id === chain
               )?.address ?? '', // Default value if address is not available
             fiatAmount: transfer.value ?? '', // Default value if transfer value is null

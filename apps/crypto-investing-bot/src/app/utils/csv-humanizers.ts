@@ -81,7 +81,9 @@ function formatCurrency(value: number): string {
 
 export function mapCurrencyTradeStatsToCSV(data: CurrencyTradeStatsBySymbol): unknown[][] {
   const headers = [
-    "Тикеры", "Всего купили", "Всего продали", "Комиссия, usd", "Дельта", "RR, %",
+    "Тикеры",
+    "Всего купили", "Всего продали", "Комиссия, usd",
+    "Дельта", "RR, %",
     "Накопление, usd", "Сумма покупок, usd", "Сумма продаж, usd", "Дельта, usd",
     "Дельта, % usd", "Покупок", "Продаж", "Срок сделки, д", "Первая покупка", "Последняя продажа"
   ];
@@ -93,7 +95,7 @@ export function mapCurrencyTradeStatsToCSV(data: CurrencyTradeStatsBySymbol): un
       symbol,
       formatCurrency(stats.buyAmount), formatCurrency(stats.sellAmount), formatCurrency(stats.commissionsUsd),
       formatCurrency(stats.diffAmount), formatPercent(stats.RR),
-      formatCurrency(stats.buyUsd - stats.sellUsd), formatCurrency(stats.buyUsd), formatCurrency(stats.sellUsd),
+      '0', formatCurrency(stats.buyUsd), formatCurrency(stats.sellUsd),
       formatCurrency(stats.diffUsd), formatPercent(stats.diffUsdPercent),
       formatNumber(stats.buyCount), formatNumber(stats.sellCount), formatNumber(stats.tradingPeriod),
       formatDate(stats.firstBuy), formatDate(stats.lastSell)
