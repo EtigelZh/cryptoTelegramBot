@@ -4,12 +4,13 @@ import type { AmountGroup, CurrencySymbol, InOutTransactionFields } from "./mode
 export function calculateInOutTransferByZerionTransaction(zerionTransaction: ZerionTransaction): InOutTransactionFields {
     const buyTransfers = zerionTransaction?.attributes?.transfers?.filter((transfer) => transfer?.direction === 'in') || [];
     const buyAmounts = groupTransfersByCurrency(buyTransfers);
+    // TODO доработать этот механизм -> обработать кейсы покупок за стейблкоины и другие токены
     const buyAmount = maxCurrencyAmount(buyAmounts);
 
     const sellTransfers = zerionTransaction?.attributes?.transfers?.filter((transfer) => transfer?.direction === 'in') || [];
     const sellAmounts = groupTransfersByCurrency(sellTransfers)
     const sellAmount = maxCurrencyAmount(sellAmounts);
-    
+
     return {
         receiveAmount: buyAmount?.amount || 0,
         receiveCurrency: buyAmount?.amountCurrency || '',
@@ -21,7 +22,7 @@ export function calculateInOutTransferByZerionTransaction(zerionTransaction: Zer
         spentUsd: sellAmount?.amountUsd || null,
         spentUsdRate: sellAmount?.amountUsdRate || null,
     }
-      
+
 }
 
 function groupTransfersByCurrency(transfers: Transfer[]): Record<CurrencySymbol, AmountGroup> {
@@ -38,7 +39,7 @@ function groupTransfersByCurrency(transfers: Transfer[]): Record<CurrencySymbol,
             acc[amountCurrency].amount += +(transfer.quantity?.numeric || 0);
             acc[amountCurrency].amountUsd += transfer.value || 0;
         }
-    
+
         return acc;
     }, {} as Record<CurrencySymbol, AmountGroup>);
 }
