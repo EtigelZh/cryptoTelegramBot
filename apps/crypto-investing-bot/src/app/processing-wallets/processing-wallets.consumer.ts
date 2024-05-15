@@ -17,6 +17,9 @@ import { LongTermProcessingWalletsService } from './long-term-processing-wallets
 import { ProcessingWalletArguments } from './processing-wallet.models';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { Logger } from '@nestjs/common';
+import { TransactionService } from '../transaction/transaction.service';
+import { Period, WalletFinancialStats } from '../wallet/wallet.models';
+import { mapCurrencyTradeStatsToCSV, mapFinancialDataToCsvHeader } from '../utils/csv-humanizers';
 
 export const walletQueueName = 'processingWallet';
 
@@ -30,7 +33,8 @@ export class ProcessingWalletsConsumer {
     private _googleSheetsJobApiService: GoogleSheetsJobApiService,
     private _googleDriveJobApiService: GoogleDriveJobApiService,
     private _zerionClientJobApiService: ZerionClientJobApiService,
-    private _longTermProcessingWalletsService: LongTermProcessingWalletsService
+    private _longTermProcessingWalletsService: LongTermProcessingWalletsService,
+    private _transactionService: TransactionService
   ) {
   }
 
@@ -112,6 +116,7 @@ export class ProcessingWalletsConsumer {
           globalPrefix
         }
       } as FetchTransactionsJob);
+
       if (transactions.error) {
         const [text, status] = this.formatErrorMessage(transactions.error);
         if (!silent) {
@@ -132,6 +137,17 @@ export class ProcessingWalletsConsumer {
         };
       }
       const walletEntity = await this._walletService.getWallet(walletHash);
+      let walletFinancialStats: WalletFinancialStats | null = null;
+      // Рассчет финансовых показателей для кошелька
+      if (walletEntity) {
+        try {
+          walletFinancialStats = await this._transactionService.getWalletFinancialStatistics(walletHash);
+          await this._walletService.updateWallet(walletHash, {walletFinancialStats});
+        } catch (error) {
+          ErrorHandlingService.handleError({ error, message: `Error calculating wallet stats` });
+        }
+      }
+
       if (walletEntity && (walletEntity.status === WalletStatus.NOT_TRACKABLE || walletEntity.status === WalletStatus.LOW_TRADES)) {
         // Скипаем анализ и добавление потому что мало trades
         Logger.log(`Skip wallet ${walletEntity.status}`);
@@ -211,8 +227,49 @@ export class ProcessingWalletsConsumer {
           values: updatingData
         }
       );
+
       // TODO над построением графа вычислений
       const updates = [job.finished()];
+      if (walletFinancialStats !== null) {
+        const attributesOneMonth = walletFinancialStats.periods[Period.ONE_MONTH].attributes;
+        const attributesOneWeek = walletFinancialStats.periods[Period.ONE_WEEK].attributes;
+        updates.push(
+           this._googleSheetsJobApiService.updateSheetValues(
+            document.id,
+            'Анализ 30 дней!E9',
+            'USER_ENTERED',
+            {
+              values: mapFinancialDataToCsvHeader(attributesOneMonth),
+            }
+          ),
+        );
+        updates.push(
+          this._googleSheetsJobApiService.updateSheetValues(
+            document.id,
+            'Анализ 7 дней!E9',
+            'USER_ENTERED',
+            {
+              values: mapFinancialDataToCsvHeader(attributesOneWeek),
+            }
+          ),
+        );
+        updates.push(
+          this._googleSheetsJobApiService.updateSheetValues(
+            document.id,
+            'Исходник из базы!A1',
+            'USER_ENTERED',
+            {
+              values: [
+                ['АНАЛИЗ 30 ДНЕЙ'],
+                ...mapCurrencyTradeStatsToCSV(walletFinancialStats.periods[Period.ONE_MONTH].source),
+                ['АНАЛИЗ 7 ДНЕЙ'],
+                  ...mapCurrencyTradeStatsToCSV(walletFinancialStats.periods[Period.ONE_WEEK].source),
+              ],
+            }
+          ),
+        );
+      }
+
       if (fungiblePositionsCsv.length) {
         const job = await this._googleSheetsJobApiService.updateSheetValues(
           document.id,

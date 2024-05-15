@@ -3,6 +3,7 @@ import { UNSIGNED_BIGINT_COLUMN, TIMESTAMP_COLUMN, TRANSACTION_HASH_COLUMN, WALL
 import { CurrencySymbol, InOutTransactionFields, TransactionHash, TransactionStatus, TransactionType, WalletHash } from "../utils/models";
 import type { ZerionTransaction } from "../zerion-api/zerion-api.models";
 import { WithUpdatedAndCreatedAt } from "../utils/base.entity";
+import { CalculationVersion } from '../utils/transaction-economics';
 
 @Entity()
 export class TransactionEntity  extends WithUpdatedAndCreatedAt implements InOutTransactionFields {
@@ -27,7 +28,7 @@ export class TransactionEntity  extends WithUpdatedAndCreatedAt implements InOut
     status: TransactionStatus;
     @Column({ enum: TransactionType, type: 'enum', nullable: true })
     transactionType: TransactionType;
-    
+
 
     @Column({ type: 'numeric' })
     fee: number;
@@ -68,6 +69,10 @@ export class TransactionEntity  extends WithUpdatedAndCreatedAt implements InOut
     /** Сохраняем исходник, что бы можно было если что пересчитать поля */
     @Column({ type: 'jsonb', nullable: true })
     zerionSource: ZerionTransaction;
+
+    /** Поле для фикса багов в расчетах, если нужно пересчитать икрементим версию */
+    @Column({ default: CalculationVersion.FIRST_VERSION })
+    inOutTransactionFieldsVersion: number;
 
     @Column({ type: 'jsonb', nullable: true })
     etherscanSource: Record<string, unknown>;

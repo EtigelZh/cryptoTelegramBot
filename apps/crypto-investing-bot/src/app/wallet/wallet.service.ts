@@ -1,10 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, UpdateResult } from 'typeorm';
 import { WalletEntity, WalletStatus } from './wallet.entity';
 import { WalletHash } from '../utils/models';
 import { humanizeHash } from '../utils/humanized-hash';
-import { captureException } from '@sentry/node';
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 
@@ -63,6 +62,10 @@ export class WalletService {
 
   saveWallet(wallet: Partial<WalletEntity>): Promise<WalletEntity> {
     return this._walletRepository.save(wallet);
+  }
+
+  updateWallet(walletHash: string, walletFields: Partial<WalletEntity>): Promise<UpdateResult> {
+    return this._walletRepository.update({hash: walletHash},walletFields);
   }
 
   private async _createEntityAndAlias(walletHash: string): Promise<WalletEntity | null> {

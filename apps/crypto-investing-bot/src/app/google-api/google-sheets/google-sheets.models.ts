@@ -3,6 +3,7 @@ export type FinanceData = {
   sourceLink: string;
   walletHash: string;
   walletAlias: string;
+  /** Медианный вход */
   medianEntry: string;
   avgLose: string;
   avgWin: string;
@@ -27,6 +28,8 @@ export type FinanceData = {
   winRateTotal: string;
   PLTotal: string;
   riskProfile: string;
+  // Доходность годовых
   annualYield: string;
   averageCommission: string;
 };
+
