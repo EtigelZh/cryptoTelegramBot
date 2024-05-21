@@ -3,7 +3,7 @@ export const GS_CREDENTIALS = {
   "project_id": "crypto-investing-414008",
   "private_key_id": process.env.GOOGLE_SHEET_PRIVET_KEY_ID,
   "private_key": process.env.GOOGLE_SHEET_PRIVET_KEY,
-  "client_email": "sheet-user@crypto-investing-414008.iam.gserviceaccount.com",
+  "client_email": process.env.GOOGLE_SHEET_SERVICE_ACCOUNT_EMAIL || "sheet-user@crypto-investing-414008.iam.gserviceaccount.com",
   "client_id": "105811597023091522310",
   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
   "token_uri": "https://oauth2.googleapis.com/token",
