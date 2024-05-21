@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { GoogleSheetsService } from './google-sheets/google-sheets.service';
 import { inspect } from 'util';
 import { drive_v3 } from 'googleapis';
+import { cleanup, getStorageQuota } from './cleanup';
 
 @Injectable()
 export class GoogleDriveService {
@@ -9,11 +10,9 @@ export class GoogleDriveService {
   constructor(private connector: GoogleSheetsService) {
   }
 
-  async getFiles(fileId: string) {
+  async getQuota() {
     const drive = await this.connector.getDriveConnect();
-    const files =  await drive.files.get({fileId});
-
-    return inspect(files);
+    return getStorageQuota(drive);
   }
 
   async copySpreadsheet(spreadsheetId: string, name: string, destinationFolderId?: string): Promise<drive_v3.Schema$File> {
@@ -34,5 +33,9 @@ export class GoogleDriveService {
       console.error('The API returned an error: ' + inspect(error));
       throw new Error('Failed to copy spreadsheet');
     }
+  }
+
+  async cleanup() {
+    await cleanup(this.connector.getDriveConnect());
   }
 }

@@ -8,9 +8,20 @@ import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { isNumber } from '@nestjs/common/utils/shared.utils';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { ProcessingWalletsJobApiService } from '../processing-wallets/processing-wallets-job-api.service';
+import { GoogleDriveService } from '../google-api/google-drive.service';
 
 function getDailyRedisKey(date = new Date()): string {
   return `daily-report-${date.toISOString().split('T')[0]}`;
+}
+
+/**
+ * Преобразует байты в гигабайты.
+ * @param bytes - Количество байтов.
+ * @returns Количество гигабайтов.
+ */
+function bytesToGigabytes(bytes: number): number {
+  const bytesInGigabyte = 1024 * 1024 * 1024;
+  return bytes / bytesInGigabyte;
 }
 
 @Injectable()
@@ -23,6 +34,7 @@ export class TelegramReportingService {
     private _zerionApiService: ZerionApiService,
     private _telegramJobApiService: TelegramJobApiService,
     private _errorHandlingService: ErrorHandlingService,
+    private _googleDriveService: GoogleDriveService,
     private _processingWalletsJobApiService: ProcessingWalletsJobApiService,
     @Inject(CACHE_MANAGER) private readonly _cacheManager: Cache
   ) {
@@ -43,17 +55,19 @@ export class TelegramReportingService {
 
   @Cron(AppConfig.telegramReportingCron)
   async report(chatId = this._appConfig.dailyUpdateReportChatId, lastMessageId = this._lastMessageId) {
-    const [queueReport, dbReport, waitingCount, telegramWaitingCount] = await Promise.all([
+    const [queueReport, dbReport, waitingCount, telegramWaitingCount, googleDriveQuota] = await Promise.all([
       this._analyticsService.getQueueReport(),
       this._analyticsService.getDbReport(),
       this._processingWalletsJobApiService.getWaitingCount(),
-      this._telegramJobApiService.getWaitingQueueSize()
+      this._telegramJobApiService.getWaitingQueueSize(),
+      this._googleDriveService.getQuota()
     ]);
 
     const manualApiRequests = this._zerionApiService.getRequestLimits('manual');
     const updatingApiRequests = this._zerionApiService.getRequestLimits('updating');
     const manualLimits = [
       `Запросов сегодня: `,
+      `Квота google drive: ${bytesToGigabytes(+googleDriveQuota.usage).toFixed(2)}/${bytesToGigabytes(+googleDriveQuota.limit).toFixed(2)} GB`,
       `Ручные запросы: ${manualApiRequests.used}/${manualApiRequests.limit}`,
       `Запросы для обновлений: ${updatingApiRequests.used}/${updatingApiRequests.limit}`,
       `Очередь отправки сообщений в telegram: ${telegramWaitingCount}`,

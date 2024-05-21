@@ -17,6 +17,7 @@ import { ProcessingWalletArguments } from '../processing-wallets/processing-wall
 import { WalletSearcherService } from '../wallets-searcher/wallet-searcher.service';
 import { TelegramReportingService } from './telegram-reporting.service';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
+import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -28,6 +29,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _appConfig: AppConfig,
     private _processingWalletsJobApiService: ProcessingWalletsJobApiService,
     private _googleSheetsJobApiService: GoogleSheetsJobApiService,
+    private _googleDriveJobApiService: GoogleDriveJobApiService,
     private _zerionApi: ZerionApiService,
     private _telegramJobApiService: TelegramJobApiService,
     @Inject(TELEGRAF)
@@ -56,8 +58,25 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('search_zerion', this.handleZerionSearch.bind(this));
     this._bot.command('search_etherscan', this.handleEtherscanSearch.bind(this));
     this._bot.command('report', this.handleReport.bind(this));
+    this._bot.command('cleanup', this.handleCleanup.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
+  }
+
+  private async handleCleanup(ctx: Context<MountMap['text']>) {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      'Очищаем данные...'
+    );
+    await this._googleDriveJobApiService.cleanup();
+
   }
 
   private async handleReport( ctx: Context<MountMap['text']>) {

@@ -31,4 +31,11 @@ export class GoogleDriveConsumer {
 
     return document;
   }
+
+  @Process({
+    name: 'cleanup'
+  })
+  async cleanup(): Promise<void> {
+    await this._googleDrive.cleanup();
+  }
 }

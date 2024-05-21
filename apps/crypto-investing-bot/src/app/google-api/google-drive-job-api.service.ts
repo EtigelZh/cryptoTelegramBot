@@ -24,4 +24,9 @@ export class GoogleDriveJobApiService {
       ErrorHandlingService.handleError({ error, message: `Error incrementing metric` });
     }));
   }
+
+  async cleanup() {
+    const job = await this._googleDriveQueue.add('cleanup');
+    return job.finished();
+  }
 }
