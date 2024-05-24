@@ -3,6 +3,68 @@ import { FinanceData } from '../google-api/google-sheets/google-sheets.models';
 import { daysDiff } from './dates';
 import { avg, median } from './math';
 
+/** TODO Описать все экономические параметры */
+// export const EconomicParameters = {
+//   buyAmount = 'Всего купили',
+//   sellAmount = 'Всего продали',
+//   diffAmount = 'Дельта',
+//   diffAmountPercent = 'Дельта %',
+//   RR = 'RR',
+//   buyUsd = 'Сумма покупок, usd',
+//   sellUsd = 'Сумма продаж, usd',
+//   diffUsd = 'Дельта, usd',
+//   diffUsdPercent = 'Дельта, % usd',
+//   buyEth = 'Сумма покупок, eth',
+//   sellEth = 'Сумма продаж, eth',
+//   diffEth = 'Дельта, eth',
+//   diffEthPercent = 'Дельта, % eth',
+//   buyCount = 'Покупок',
+//   sellCount = 'Продаж',
+//   commissionAmount = 'Комиссия',
+//   commissionsUsd = 'Комиссии, usd',
+//   startTransactionDate = 'Первая покупка',
+//   endTransactionDate = 'Последняя продажа',
+//   transactionsCount = 'Количество сделок',
+//   firstBuy = 'Первая покупка',
+//   lastSell = 'Последняя продажа',
+//   tradingPeriod = 'Срок сделки',
+//   tradingPeriodForIncome = 'Срок сделки (для доходности)',
+//   annualYieldUsdPercent = 'Доходность годовых usd, %',
+//   annualYieldEthPercent = 'Доходность годовых eth, %',
+//   tradeResultEth = 'Торговля в плюс или в минус eth',
+//   tradeResultUsd = 'Торговля в плюс или в минус usd',
+//   tradedCoinsRCount = 'Количество реализованных монет',
+//   avgWin = 'Средний выигрыш',
+//   medianWin = 'Медианный выигрыш',
+//   avgLose = 'Средний проигрыш',
+//   medianLose = 'Медианный проигрыш',
+//   commissionsEth = 'Сумма коммисий в эфирах',
+//   averageCommissionEth = 'Средняя комиссия в эфирах',
+//   tradedCoins = 'Количество торговых пар',
+//   averageEntry = 'Средний вход',
+//   medianEntry = 'Медианный вход',
+//   winRateTotal = 'Win Rate Total',
+//   PLTotal = 'P&L Total',
+//   riskProfile = 'Профиль риска',
+//   annualYield = 'Доходность годовых',
+//   medianPurchaseCount = 'Медианное кол-во покупок',
+//   PLRCT = 'P&L R (CT) - сумма diffs в эфирах',
+//   winRateRCT = 'Win Rate R (CT) - вин рейт по реализованным в эфирах',
+//   winRateR = 'Win Rate R - вин рейт по реализованным в usd',
+//   PLR = 'P&L R - сумма diffs в usd',
+//   avgLoseEth = 'Средний проигрыш в эфирах',
+//   medianLoseEth = 'Медианный проигрыш в эфирах',
+//   avgWinEth = 'Средний выигрыш в эфирах',
+//   annualYieldR = 'Доходность годовых R',
+//   loseCounter = 'Lose Counter',
+//   winCounter = 'Win Counter',
+//   usdEntries = 'USD Entries',
+//   averageTermDaysSum = 'Average Term Days Sum',
+//   diffUsdTotalPercent = 'Diff USD Total Percent',
+// }
+//
+// export type EconomicParameter = keyof typeof EconomicParameterLabel;
+
 /** Аттрибуты нужные для расчета, но не попадающие в итоговый jsonb */
 export type TemporaryCalculatingAttributes = {
   transactions?: TransactionTradeInfo[];
@@ -83,7 +145,9 @@ export type CurrencyTradeStats = TemporaryCalculatingAttributes & {
 
 export type CurrencyTradeStatsBySymbol = Record<CurrencySymbol, CurrencyTradeStats>;
 
-export type WalletFinancialCalculatedAttributes = Record<keyof Pick<FinanceData, 'tradedCoins' | 'averageEntry' | 'medianEntry' | 'winRateTotal' | 'PLTotal' | 'averageTermDays' | 'annualYield' | 'medianPurchaseCount' | 'commissions' | 'averageCommission' | 'winRateRCT' | 'PLRCT' | 'RR' | 'winRateR' | 'PLR' | 'avgWin' | 'medianWin' | 'avgLose' | 'medianLose' | 'annualYieldR' | 'riskProfile'>, number> & {
+export type WalletFinancialCalculatedAttributes =
+  Record<keyof Pick<FinanceData, 'tradedCoins' | 'averageEntry' | 'medianEntry' | 'winRateTotal' | 'PLTotal' | 'averageTermDays' | 'annualYield' | 'medianPurchaseCount' | 'commissions' | 'averageCommission' | 'winRateRCT' | 'PLRCT' | 'RR' | 'winRateR' | 'PLR' | 'avgWin' | 'medianWin' | 'avgLose' | 'medianLose' | 'annualYieldR' | 'riskProfile'>, number>
+  & {
   /** Доходность годовых в эфирах */
   annualYieldEthPercent: number;
   /** Медианное кол-во продаж */
@@ -103,10 +167,66 @@ export type WalletFinancialCalculatedAttributes = Record<keyof Pick<FinanceData,
   medianLoseEth: number;
 };
 
+/** Промежуточные вычисления */
+export type InnerAttributes = {
+  // Win Rate counters
+  loseCounter: number;
+  winCounter: number;
+  // Медианный вход
+  usdEntries: number[];
+  // P&L Total
+  PLTotal: number;
+  // Средний срок, д
+  averageTermDaysSum: number;
+  // Доходность годовых
+  diffUsdTotalPercent: number;
+  diffEthTotalPercent: number;
+  // Медианное кол-во покупок
+  buyCounts: number[];
+  sellCounts: number[];
+  // Комиссий
+  commissions: number;
+  commissionsEth: number;
+
+  /** Глобальные каунтеры для реализованных монет RR > 95% */
+  //  Win Rate R (CT) - вин рейт по реализованным в эфирах
+  ethWinCounter: number;
+  ethLoseCounter: number;
+  // P&L R (CT) - сумма diffs в эфирах
+  PLRCT: number;
+  // RR, % процент реализованных монет
+  tradedCoinsRCount: number;
+  // Win Rate R
+  usdLosesR: number;
+  usdWinsR: number;
+  // P&L R
+  PLR: number;
+
+  // Avg lose
+  // Median lose
+  losesUsd: number[];
+  losesEth: number[];
+  // Avg win
+  // Median win
+  winsUsd: number[];
+  winsEth: number[];
+
+  // Доходность годовых R
+  annualYieldRTotal: number;
+  annualYieldRCount: number;
+
+  // Balance - для расчета объема и оборота оборотного капитала
+  minBalance: number;
+  medianBalance: number;
+
+  balances: number[];
+}
+
 export type WalletTradeStatsSummary = {
   source: CurrencyTradeStatsBySymbol;
 
   attributes: WalletFinancialCalculatedAttributes;
+  innerAttributes: InnerAttributes;
 
   startTransactionDate?: Date;
   endTransactionDate?: Date;
@@ -150,10 +270,11 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
 
   const tradesWithBaseCurrency = transactions.filter(transaction =>
     currenciesSet.has(transaction.receiveCurrency) && transaction.spentCurrency === baseCurrency
-    || currenciesSet.has(transaction.spentCurrency ) && transaction.receiveCurrency === baseCurrency);
+    || currenciesSet.has(transaction.spentCurrency) && transaction.receiveCurrency === baseCurrency);
 
   const source: Record<string, CurrencyTradeStats> = {};
-
+  // balances для расчета оборотного капитала
+  const balances = [0];
   for (const transaction of tradesWithBaseCurrency) {
     const isBuy = transaction.spentCurrency === baseCurrency;
     const symbol = isBuy ? transaction.receiveCurrency : transaction.spentCurrency;
@@ -183,7 +304,7 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
         commissionAmount: 0,
         commissionsUsd: 0,
         transactionsCount: 0,
-        RR: 0,
+        RR: 0
       };
     }
     source[symbol].transactions.push(transaction);
@@ -194,11 +315,13 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
       source[symbol].buyUsd += +transaction.spentUsd;
       source[symbol].buyEth += +transaction.spentAmount;
       source[symbol].buyTransactions.push(transaction);
+      balances.push(balances[balances.length - 1] - source[symbol].buyEth)
     } else {
       source[symbol].sellAmount += +transaction.spentAmount;
       source[symbol].sellUsd += +transaction.receiveUsd;
       source[symbol].sellEth += +transaction.receiveAmount;
       source[symbol].sellTransactions.push(transaction);
+      balances.push(balances[balances.length - 1] + source[symbol].sellEth);
     }
   }
 
@@ -335,9 +458,22 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
     }
 
     // транзакции больше не нужны удаляем их из статы что бы не попали в jsonb
-    delete symbolStats.transactions;
-    delete symbolStats.sellTransactions;
-    delete symbolStats.buyTransactions;
+    symbolStats.transactions = symbolStats.transactions.map(transaction => (<TransactionTradeInfo>{
+      date: transaction.date,
+      fee: transaction.fee,
+      feeUsd: transaction.feeUsd,
+      id: transaction.id,
+      receiveAmount: transaction.receiveAmount,
+      receiveCurrency: transaction.receiveCurrency,
+      receiveUsd: transaction.receiveUsd,
+      receiveUsdRate: transaction.receiveUsdRate,
+      spentAmount: transaction.spentAmount,
+      spentCurrency: transaction.spentCurrency,
+      spentUsd: transaction.spentUsd,
+      spentUsdRate: transaction.spentUsdRate
+    }));
+    symbolStats.sellTransactions = symbolStats.sellTransactions.map(transaction => ({id: transaction.id} as TransactionTradeInfo ));
+    symbolStats.buyTransactions = symbolStats.buyTransactions.map(transaction => ({id: transaction.id} as TransactionTradeInfo ));
   }
 
   const currenciesCount = currenciesSet.size || 1; // Фикс деления на 0
@@ -396,13 +532,65 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
       // Доходность годовых R
       annualYieldR: annualYieldRTotal / (annualYieldRCount || 1), // фикс деления на 0
       // Профиль риска
-      riskProfile: medianWin / (Math.abs(medianLose) || 1), // фикс деления на 0
+      riskProfile: medianWin / (Math.abs(medianLose) || 1) // фикс деления на 0
+    },
+    /** переменные используемые во внутренних вычислениях */
+    innerAttributes: {
+      // Win Rate counters
+      loseCounter,
+      winCounter,
+      // Медианный вход
+      usdEntries,
+      // P&L Total
+      PLTotal,
+      // Средний срок, д
+      averageTermDaysSum,
+      // Доходность годовых
+      diffUsdTotalPercent,
+      diffEthTotalPercent,
+      // Медианное кол-во покупок
+      buyCounts,
+      sellCounts,
+      // Комиссий
+      commissions,
+      commissionsEth,
+
+      /** Глобальные каунтеры для реализованных монет RR > 95% */
+      //  Win Rate R (CT) - вин рейт по реализованным в эфирах
+      ethWinCounter,
+      ethLoseCounter,
+      // P&L R (CT) - сумма diffs в эфирах
+      PLRCT,
+      // RR, % процент реализованных монет
+      tradedCoinsRCount,
+      // Win Rate R
+      usdLosesR,
+      usdWinsR,
+      // P&L R
+      PLR,
+
+      // Avg lose
+      // Median lose
+      losesUsd,
+      losesEth,
+      // Avg win
+      // Median win
+      winsUsd,
+      winsEth,
+
+      // Доходность годовых R
+      annualYieldRTotal,
+      annualYieldRCount,
+
+      balances,
+      medianBalance: median(balances),
+      minBalance: Math.min(...balances)
     },
     startTransactionDate: transactions[0]?.date,
     endTransactionDate: transactions[transactions.length - 1]?.date,
     startTransactionHash: transactions[0]?.id,
     endTransactionHash: transactions[transactions.length - 1]?.id,
-    transactionsCount: transactions.length,
+    transactionsCount: transactions.length
   };
 }
 
