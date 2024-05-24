@@ -70,7 +70,7 @@ export type TemporaryCalculatingAttributes = {
   transactions?: TransactionTradeInfo[];
   sellTransactions?: TransactionTradeInfo[];
   buyTransactions?: TransactionTradeInfo[];
-}
+};
 
 export enum TradeResult {
   WIN = 'WIN',
@@ -141,13 +141,40 @@ export type CurrencyTradeStats = TemporaryCalculatingAttributes & {
   /** Торговля в плюс или в минус */
   tradeResultEth?: TradeResult;
   tradeResultUsd?: TradeResult;
-}
+};
 
-export type CurrencyTradeStatsBySymbol = Record<CurrencySymbol, CurrencyTradeStats>;
+export type CurrencyTradeStatsBySymbol = Record<
+  CurrencySymbol,
+  CurrencyTradeStats
+>;
 
-export type WalletFinancialCalculatedAttributes =
-  Record<keyof Pick<FinanceData, 'tradedCoins' | 'averageEntry' | 'medianEntry' | 'winRateTotal' | 'PLTotal' | 'averageTermDays' | 'annualYield' | 'medianPurchaseCount' | 'commissions' | 'averageCommission' | 'winRateRCT' | 'PLRCT' | 'RR' | 'winRateR' | 'PLR' | 'avgWin' | 'medianWin' | 'avgLose' | 'medianLose' | 'annualYieldR' | 'riskProfile'>, number>
-  & {
+export type WalletFinancialCalculatedAttributes = Record<
+  keyof Pick<
+    FinanceData,
+    | 'tradedCoins'
+    | 'averageEntry'
+    | 'medianEntry'
+    | 'winRateTotal'
+    | 'PLTotal'
+    | 'averageTermDays'
+    | 'annualYield'
+    | 'medianPurchaseCount'
+    | 'commissions'
+    | 'averageCommission'
+    | 'winRateRCT'
+    | 'PLRCT'
+    | 'RR'
+    | 'winRateR'
+    | 'PLR'
+    | 'avgWin'
+    | 'medianWin'
+    | 'avgLose'
+    | 'medianLose'
+    | 'annualYieldR'
+    | 'riskProfile'
+  >,
+  number
+> & {
   /** Доходность годовых в эфирах */
   annualYieldEthPercent: number;
   /** Медианное кол-во продаж */
@@ -165,6 +192,12 @@ export type WalletFinancialCalculatedAttributes =
   medianWinEth: number;
   avgLoseEth: number;
   medianLoseEth: number;
+  /** Оборотный капитал */
+  minBalance: number;
+  medianBalance: number;
+
+  // Balance - для расчета объема и оборота оборотного капитала
+  balances: number[];
 };
 
 /** Промежуточные вычисления */
@@ -214,13 +247,7 @@ export type InnerAttributes = {
   // Доходность годовых R
   annualYieldRTotal: number;
   annualYieldRCount: number;
-
-  // Balance - для расчета объема и оборота оборотного капитала
-  minBalance: number;
-  medianBalance: number;
-
-  balances: number[];
-}
+};
 
 export type WalletTradeStatsSummary = {
   source: CurrencyTradeStatsBySymbol;
@@ -233,7 +260,7 @@ export type WalletTradeStatsSummary = {
   startTransactionHash?: string;
   endTransactionHash?: string;
   transactionsCount: number;
-}
+};
 
 export type TransactionTradeInfo = InOutTransactionFields & {
   id: string;
@@ -249,10 +276,14 @@ const stableCoins = [
   'USDT',
   'WETH',
   'BITCOIN',
-  'USDC.E'
+  'USDC.E',
 ];
 
-export function calculateWalletStats(transactions: TransactionTradeInfo[], now = new Date(), RRThreshold = 0.95): WalletTradeStatsSummary {
+export function calculateWalletStats(
+  transactions: TransactionTradeInfo[],
+  now = new Date(),
+  RRThreshold = 0.95
+): WalletTradeStatsSummary {
   // TODO подумать как обрабатывать транзакции где токены покупаются за другую токены
   // TODO подумать как обрабатывать транзакции где токены покупаются за стейбкоины
   // Группируем sell и buy по валютам
@@ -268,16 +299,23 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
   }
   currenciesSet.delete(baseCurrency);
 
-  const tradesWithBaseCurrency = transactions.filter(transaction =>
-    currenciesSet.has(transaction.receiveCurrency) && transaction.spentCurrency === baseCurrency
-    || currenciesSet.has(transaction.spentCurrency) && transaction.receiveCurrency === baseCurrency);
+  const tradesWithBaseCurrency = transactions.filter(
+    (transaction) =>
+      (currenciesSet.has(transaction.receiveCurrency) &&
+        transaction.spentCurrency === baseCurrency) ||
+      (currenciesSet.has(transaction.spentCurrency) &&
+        transaction.receiveCurrency === baseCurrency)
+  );
 
   const source: Record<string, CurrencyTradeStats> = {};
   // balances для расчета оборотного капитала
   const balances = [0];
+  let currentBalance = 0;
   for (const transaction of tradesWithBaseCurrency) {
     const isBuy = transaction.spentCurrency === baseCurrency;
-    const symbol = isBuy ? transaction.receiveCurrency : transaction.spentCurrency;
+    const symbol = isBuy
+      ? transaction.receiveCurrency
+      : transaction.spentCurrency;
     if (!source[symbol]) {
       source[symbol] = {
         transactions: [],
@@ -304,24 +342,27 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
         commissionAmount: 0,
         commissionsUsd: 0,
         transactionsCount: 0,
-        RR: 0
+        RR: 0,
       };
     }
     source[symbol].transactions.push(transaction);
     source[symbol].commissionAmount += +transaction.fee;
     source[symbol].commissionsUsd += +transaction.feeUsd;
+    
     if (isBuy) {
       source[symbol].buyAmount += +transaction.receiveAmount;
       source[symbol].buyUsd += +transaction.spentUsd;
       source[symbol].buyEth += +transaction.spentAmount;
       source[symbol].buyTransactions.push(transaction);
-      balances.push(balances[balances.length - 1] - source[symbol].buyEth)
+      currentBalance -= +transaction.spentAmount;
+      balances.push(currentBalance);
     } else {
       source[symbol].sellAmount += +transaction.spentAmount;
       source[symbol].sellUsd += +transaction.receiveUsd;
       source[symbol].sellEth += +transaction.receiveAmount;
       source[symbol].sellTransactions.push(transaction);
-      balances.push(balances[balances.length - 1] + source[symbol].sellEth);
+      currentBalance += +transaction.receiveAmount;
+      balances.push(currentBalance);
     }
   }
 
@@ -374,33 +415,50 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
 
   for (const symbolStats of Object.values(source)) {
     symbolStats.startTransactionHash = symbolStats.transactions[0]?.id;
-    symbolStats.endTransactionHash = symbolStats.transactions[symbolStats.transactions.length - 1]?.id;
+    symbolStats.endTransactionHash =
+      symbolStats.transactions[symbolStats.transactions.length - 1]?.id;
     symbolStats.startTransactionDate = symbolStats.transactions[0]?.date;
-    symbolStats.endTransactionDate = symbolStats.transactions[symbolStats.transactions.length - 1]?.date;
+    symbolStats.endTransactionDate =
+      symbolStats.transactions[symbolStats.transactions.length - 1]?.date;
 
     symbolStats.transactionsCount = symbolStats.transactions.length;
     symbolStats.buyCount = symbolStats.buyTransactions.length;
     symbolStats.sellCount = symbolStats.sellTransactions.length;
 
     symbolStats.firstBuy = symbolStats.buyTransactions[0]?.date || new Date();
-    symbolStats.lastSell = symbolStats.sellTransactions[symbolStats.sellTransactions.length - 1]?.date || new Date();
-    symbolStats.tradingPeriod = Math.round(daysDiff(symbolStats.lastSell || now, symbolStats.firstBuy || now));
+    symbolStats.lastSell =
+      symbolStats.sellTransactions[symbolStats.sellTransactions.length - 1]
+        ?.date || new Date();
+    symbolStats.tradingPeriod = Math.round(
+      daysDiff(symbolStats.lastSell || now, symbolStats.firstBuy || now)
+    );
     symbolStats.tradingPeriodForIncome = Math.max(symbolStats.tradingPeriod, 1);
 
     symbolStats.diffAmount = symbolStats.buyAmount - symbolStats.sellAmount;
-    symbolStats.diffAmountPercent = 1 - symbolStats.diffAmount / symbolStats.sellAmount;
+    symbolStats.diffAmountPercent =
+      1 - symbolStats.diffAmount / symbolStats.sellAmount;
     symbolStats.RR = 1 - symbolStats.diffAmount / (symbolStats.buyAmount || 1); // фикс деления на 0
 
-    symbolStats.diffUsd = symbolStats.sellUsd - symbolStats.buyUsd - symbolStats.commissionsUsd;
-    symbolStats.diffUsdPercent = symbolStats.diffUsd / (symbolStats.buyUsd || 1); // фикс деления на 0
-    symbolStats.annualYieldUsdPercent = symbolStats.diffUsdPercent / (symbolStats.tradingPeriodForIncome || 1) * 365; // фикс деления на 0
+    symbolStats.diffUsd =
+      symbolStats.sellUsd - symbolStats.buyUsd - symbolStats.commissionsUsd;
+    symbolStats.diffUsdPercent =
+      symbolStats.diffUsd / (symbolStats.buyUsd || 1); // фикс деления на 0
+    symbolStats.annualYieldUsdPercent =
+      (symbolStats.diffUsdPercent / (symbolStats.tradingPeriodForIncome || 1)) *
+      365; // фикс деления на 0
 
-    symbolStats.diffEth = symbolStats.sellEth - symbolStats.buyEth - symbolStats.commissionAmount;
-    symbolStats.diffEthPercent = symbolStats.diffEth / (symbolStats.buyEth || 1); // фикс деления на 0
-    symbolStats.annualYieldEthPercent = symbolStats.diffEthPercent / (symbolStats.tradingPeriodForIncome || 1) * 365; // фикс деления на 0
+    symbolStats.diffEth =
+      symbolStats.sellEth - symbolStats.buyEth - symbolStats.commissionAmount;
+    symbolStats.diffEthPercent =
+      symbolStats.diffEth / (symbolStats.buyEth || 1); // фикс деления на 0
+    symbolStats.annualYieldEthPercent =
+      (symbolStats.diffEthPercent / (symbolStats.tradingPeriodForIncome || 1)) *
+      365; // фикс деления на 0
 
-    symbolStats.tradeResultUsd = symbolStats.diffUsd > 0 ? TradeResult.WIN : TradeResult.LOSE;
-    symbolStats.tradeResultEth = symbolStats.diffEth > 0 ? TradeResult.WIN : TradeResult.LOSE;
+    symbolStats.tradeResultUsd =
+      symbolStats.diffUsd > 0 ? TradeResult.WIN : TradeResult.LOSE;
+    symbolStats.tradeResultEth =
+      symbolStats.diffEth > 0 ? TradeResult.WIN : TradeResult.LOSE;
 
     // Win Rate Total
     symbolStats.diffUsd > 0 ? winCounter++ : loseCounter++;
@@ -428,7 +486,9 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
     // считаем стату для монет у который RR > 0.95 -> сумма реализованных монет больше 95%
     if (symbolStats.RR > RRThreshold) {
       // Win Rate R (CT) - вин рейт по победам в эфирах
-      symbolStats.tradeResultEth === TradeResult.WIN ? ethWinCounter++ : ethLoseCounter++;
+      symbolStats.tradeResultEth === TradeResult.WIN
+        ? ethWinCounter++
+        : ethLoseCounter++;
 
       // P&L R (CT) - сумма diffs в эфирах
       PLRCT += symbolStats.diffEth;
@@ -446,8 +506,12 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
       // Median lose
       // Avg win
       // Median win
-      symbolStats.tradeResultUsd === TradeResult.WIN ? winsUsd.push(symbolStats.diffUsd) : losesUsd.push(symbolStats.diffUsd);
-      symbolStats.tradeResultEth === TradeResult.WIN ? winsEth.push(symbolStats.diffEth) : losesEth.push(symbolStats.diffEth);
+      symbolStats.tradeResultUsd === TradeResult.WIN
+        ? winsUsd.push(symbolStats.diffUsd)
+        : losesUsd.push(symbolStats.diffUsd);
+      symbolStats.tradeResultEth === TradeResult.WIN
+        ? winsEth.push(symbolStats.diffEth)
+        : losesEth.push(symbolStats.diffEth);
 
       // Доходность годовых R - по выигранным сделкам
       if (symbolStats.tradeResultUsd === TradeResult.WIN) {
@@ -458,22 +522,29 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
     }
 
     // транзакции больше не нужны удаляем их из статы что бы не попали в jsonb
-    symbolStats.transactions = symbolStats.transactions.map(transaction => (<TransactionTradeInfo>{
-      date: transaction.date,
-      fee: transaction.fee,
-      feeUsd: transaction.feeUsd,
-      id: transaction.id,
-      receiveAmount: transaction.receiveAmount,
-      receiveCurrency: transaction.receiveCurrency,
-      receiveUsd: transaction.receiveUsd,
-      receiveUsdRate: transaction.receiveUsdRate,
-      spentAmount: transaction.spentAmount,
-      spentCurrency: transaction.spentCurrency,
-      spentUsd: transaction.spentUsd,
-      spentUsdRate: transaction.spentUsdRate
-    }));
-    symbolStats.sellTransactions = symbolStats.sellTransactions.map(transaction => ({id: transaction.id} as TransactionTradeInfo ));
-    symbolStats.buyTransactions = symbolStats.buyTransactions.map(transaction => ({id: transaction.id} as TransactionTradeInfo ));
+    symbolStats.transactions = symbolStats.transactions.map(
+      (transaction) =>
+        <TransactionTradeInfo>{
+          date: transaction.date,
+          fee: transaction.fee,
+          feeUsd: transaction.feeUsd,
+          id: transaction.id,
+          receiveAmount: transaction.receiveAmount,
+          receiveCurrency: transaction.receiveCurrency,
+          receiveUsd: transaction.receiveUsd,
+          receiveUsdRate: transaction.receiveUsdRate,
+          spentAmount: transaction.spentAmount,
+          spentCurrency: transaction.spentCurrency,
+          spentUsd: transaction.spentUsd,
+          spentUsdRate: transaction.spentUsdRate,
+        }
+    );
+    symbolStats.sellTransactions = symbolStats.sellTransactions.map(
+      (transaction) => ({ id: transaction.id } as TransactionTradeInfo)
+    );
+    symbolStats.buyTransactions = symbolStats.buyTransactions.map(
+      (transaction) => ({ id: transaction.id } as TransactionTradeInfo)
+    );
   }
 
   const currenciesCount = currenciesSet.size || 1; // Фикс деления на 0
@@ -483,7 +554,7 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
     source,
     attributes: {
       // Win Rate Total
-      winRateTotal: winCounter / ((winCounter + loseCounter) || 1), // фикс деления на 0
+      winRateTotal: winCounter / (winCounter + loseCounter || 1), // фикс деления на 0
       // Монет проторговано
       tradedCoins: currenciesSet.size,
       // Медианный вход
@@ -495,8 +566,8 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
       // Средний срок, д
       averageTermDays: averageTermDaysSum / currenciesCount,
       // Доходность годовых
-      annualYield: diffUsdTotalPercent / currenciesCount * 365,
-      annualYieldEthPercent: diffEthTotalPercent / currenciesCount * 365,
+      annualYield: (diffUsdTotalPercent / currenciesCount) * 365,
+      annualYieldEthPercent: (diffEthTotalPercent / currenciesCount) * 365,
       // Медианное кол-во покупок
       medianPurchaseCount: median(buyCounts),
       medianSellsCount: median(sellCounts),
@@ -514,7 +585,7 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
       tradedCoinsRCount,
       RR: tradedCoinsRCount / currenciesCount,
       // Win Rate R
-      winRateR: usdWinsR / ((usdWinsR + usdLosesR) || 1), // фикс деления на 0
+      winRateR: usdWinsR / (usdWinsR + usdLosesR || 1), // фикс деления на 0
       // P&L R
       PLR,
       // Avg lose
@@ -532,7 +603,11 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
       // Доходность годовых R
       annualYieldR: annualYieldRTotal / (annualYieldRCount || 1), // фикс деления на 0
       // Профиль риска
-      riskProfile: medianWin / (Math.abs(medianLose) || 1) // фикс деления на 0
+      riskProfile: medianWin / (Math.abs(medianLose) || 1), // фикс деления на 0
+
+      balances,
+      medianBalance: median(balances),
+      minBalance: Math.min(...balances),
     },
     /** переменные используемые во внутренних вычислениях */
     innerAttributes: {
@@ -581,17 +656,11 @@ export function calculateWalletStats(transactions: TransactionTradeInfo[], now =
       // Доходность годовых R
       annualYieldRTotal,
       annualYieldRCount,
-
-      balances,
-      medianBalance: median(balances),
-      minBalance: Math.min(...balances)
     },
     startTransactionDate: transactions[0]?.date,
     endTransactionDate: transactions[transactions.length - 1]?.date,
     startTransactionHash: transactions[0]?.id,
     endTransactionHash: transactions[transactions.length - 1]?.id,
-    transactionsCount: transactions.length
+    transactionsCount: transactions.length,
   };
 }
-
-

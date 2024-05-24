@@ -29,6 +29,8 @@ export function mapFinancialDataToCsvHeader(attributes: WalletFinancialCalculate
       formatPercent(attributes.medianWin),
       'Монет проторговано',
       formatNumber(attributes.tradedCoins),
+      'Оборот значения',
+      attributes.balances.join(',')
     ],
     [
       'Win Rate R',
@@ -41,6 +43,8 @@ export function mapFinancialDataToCsvHeader(attributes: WalletFinancialCalculate
       formatPercent(attributes.annualYieldR),
       'Комиссий',
       formatCurrency(attributes.commissions),
+      'Median оборот',
+      formatNumber(attributes.medianBalance),
     ],
     [
       'Win Rate Total',
@@ -53,6 +57,8 @@ export function mapFinancialDataToCsvHeader(attributes: WalletFinancialCalculate
       formatPercent(attributes.annualYield),
       'Ср.комиссия',
       formatCurrency(attributes.averageCommission),
+      'Min оборот',
+      formatNumber(attributes.minBalance)
     ]
   ];
 }
@@ -85,7 +91,8 @@ export function mapCurrencyTradeStatsToCSV(data: CurrencyTradeStatsBySymbol): un
     "Всего купили", "Всего продали", "Комиссия, usd",
     "Дельта", "RR, %",
     "Накопление, usd", "Сумма покупок, usd", "Сумма продаж, usd", "Дельта, usd",
-    "Дельта, % usd", "Покупок", "Продаж", "Срок сделки, д", "Первая покупка", "Последняя продажа"
+    "Дельта, % usd", "Покупок", "Продаж", "Срок сделки, д", "Первая покупка", "Последняя продажа",
+    "Транзакции"
   ];
 
   const rows: unknown[][] = [headers];
@@ -98,7 +105,8 @@ export function mapCurrencyTradeStatsToCSV(data: CurrencyTradeStatsBySymbol): un
       '0', formatCurrency(stats.buyUsd), formatCurrency(stats.sellUsd),
       formatCurrency(stats.diffUsd), formatPercent(stats.diffUsdPercent),
       formatNumber(stats.buyCount), formatNumber(stats.sellCount), formatNumber(stats.tradingPeriod),
-      formatDate(stats.firstBuy), formatDate(stats.lastSell)
+      formatDate(stats.firstBuy), formatDate(stats.lastSell),
+      stats.transactions.map(({receiveAmount, receiveCurrency, spentAmount, spentCurrency, id, date})=> `${id} ${date.toISOString().substring(0, 19).replace('T', ' ')} ${spentCurrency}-${spentAmount}=>${receiveCurrency}+${receiveAmount}`).join(',\n')
     ];
 
     rows.push(row.map(value => value !== undefined ? value : ""));
