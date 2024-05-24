@@ -2,7 +2,7 @@ import { EthTransaction } from '../etherscan-api/etherscan-api.models';
 
 export interface SlipItem {
   percent: number;  // Процент изменения относительно первой транзакции
-  dateTime: Date;  // Дата и время транзакции
+  dt: Date;  // Дата и время транзакции
 }
 
 export interface SlippageResult {
@@ -16,14 +16,13 @@ export interface SlippageResult {
  * и трёмя заданными последующими транзакциями.
  */
 export function calcSlippage(list: EthTransaction[]): SlippageResult | undefined {
-  // Проверка на валидность массива и достаточное количество элементов
   if (!Array.isArray(list)) {
     console.error('[calcSlippage] Invalid input: Expected an array');
     return;
   }
 
-  // Конвертация значения первой транзакции и проверка его на валидность
   const firstPrice = Number(list[0].value);
+
   if (isNaN(firstPrice) || firstPrice === 0) {
     console.error('[calcSlippage] Error parsing first transaction value.');
     return;
@@ -31,7 +30,7 @@ export function calcSlippage(list: EthTransaction[]): SlippageResult | undefined
 
   const createSlipItem = (transaction: EthTransaction): SlipItem => ({
     percent: (Number(transaction.value) - firstPrice) / firstPrice * 100,
-    dateTime: new Date(transaction.timeStamp),
+    dt: new Date(transaction.timeStamp),
   });
 
   return {
