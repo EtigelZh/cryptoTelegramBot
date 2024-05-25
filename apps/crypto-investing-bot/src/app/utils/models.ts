@@ -73,11 +73,17 @@ export type InOutTransactionFields = {
   inOutTransactionFieldsVersion: number;
 };
 
+export enum TradeType {
+  SELL = 'SELL', // продали токен за эфир
+  BUY = 'BUY' // Купили токен за эфир
+}
+
 export type DexTransaction = InOutTransactionFields & {
   /**
    * Стоимость купленных/проданных монет в эфирах
    */
   weiTokenPrice: number;
+  type: TradeType;
   timeStamp: string; // В секундах c 1970
   blockNo: string;
 }
