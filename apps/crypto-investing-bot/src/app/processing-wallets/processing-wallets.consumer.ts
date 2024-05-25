@@ -6,7 +6,8 @@ import { inspect } from 'util';
 import { Job } from 'bull';
 import {
   RequestErrorData,
-  ZerionApiQueueName, ZerionTransaction
+  ZerionApiQueueName,
+  ZerionTransaction,
 } from '../zerion-api/zerion-api.models';
 import { FetchTransactionsJob } from '../zerion-api/zerion-api-fetch-transactions.consumer';
 import { WalletService } from '../wallet/wallet.service';
@@ -205,27 +206,53 @@ export class ProcessingWalletsConsumer {
       }
 
       if (walletFinancialStats && calculateScore) {
+        if (!silent) {
+          this._telegramJobApiService.createOrUpdateLastMessage(
+            lastApiCallMessageId,
+            `${lastText}\nРассчитаем slippage - расчет может занять длительное время`,
+            chatId
+          );
+        }
         const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
         if (source) {
           // SLIPPAGE
           for (const attributes of Object.values(source)) {
             // currency
             for (const transaction of attributes.transactions) {
-              const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
-              for (const address of [receiveCurrencyAddress, spentCurrencyAddress]) {
+              const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } =
+                transaction;
+              for (const address of [
+                receiveCurrencyAddress,
+                spentCurrencyAddress,
+              ]) {
                 if (address) {
                   // TODO add address
-                  const existTrans: ZerionTransaction | undefined = transactions.data.find(({attributes}) => attributes.hash === transaction.id);
+                  const existTrans: ZerionTransaction | undefined =
+                    transactions.data.find(
+                      ({ attributes }) => attributes.hash === transaction.id
+                    );
                   if (existTrans) {
-                    const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(address, +blockNo);
-                    const slippage = calcSlippage(ethTransactions);
-                    if (!existTrans.calculatedAttributes) {
-                      existTrans.calculatedAttributes = {
-                        slippage: null,
-                        trailing: null,
+                    try {
+                      const ethTransactions =
+                        await this._etherscanClientJobApiService.getDexTransactions(
+                          address,
+                          +blockNo
+                        );
+                      const slippage = calcSlippage(ethTransactions);
+                      if (!existTrans.calculatedAttributes) {
+                        existTrans.calculatedAttributes = {
+                          slippage: null,
+                          trailing: null,
+                        };
                       }
+                      existTrans.calculatedAttributes.slippage = slippage;
+                    } catch (error) {
+                      ErrorHandlingService.handleError({
+                        error,
+                        message: `Error fetching dex transactions for wallet ${walletHash}`,
+                      });
                     }
-                    existTrans.calculatedAttributes.slippage = slippage;
+
                   }
                 }
               }
@@ -242,7 +269,11 @@ export class ProcessingWalletsConsumer {
               const isBuyTransaction = item.spentCurrency === ETH_SYMBOL;
               if (!buyTransaction && isBuyTransaction) {
                 buyTransaction = item;
-              } else if (buyTransaction && !sellTransaction && !isBuyTransaction) {
+              } else if (
+                buyTransaction &&
+                !sellTransaction &&
+                !isBuyTransaction
+              ) {
                 sellTransaction = item;
                 break;
               }
@@ -253,23 +284,27 @@ export class ProcessingWalletsConsumer {
             if (!buyTransaction) {
               break;
             }
-            const dexTransactions = await this._etherscanClientJobApiService.getDexPeriodTransactions(
-              attributes.endTransactionHash,
-              buyTransaction.blockNo,
-              sellTransaction.blockNo,
-            );
-            const existTrans: ZerionTransaction | undefined = transactions.data.find(({attributes}) => attributes.id === buyTransaction.id);
+            const dexTransactions =
+              await this._etherscanClientJobApiService.getDexPeriodTransactions(
+                attributes.endTransactionHash,
+                buyTransaction.blockNo,
+                sellTransaction.blockNo
+              );
+            const existTrans: ZerionTransaction | undefined =
+              transactions.data.find(
+                ({ attributes }) => attributes.id === buyTransaction.id
+              );
             if (existTrans) {
               const trailing = calcTrailing(
                 dexTransactions,
                 buyTransaction.id,
-                sellTransaction.id,
+                sellTransaction.id
               );
               if (!existTrans.calculatedAttributes) {
                 existTrans.calculatedAttributes = {
                   slippage: null,
                   trailing: null,
-                }
+                };
               }
               existTrans.calculatedAttributes.trailing = trailing;
             }
