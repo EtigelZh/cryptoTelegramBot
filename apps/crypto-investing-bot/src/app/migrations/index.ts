@@ -15,6 +15,8 @@ import { AddEthAddressToFungible1715698932109 } from './1715698932109-add-eth-ad
 import { AddEconomicsToWallet1715765975897 } from './1715765975897-add-economics-to-wallet';
 import { AddTransactionCalculationField1715772659417 } from './1715772659417-add-transaction-calculation-field';
 import { Migrations1716633122382 } from './1716633122382-migrations';
+import { Migrations1716655623696 } from './1716655623696-migrations';
+import { Migrations1716655938772 } from './1716655938772-migrations';
 
 export const migrations = [
   Migrations1710903030686,
@@ -34,4 +36,6 @@ export const migrations = [
   AddEconomicsToWallet1715765975897,
   AddTransactionCalculationField1715772659417,
   Migrations1716633122382,
+  Migrations1716655623696,
+  Migrations1716655938772,
 ];

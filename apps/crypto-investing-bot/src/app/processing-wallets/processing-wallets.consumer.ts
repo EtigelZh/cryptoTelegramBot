@@ -213,9 +213,9 @@ export class ProcessingWalletsConsumer {
               for (const address of [receiveCurrencyAddress, spentCurrencyAddress]) {
                 if (address) {
                   // TODO add address
-                  const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
+                  const existTrans: ZerionTransaction | undefined = transactions.data.find(({attributes}) => attributes.hash === transaction.id);
                   if (existTrans) {
-                    const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(blockNo, address);
+                    const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(address, +blockNo);
                     const slippage = calcSlippage(ethTransactions);
                     if (!existTrans.calculatedAttributes) {
                       existTrans.calculatedAttributes = {
@@ -270,8 +270,6 @@ export class ProcessingWalletsConsumer {
                 }
               }
               existTrans.calculatedAttributes.trailing = trailing;
-            } else {
-              console.log('[ ___ NOT FOUND existTrans ___ ]', buyTransaction.id);
             }
           }
         }
