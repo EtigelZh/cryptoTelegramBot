@@ -7,6 +7,7 @@ export type WalletHash = string;
  * Hex string 66 characters long
  */
 export type TransactionHash = string;
+export const ETH_SYMBOL = 'ETH';
 
 export enum TransactionType {
   approve = 'approve',

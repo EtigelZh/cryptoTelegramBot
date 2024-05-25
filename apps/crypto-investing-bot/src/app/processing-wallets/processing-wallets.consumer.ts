@@ -28,6 +28,8 @@ import {
 } from '../utils/csv-humanizers';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
 import { calcSlippage } from '../utils/slippage';
+import { TransactionTradeInfo } from '../utils/wallet-economics';
+import { calcTrailing } from '../utils/trailing';
 
 export const walletQueueName = 'processingWallet';
 
@@ -199,35 +201,76 @@ export class ProcessingWalletsConsumer {
         };
       }
 
-      console.log('__BEFOREEE_____SLIPPAGE_____')
-      // TODO cal slippage
       if (walletFinancialStats) {
         const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
         if (source) {
-        console.log('_____SLIPPAGE_____')
-        for (const attributes of Object.values(source)) {
-          // currency
-          for (const transaction of attributes.transactions) {
-            const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
-            for (const address of [receiveCurrencyAddress, spentCurrencyAddress]) {
-              if (address) {
-                // TODO add address
-                const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
-                if (existTrans) {
-                  const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(blockNo, address);
-                  const slippage = calcSlippage(ethTransactions);
-                  if (!existTrans.calculatedAttributes) {
-                    existTrans.calculatedAttributes = {
-                      slippage: null,
-                      trailing: null,
+          // SLIPPAGE
+          for (const attributes of Object.values(source)) {
+            // currency
+            for (const transaction of attributes.transactions) {
+              const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
+              for (const address of [receiveCurrencyAddress, spentCurrencyAddress]) {
+                if (address) {
+                  // TODO add address
+                  const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
+                  if (existTrans) {
+                    const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(blockNo, address);
+                    const slippage = calcSlippage(ethTransactions);
+                    if (!existTrans.calculatedAttributes) {
+                      existTrans.calculatedAttributes = {
+                        slippage: null,
+                        trailing: null,
+                      }
                     }
+                    existTrans.calculatedAttributes.slippage = slippage;
                   }
-                  existTrans.calculatedAttributes.slippage = slippage;}
                 }
               }
             }
           }
+
+          // TRAILING
+          for (const attributes of Object.values(source)) {
+            // currency
+            let buyTransaction: TransactionTradeInfo;
+            let sellTransaction: TransactionTradeInfo;
+            for (let i = 0; i < attributes.transactions.length; i++) {
+              const item = attributes.transactions[i];
+              const isBuyTransaction = item.spentCurrency === 'ETH_SYMBOL';
+              if (!buyTransaction && isBuyTransaction) {
+                buyTransaction = item;
+              } else if (buyTransaction && !sellTransaction && !isBuyTransaction) {
+                sellTransaction = item;
+                break;
+              }
+            }
+            if (!sellTransaction) {
+              sellTransaction = attributes.transactions.at(-1);
+            }
+            const dexTransactions = await this._etherscanClientJobApiService.getDexPeriodTransactions(
+              attributes.endTransactionHash,
+              buyTransaction.blockNo,
+              sellTransaction.blockNo,
+            );
+            const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
+            if (existTrans) {
+              const trailing = calcTrailing(
+                dexTransactions,
+                buyTransaction.id,
+                sellTransaction.id,
+              );
+              if (!existTrans.calculatedAttributes) {
+                existTrans.calculatedAttributes = {
+                  slippage: null,
+                  trailing: null,
+                }
+              }
+              existTrans.calculatedAttributes.trailing = trailing;
+            }
+          }
         }
+
+
       }
 
       const csvData = await this._zerionService.getCsvTransactions(
