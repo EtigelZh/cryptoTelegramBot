@@ -7,10 +7,16 @@ import { EthTransaction, FetchTransactionsArguments } from './etherscan-api.mode
 @Injectable()
 export class EtherscanClientJobApiService {
 
-  constructor(@InjectQueue(etherscanApiQueueName) private _etherscanApiQueue: Queue) {}
+  constructor(@InjectQueue(etherscanApiQueueName) private _etherscanApiQueue: Queue) {
+  }
 
   async fetchTransactions(jobArguments: FetchTransactionsArguments): Promise<EthTransaction[]> {
     const job = await this._etherscanApiQueue.add('fetchTransactions', jobArguments);
     return await job.finished();
+  }
+
+  async getEthTransaction(blockNo: string, contractAddress: string): EthTransaction[] {
+    // TODO
+    return [];
   }
 }

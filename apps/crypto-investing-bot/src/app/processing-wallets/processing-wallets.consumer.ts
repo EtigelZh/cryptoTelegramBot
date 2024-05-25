@@ -20,6 +20,10 @@ import { Logger } from '@nestjs/common';
 import { TransactionService } from '../transaction/transaction.service';
 import { Period, WalletFinancialStats } from '../wallet/wallet.models';
 import { mapCurrencyTradeStatsToCSV, mapFinancialDataToCsvHeader } from '../utils/csv-humanizers';
+import { TemporaryCalculatingAttributes, WalletTradeStatsSummary } from '../utils/wallet-economics';
+import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
+import { calcSlippage } from '../utils/slippage';
+import { errorContext } from 'rxjs/internal/util/errorContext';
 
 export const walletQueueName = 'processingWallet';
 
@@ -34,7 +38,8 @@ export class ProcessingWalletsConsumer {
     private _googleDriveJobApiService: GoogleDriveJobApiService,
     private _zerionClientJobApiService: ZerionClientJobApiService,
     private _longTermProcessingWalletsService: LongTermProcessingWalletsService,
-    private _transactionService: TransactionService
+    private _transactionService: TransactionService,
+    private _etherscanClientJobApiService: EtherscanClientJobApiService
   ) {
   }
 
@@ -164,6 +169,22 @@ export class ProcessingWalletsConsumer {
           summarySheetUpdated: false,
         };
       }
+
+      // TODO cal slippage
+      if (walletFinancialStats) {
+        const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
+        for (const attributes of Object.values(source)) {
+          // currency
+          for (const transaction of attributes.transactions) {
+            const { blockNo } = transaction;
+            // TODO add address
+            const ethTransactions = await this._etherscanClientJobApiService(blockNo, '');
+            const splipPage = calcSlippage(ethTransactions);
+            console.log('[splipPage]', splipPage);
+          }
+        }
+      }
+
       const csvData = await this._zerionService.getCsvTransactions(
         transactions.data
       );
