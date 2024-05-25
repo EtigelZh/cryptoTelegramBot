@@ -1,8 +1,9 @@
-import { Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { WithUpdatedAndCreatedAt } from '../utils/base.entity';
 import { EthInternalTransaction } from '../etherscan-api/etherscan-api.models';
 import { WALLET_HASH_COLUMN } from '../utils/db-utils';
 
+@Entity()
 export class EthInternalTransactionEntity
   extends WithUpdatedAndCreatedAt
   implements EthInternalTransaction

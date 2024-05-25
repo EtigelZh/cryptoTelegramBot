@@ -23,7 +23,6 @@ export class EtherscanClientJobApiService {
   }
 
   async getTransferByContractAddress(contractAddress: string, startblock: number, endblock?: number, take = 5): Promise<EthTransfer[]> {
-    let page = 1;
     const jobArguments: FetchErc20TransfersByContractArguments = {
       action: 'tokentx',
       contractAddress,
@@ -35,17 +34,18 @@ export class EtherscanClientJobApiService {
 
     const job = await this._etherscanApiQueue.add('fetchTransactions', jobArguments);
     const transfers = await job.finished() as EthTransfer[];
-    let hasNextPage = transfers.length === take;
-    while (hasNextPage) {
-      page++;
-      const job = await this._etherscanApiQueue.add('fetchTransactions', {
-        ...jobArguments,
-        page,
-      });
-      const newTransfers = await job.finished();
-      transfers.push(...newTransfers);
-      hasNextPage = newTransfers.length === take;
-    }
+    // const page = 1;
+    // let hasNextPage = transfers.length === take;
+    // while (hasNextPage) {
+    //   page++;
+    //   const job = await this._etherscanApiQueue.add('fetchTransactions', {
+    //     ...jobArguments,
+    //     page,
+    //   });
+    //   const newTransfers = await job.finished();
+    //   transfers.push(...newTransfers);
+    //   hasNextPage = newTransfers.length === take;
+    // }
 
     try {
       const result = await this._ethTransferService.saveBatchTransfers(transfers);
@@ -60,29 +60,34 @@ export class EtherscanClientJobApiService {
 
   async loadInternalTransactionsByBlockRange(startblock: number, endblock: number): Promise<EthInternalTransaction[]> {
     // Получаем из базы последний блок
-    let page = 1;
     const job = await this._etherscanApiQueue.add('fetchTransactions', {
       action: 'txlistinternal',
       startblock,
       endblock,
-      page,
+      page: 1,
     });
 
     const internalTransactions = (await job.finished()) as EthInternalTransaction[];
 
-    let hasNextPage = internalTransactions.length === 10000;
-    while (hasNextPage) {
-      page++;
-      const job = await this._etherscanApiQueue.add('fetchTransactions', {
-        action: 'txlistinternal',
-        startblock,
-        endblock,
-        page,
-      });
-      const nextPageInternalTransactions = await job.finished();
-      internalTransactions.push(...nextPageInternalTransactions);
-      hasNextPage = nextPageInternalTransactions.length === 10000;
-    }
+    // const page = 1;
+    // let hasNextPage = internalTransactions.length === 10000;
+    // while (hasNextPage) {
+    //   page++;
+    //   const job = await this._etherscanApiQueue.add('fetchTransactions', {
+    //     action: 'txlistinternal',
+    //     startblock,
+    //     endblock,
+    //     page,
+    //   });
+    //   try {
+    //     const nextPageInternalTransactions = await job.finished();
+    //     internalTransactions.push(...nextPageInternalTransactions);
+    //     hasNextPage = nextPageInternalTransactions.length === 10000;
+    //   } catch (error) {
+    //     ErrorHandlingService.handleError({error});
+    //     break;
+    //   }
+    // }
 
     try {
       const result = await this._ethTransferService.saveBatchIntervalTransactions(internalTransactions);
@@ -96,8 +101,8 @@ export class EtherscanClientJobApiService {
   }
 
 
-  async getDexTransactions(contractAddress: string, blockNo: string): Promise<DexTransaction[]> {
-    const transfers = await this.getTransferByContractAddress(contractAddress, +blockNo);
+  async getDexTransactions(contractAddress: string, blockNo: number): Promise<DexTransaction[]> {
+    const transfers = await this.getTransferByContractAddress(contractAddress, blockNo);
     if (!transfers.length) {
       return [];
     }
@@ -153,7 +158,7 @@ export class EtherscanClientJobApiService {
       };
   
       // Расчет цены токена в WEI
-      const weiTokenPrice = spentAmount / receiveAmount;
+      const weiTokenPrice = spentAmount / (receiveAmount || 1);
   
       // Создание объекта DexTransaction
       const dexTransaction: DexTransaction = {
