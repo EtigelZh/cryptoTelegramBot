@@ -1,125 +1,115 @@
-export type FetchTransactionsArguments = {
-  walletAddress: string;
-  action: 'txlist';
-  /** max 10_000 */
-  take: number;
-  startblock?: number;
-};
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { WithUpdatedAndCreatedAt } from '../utils/base.entity';
 
-export type EthTransaction = {
-  blockNumber: string;
-  timeStamp: string;
-  hash: string;
-  nonce: string;
-  blockHash: string;
-  transactionIndex: string;
-  from: string;
-  to: string;
-  value: string;
-  gas: string;
-  gasPrice: string;
-  isError: string;
-  txreceipt_status: string;
-  input: string;
-  contractAddress: string;
-  cumulativeGasUsed: string;
-  gasUsed: string;
-  confirmations: string;
-};
-
-export type EthTransfer = {
+@Entity()
+export class EthTransferEntity extends WithUpdatedAndCreatedAt {
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: number;
   /**
    * Номер блока, в котором была включена транзакция
    */
+  @Column()
   blockNumber: string;
 
   /**
    * Временная метка, указывающая время выполнения транзакции
    */
+  @Column()
   timeStamp: string;
 
   /**
    * Хэш транзакции
    */
+  @Column()
   hash: string;
 
   /**
    * Nonce транзакции
    */
+  @Column()
   nonce: string;
 
   /**
    * Хэш блока, в котором была включена транзакция
    */
+  @Column()
   blockHash: string;
 
   /**
    * Адрес отправителя транзакции
    */
+  @Column()
   from: string;
 
   /**
    * Адрес смарт-контракта, участвующего в транзакции
    */
+  @Column()
   contractAddress: string;
 
   /**
    * Адрес получателя транзакции
    */
+  @Column()
   to: string;
 
   /**
    * Сумма токенов, переданных в транзакции
    */
+  @Column()
   value: string;
 
   /**
    * Имя токена
    */
+  @Column()
   tokenName: string;
 
   /**
    * Символ токена
    */
+  @Column()
   tokenSymbol: string;
 
   /**
    * Количество десятичных знаков токена
    */
+  @Column()
   tokenDecimal: string;
 
   /**
    * Индекс транзакции в блоке
    */
+  @Column()
   transactionIndex: string;
 
   /**
    * Количество газа, использованного для выполнения транзакции
    */
+  @Column()
   gas: string;
 
   /**
    * Цена газа
    */
+  @Column()
   gasPrice: string;
 
   /**
    * Фактическое количество газа, использованное транзакцией
    */
+  @Column()
   gasUsed: string;
 
   /**
    * Суммарное количество газа, использованное до данной транзакции в блоке
    */
+  @Column()
   cumulativeGasUsed: string;
-
-  /**
-   * Данные входа для транзакции (в данном случае "deprecated")
-   */
-  input: string;
 
   /**
    * Количество подтверждений транзакции
    */
+  @Column()
   confirmations: string;
-};
+}

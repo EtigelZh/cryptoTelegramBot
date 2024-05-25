@@ -4,7 +4,10 @@ import { AppConfig } from '../app.config';
 import { AxiosError } from 'axios';
 import { inspect } from 'util';
 import { Job } from 'bull';
-import { RequestErrorData, ZerionApiQueueName } from '../zerion-api/zerion-api.models';
+import {
+  RequestErrorData,
+  ZerionApiQueueName,
+} from '../zerion-api/zerion-api.models';
 import { FetchTransactionsJob } from '../zerion-api/zerion-api-fetch-transactions.consumer';
 import { WalletService } from '../wallet/wallet.service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
@@ -19,7 +22,10 @@ import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { Logger } from '@nestjs/common';
 import { TransactionService } from '../transaction/transaction.service';
 import { Period, WalletFinancialStats } from '../wallet/wallet.models';
-import { mapCurrencyTradeStatsToCSV, mapFinancialDataToCsvHeader } from '../utils/csv-humanizers';
+import {
+  mapCurrencyTradeStatsToCSV,
+  mapFinancialDataToCsvHeader,
+} from '../utils/csv-humanizers';
 import { TemporaryCalculatingAttributes, WalletTradeStatsSummary } from '../utils/wallet-economics';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
 import { calcSlippage } from '../utils/slippage';
@@ -40,16 +46,13 @@ export class ProcessingWalletsConsumer {
     private _longTermProcessingWalletsService: LongTermProcessingWalletsService,
     private _transactionService: TransactionService,
     private _etherscanClientJobApiService: EtherscanClientJobApiService
-  ) {
-  }
+  ) {}
 
   @Process({
     name: 'process',
-    concurrency: AppConfig.walletProcessorConcurrency
+    concurrency: AppConfig.walletProcessorConcurrency,
   })
-  async process(
-    job: Job<ProcessingWalletArguments>
-  ) {
+  async process(job: Job<ProcessingWalletArguments>) {
     if (job.data.longTermTaskId) {
       try {
         const result = await this.processWallet(
@@ -58,15 +61,24 @@ export class ProcessingWalletsConsumer {
           job.data.suffix,
           job.data.parentMessageId,
           job.data.apiKeyQueueName,
-          job.data.silent,
+          job.data.silent
         );
-        this._longTermProcessingWalletsService.setTaskFinished(job.data.longTermTaskId, result).catch((error) => {
-          ErrorHandlingService.handleError({ error, message: `Error finishing long term task` });
-        });
+        this._longTermProcessingWalletsService
+          .setTaskFinished(job.data.longTermTaskId, result)
+          .catch((error) => {
+            ErrorHandlingService.handleError({
+              error,
+              message: `Error finishing long term task`,
+            });
+          });
         return result;
       } catch (error) {
         const errorMessage = this.formatErrorMessage(error);
-        await this._longTermProcessingWalletsService.setTaskFinished(job.data.longTermTaskId, null, errorMessage.join('|'));
+        await this._longTermProcessingWalletsService.setTaskFinished(
+          job.data.longTermTaskId,
+          null,
+          errorMessage.join('|')
+        );
       }
     } else {
       return await this.processWallet(
@@ -75,11 +87,9 @@ export class ProcessingWalletsConsumer {
         job.data.suffix,
         job.data.parentMessageId,
         job.data.apiKeyQueueName,
-        job.data.silent,
+        job.data.silent
       );
     }
-
-
   }
 
   private async processWallet(
@@ -89,10 +99,11 @@ export class ProcessingWalletsConsumer {
     parentMessageId: number | null,
     apiKeyQueueName: ZerionApiQueueName,
     silent = false
-  ): Promise<{ summarySheetUpdated?: boolean, reason?: string }> {
+  ): Promise<{ summarySheetUpdated?: boolean; reason?: string }> {
     let walletAlias = '';
 
-    const walletEntity = await this._walletService.createWalletEntityIfNotExists(walletHash);
+    const walletEntity =
+      await this._walletService.createWalletEntityIfNotExists(walletHash);
 
     walletAlias = walletEntity?.alias || '';
 
@@ -102,25 +113,26 @@ export class ProcessingWalletsConsumer {
     const lastText = globalPrefix;
     try {
       if (!silent) {
-        lastApiCallMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(
-          parentMessageId,
-          globalPrefix,
-          chatId
-        );
+        lastApiCallMessageId =
+          await this._telegramJobApiService.createOrUpdateLastMessage(
+            parentMessageId,
+            globalPrefix,
+            chatId
+          );
       }
 
-
-      const transactions = await this._zerionClientJobApiService.getTransactions({
-        walletHash,
-        take: 1000,
-        apiKeyQueueName,
-        reportingFn: 'telegram_full',
-        messagingInfo: {
-          lastApiCallMessageId,
-          chatId,
-          globalPrefix
-        }
-      } as FetchTransactionsJob);
+      const transactions =
+        await this._zerionClientJobApiService.getTransactions({
+          walletHash,
+          take: 1000,
+          apiKeyQueueName,
+          reportingFn: 'telegram_full',
+          messagingInfo: {
+            lastApiCallMessageId,
+            chatId,
+            globalPrefix,
+          },
+        } as FetchTransactionsJob);
 
       if (transactions.error) {
         const [text, status] = this.formatErrorMessage(transactions.error);
@@ -133,12 +145,15 @@ export class ProcessingWalletsConsumer {
         }
 
         if (status === 'HTTP_400') {
-          await this._walletService.setWalletStatus(walletHash, WalletStatus.NOT_TRACKABLE);
+          await this._walletService.setWalletStatus(
+            walletHash,
+            WalletStatus.NOT_TRACKABLE
+          );
         }
 
         return {
           summarySheetUpdated: false,
-          reason: `Error fetching transactions: ${text} ${status}`
+          reason: `Error fetching transactions: ${text} ${status}`,
         };
       }
       const walletEntity = await this._walletService.getWallet(walletHash);
@@ -146,21 +161,37 @@ export class ProcessingWalletsConsumer {
       // Рассчет финансовых показателей для кошелька
       if (walletEntity) {
         try {
-          walletFinancialStats = await this._transactionService.getWalletFinancialStatistics(walletHash);
-          await this._walletService.updateWallet(walletHash, {walletFinancialStats});
+          walletFinancialStats =
+            await this._transactionService.getWalletFinancialStatistics(
+              walletHash
+            );
+          await this._walletService.updateWallet(walletHash, {
+            walletFinancialStats,
+          });
         } catch (error) {
-          ErrorHandlingService.handleError({ error, message: `Error calculating wallet stats` });
+          ErrorHandlingService.handleError({
+            error,
+            message: `Error calculating wallet stats`,
+          });
         }
       }
 
-      if (walletEntity && (walletEntity.status === WalletStatus.NOT_TRACKABLE || walletEntity.status === WalletStatus.LOW_TRADES)) {
+      if (
+        walletEntity &&
+        (walletEntity.status === WalletStatus.NOT_TRACKABLE ||
+          walletEntity.status === WalletStatus.LOW_TRADES)
+      ) {
         // Скипаем анализ и добавление потому что мало trades
         Logger.log(`Skip wallet ${walletEntity.status}`);
         // TODO Добавить удаление из excel
         if (!silent) {
           this._telegramJobApiService.createOrUpdateLastMessage(
             lastApiCallMessageId,
-            `${lastText}\nКошелек не будет рассчитан в excel. Кошелек не трейдерский: ${walletEntity.status === WalletStatus.NOT_TRACKABLE ? 'Не отслеживается в zerion - скорей всего контракт' : 'Слишком мало транзакций'}`,
+            `${lastText}\nКошелек не будет рассчитан в excel. Кошелек не трейдерский: ${
+              walletEntity.status === WalletStatus.NOT_TRACKABLE
+                ? 'Не отслеживается в zerion - скорей всего контракт'
+                : 'Слишком мало транзакций'
+            }`,
             chatId
           );
         }
@@ -202,17 +233,21 @@ export class ProcessingWalletsConsumer {
 
         return {
           summarySheetUpdated: false,
-          reason: 'csv error'
+          reason: 'csv error',
         };
       }
       let fungiblePositionsCsv = [];
       try {
-        fungiblePositionsCsv = await this._zerionClientJobApiService.getFungiblePositionsCsv({
-          walletHash,
-          apiKeyQueueName
-        } as FetchTransactionsJob);
+        fungiblePositionsCsv =
+          await this._zerionClientJobApiService.getFungiblePositionsCsv({
+            walletHash,
+            apiKeyQueueName,
+          } as FetchTransactionsJob);
       } catch (error) {
-        ErrorHandlingService.handleError({ error, message: `Error fetching transactions for wallet ${walletHash}` });
+        ErrorHandlingService.handleError({
+          error,
+          message: `Error fetching transactions for wallet ${walletHash}`,
+        });
         if (!silent) {
           this._telegramJobApiService.createOrUpdateLastMessage(
             lastApiCallMessageId,
@@ -245,24 +280,26 @@ export class ProcessingWalletsConsumer {
         'Исходник!A2',
         'USER_ENTERED',
         {
-          values: updatingData
+          values: updatingData,
         }
       );
 
       // TODO над построением графа вычислений
       const updates = [job.finished()];
       if (walletFinancialStats !== null) {
-        const attributesOneMonth = walletFinancialStats.periods[Period.ONE_MONTH].attributes;
-        const attributesOneWeek = walletFinancialStats.periods[Period.ONE_WEEK].attributes;
+        const attributesOneMonth =
+          walletFinancialStats.periods[Period.ONE_MONTH].attributes;
+        const attributesOneWeek =
+          walletFinancialStats.periods[Period.ONE_WEEK].attributes;
         updates.push(
-           this._googleSheetsJobApiService.updateSheetValues(
+          this._googleSheetsJobApiService.updateSheetValues(
             document.id,
             'Анализ 30 дней!E9',
             'USER_ENTERED',
             {
               values: mapFinancialDataToCsvHeader(attributesOneMonth),
             }
-          ),
+          )
         );
         updates.push(
           this._googleSheetsJobApiService.updateSheetValues(
@@ -272,7 +309,7 @@ export class ProcessingWalletsConsumer {
             {
               values: mapFinancialDataToCsvHeader(attributesOneWeek),
             }
-          ),
+          )
         );
         updates.push(
           this._googleSheetsJobApiService.updateSheetValues(
@@ -282,12 +319,16 @@ export class ProcessingWalletsConsumer {
             {
               values: [
                 ['АНАЛИЗ 30 ДНЕЙ'],
-                ...mapCurrencyTradeStatsToCSV(walletFinancialStats.periods[Period.ONE_MONTH].source),
+                ...mapCurrencyTradeStatsToCSV(
+                  walletFinancialStats.periods[Period.ONE_MONTH].source
+                ),
                 ['АНАЛИЗ 7 ДНЕЙ'],
-                  ...mapCurrencyTradeStatsToCSV(walletFinancialStats.periods[Period.ONE_WEEK].source),
+                ...mapCurrencyTradeStatsToCSV(
+                  walletFinancialStats.periods[Period.ONE_WEEK].source
+                ),
               ],
             }
-          ),
+          )
         );
       }
 
@@ -297,22 +338,22 @@ export class ProcessingWalletsConsumer {
           'Портфель исходник!A2',
           'USER_ENTERED',
           {
-            values: fungiblePositionsCsv
+            values: fungiblePositionsCsv,
           }
         );
         updates.push(job.finished());
       }
+
+      await Promise.allSettled(updates);
+
       if (!silent) {
-        updates.push(
-          this._telegramJobApiService.createOrUpdateLastMessage(
-            lastApiCallMessageId,
-            lastText + `\nСоздан новый документ: ${url}\n`,
-            chatId
-          )
+        this._telegramJobApiService.createOrUpdateLastMessage(
+          lastApiCallMessageId,
+          lastText + `\nСоздан новый документ: ${url}\n`,
+          chatId
         );
       }
 
-      await Promise.allSettled(updates);
       // Gap for google sheets to update (5 seconds) we are have floating bag, when put incorrect data to aggregated google sheets
       await new Promise((resolve) => setTimeout(resolve, 5_000));
       const [summary7days, summary30days] = await Promise.all([
@@ -325,28 +366,36 @@ export class ProcessingWalletsConsumer {
           document.id,
           walletHash,
           'Анализ 30 дней'
-        )
+        ),
       ]);
 
       await Promise.allSettled([
         this._saveToDbApiJobService.saveToDbFinancialData(summary7days),
-        this._saveToDbApiJobService.saveToDbFinancialData(summary30days)
+        this._saveToDbApiJobService.saveToDbFinancialData(summary30days),
       ]);
 
-      await this._googleSheetsJobApiService.updateOrAddWallet(walletHash, summary7days, summary30days);
+      await this._googleSheetsJobApiService.updateOrAddWallet(
+        walletHash,
+        summary7days,
+        summary30days
+      );
       return {
-        summarySheetUpdated: true
+        summarySheetUpdated: true,
       };
     } catch (error) {
-      ErrorHandlingService.handleError({ error, message: `Error fetching transactions for wallet ${walletHash}` });
+      ErrorHandlingService.handleError({
+        error,
+        message: `Error fetching transactions for wallet ${walletHash}`,
+      });
       if (!silent) {
         this._telegramJobApiService.createOrUpdateLastMessage(
           lastApiCallMessageId,
-          `${lastText}\nОшибка при скачивании транзакций: ${this.formatErrorMessage(error)}`,
+          `${lastText}\nОшибка при скачивании транзакций: ${this.formatErrorMessage(
+            error
+          )}`,
           chatId
         );
       }
-
     }
   }
 
@@ -361,9 +410,12 @@ export class ProcessingWalletsConsumer {
     ) {
       const fullError = inspect(error.response.data.errors);
 
-      return [`Ошибка API запроса: ${fullError.substring(0, 256)} Стаутс код: ${
-        error.response.statusText
-      } ${error.response.status} API`, error.response.status === 400 ? 'HTTP_400' : 'HTTP'];
+      return [
+        `Ошибка API запроса: ${fullError.substring(0, 256)} Стаутс код: ${
+          error.response.statusText
+        } ${error.response.status} API`,
+        error.response.status === 400 ? 'HTTP_400' : 'HTTP',
+      ];
     }
     return [error?.toString() || String(error), 'OTHER'];
   }
