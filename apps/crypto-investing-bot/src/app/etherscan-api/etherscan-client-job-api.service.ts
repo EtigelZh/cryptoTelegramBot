@@ -15,7 +15,7 @@ export class EtherscanClientJobApiService {
     return await job.finished();
   }
 
-  async getEthTransaction(blockNo: string, contractAddress: string): EthTransaction[] {
+  async getTransferByContractAddress(contractAddress: string, blockNo: string): EthTransaction[] {
     // TODO
     return [];
   }

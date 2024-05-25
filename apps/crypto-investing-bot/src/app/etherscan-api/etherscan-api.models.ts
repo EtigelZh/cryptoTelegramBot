@@ -8,7 +8,7 @@ export type FetchTransactionsArguments = {
 
 export type EthTransaction = {
   blockNumber: string;
-  timeStamp: string;
+  timeStamp: string; // В секундах
   hash: string;
   nonce: string;
   blockHash: string;

@@ -6,7 +6,7 @@ import { inspect } from 'util';
 import { Job } from 'bull';
 import {
   RequestErrorData,
-  ZerionApiQueueName,
+  ZerionApiQueueName, ZerionTransaction
 } from '../zerion-api/zerion-api.models';
 import { FetchTransactionsJob } from '../zerion-api/zerion-api-fetch-transactions.consumer';
 import { WalletService } from '../wallet/wallet.service';
@@ -211,9 +211,18 @@ export class ProcessingWalletsConsumer {
             for (const address in [receiveCurrencyAddress, spentCurrencyAddress]) {
               if (address) {
                 // TODO add address
-                const ethTransactions = await this._etherscanClientJobApiService(blockNo, address);
-                const slipPage = calcSlippage(ethTransactions);
-                console.log('[slipPage]', slipPage);
+                const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
+                if (existTrans) {
+                  const ethTransactions = await this._etherscanClientJobApiService.getTransferByContractAddress(blockNo, address);
+                  const slippage = calcSlippage(ethTransactions);
+                  if (existTrans.calculatedAttributes) {
+                    existTrans.calculatedAttributes = {
+                      slippage: null,
+                    }
+                  }
+                  existTrans.calculatedAttributes.slippage = slippage;
+                  console.log('[slipPage]', slippage);
+                }
               }
             }
           }

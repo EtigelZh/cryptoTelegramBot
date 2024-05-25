@@ -315,6 +315,12 @@ export class ZerionApiService {
       'Timestamp',
       'Incoming Transfers JSON',
       'Outgoing Transfers JSON',
+      'Slippage1',
+      'Slippage3',
+      'Slippage5',
+      'Slippage1 date',
+      'Slippage3 date',
+      'Slippage5 date',
     ];
     const errors = [];
     const transactions = data.map((transaction, rowIndex) => {

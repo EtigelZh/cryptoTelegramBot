@@ -1,4 +1,5 @@
 import type { AxiosError, AxiosResponse } from "axios";
+import { SlippageResult } from '../utils/slippage';
 
 export type ZerionApiQueueName =
   | 'updating' // Ключи для очереди обновления кошельков
@@ -33,6 +34,9 @@ export type ZerionTransaction = {
   type: string;
   id: string;
   attributes: TransactionAttributes;
+  calculatedAttributes?: {
+    slippage: SlippageResult;
+  },
   relationships: {
     chain: ChainRelationship;
     dapp?: ChainRelationship;

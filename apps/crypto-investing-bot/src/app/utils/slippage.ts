@@ -30,7 +30,7 @@ export function calcSlippage(list: EthTransaction[]): SlippageResult | undefined
 
   const createSlipItem = (transaction: EthTransaction): SlipItem => ({
     percent: (Number(transaction.value) - firstPrice) / firstPrice * 100,
-    dt: new Date(transaction.timeStamp),
+    dt: new Date(+transaction.timeStamp * 1000),
   });
 
   return {
