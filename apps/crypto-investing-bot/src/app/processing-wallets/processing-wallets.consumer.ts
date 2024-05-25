@@ -207,11 +207,15 @@ export class ProcessingWalletsConsumer {
         for (const attributes of Object.values(source)) {
           // currency
           for (const transaction of attributes.transactions) {
-            const { blockNo } = transaction;
-            // TODO add address
-            const ethTransactions = await this._etherscanClientJobApiService(blockNo, '');
-            const splipPage = calcSlippage(ethTransactions);
-            console.log('[splipPage]', splipPage);
+            const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
+            for (const address in [receiveCurrencyAddress, spentCurrencyAddress]) {
+              if (address) {
+                // TODO add address
+                const ethTransactions = await this._etherscanClientJobApiService(blockNo, address);
+                const slipPage = calcSlippage(ethTransactions);
+                console.log('[slipPage]', slipPage);
+              }
+            }
           }
         }
       }
