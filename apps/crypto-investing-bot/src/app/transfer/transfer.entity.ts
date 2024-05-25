@@ -29,6 +29,8 @@ export class TransferEntity extends WithUpdatedAndCreatedAt implements AmountGro
     amount: number;
     @Column(CURRENCY_SYMBOL_COLUMN)
     amountCurrency: CurrencySymbol;
+    @Column(WALLET_HASH_COLUMN)
+    amountCurrencyAddress: string;
     @Column({ type: 'numeric', nullable: true })
     amountUsd: number;
     @Column({ type: 'numeric', nullable: true })

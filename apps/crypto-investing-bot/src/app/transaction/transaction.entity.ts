@@ -49,6 +49,8 @@ export class TransactionEntity  extends WithUpdatedAndCreatedAt implements InOut
     receiveAmount: number;
     @Column({ ...CURRENCY_SYMBOL_COLUMN, nullable: true })
     receiveCurrency: CurrencySymbol;
+    @Column({...WALLET_HASH_COLUMN, nullable: true})
+    receiveCurrencyAddress: string;
     @Column({ type: 'numeric', nullable: true })
     receiveUsd: number;
     @Column({ type: 'numeric', nullable: true })
@@ -59,6 +61,8 @@ export class TransactionEntity  extends WithUpdatedAndCreatedAt implements InOut
     spentAmount: number;
     @Column({ ...CURRENCY_SYMBOL_COLUMN, nullable: true })
     spentCurrency: CurrencySymbol;
+    @Column({...WALLET_HASH_COLUMN, nullable: true})
+    spentCurrencyAddress: string;
     @Column({ type: 'numeric', nullable: true })
     spentUsd: number;
     @Column({ type: 'numeric', nullable: true })

@@ -19,11 +19,13 @@ export function calculateInOutTransferByZerionTransaction(zerionTransaction: Zer
     return {
         receiveAmount: buyAmount?.amount || 0,
         receiveCurrency: buyAmount?.amountCurrency || '',
+        receiveCurrencyAddress: buyAmount?.amountCurrencyAddress || '',
         receiveUsd: buyAmount?.amountUsd || null,
         receiveUsdRate: buyAmount?.amountUsdRate || null,
 
         spentAmount: sellAmount?.amount || 0,
         spentCurrency: sellAmount?.amountCurrency || '',
+        spentCurrencyAddress: sellAmount?.amountCurrencyAddress || '',
         spentUsd: sellAmount?.amountUsd || null,
         spentUsdRate: sellAmount?.amountUsdRate || null,
 
@@ -35,10 +37,12 @@ export function calculateInOutTransferByZerionTransaction(zerionTransaction: Zer
 function groupTransfersByCurrency(transfers: Transfer[]): Record<CurrencySymbol, AmountGroup> {
     return transfers.reduce((acc, transfer) => {
         const amountCurrency: CurrencySymbol = transfer.fungible_info?.symbol || '';
+        const amountCurrencyAddress = transfer.fungible_info?.implementations?.filter(implementation => implementation.chain_id === 'ethereum')?.[0]?.address || '';
         if (!acc[amountCurrency]) {
             acc[amountCurrency] = {
                 amount: +transfer.quantity?.numeric,
                 amountCurrency,
+                amountCurrencyAddress,
                 amountUsd: transfer.value || null,
                 amountUsdRate: transfer.price || null,
             };
@@ -57,6 +61,7 @@ function maxCurrencyAmount(amounts: Record<CurrencySymbol, AmountGroup>): Amount
         return {
             amount: 0,
             amountCurrency:'',
+            amountCurrencyAddress: '',
             amountUsd: null,
             amountUsdRate: null,
         };

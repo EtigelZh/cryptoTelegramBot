@@ -27,6 +27,7 @@ import { ZerionApiLimitReachedError } from '../error-handling/custom-errors';
 import { transactionsUrlTemplate } from './zerion-api.url-templates';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { subtractDays, subtractMonths } from '../utils/dates';
+import { calculateInOutTransferByZerionTransaction } from '../utils/transaction-economics';
 
 function createFromUserPass(user: string, pass: string): string {
   return Buffer.from(`${user}:${pass}`).toString('base64');
@@ -333,32 +334,7 @@ export class ZerionApiService {
         const feeAmount = fee.quantity.float;
         const feeFiatAmount = fee.value ?? ''; // Default value if fee value is null
 
-        const transfers = attributes.transfers.map((transfer) => {
-          return {
-            amount: transfer.quantity.float,
-            currency: transfer.fungible_info?.symbol ?? '', // Default value if fungible_info is not available
-            address:
-              transfer.fungible_info?.implementations?.find(
-                (impl) => impl.chain_id === chain
-              )?.address ?? '', // Default value if address is not available
-            fiatAmount: transfer.value ?? '', // Default value if transfer value is null
-            direction: transfer.direction,
-            sender: transfer.sender,
-            recipient: transfer.recipient,
-          };
-        });
-
-        // Assuming the first transfer is 'in' and the second is 'out'
-        const buyTransfer = transfers.find((t) => t.direction === 'in');
-        // sell transfers
-        const sellTransfers = transfers.filter((t) => t.direction === 'out');
-        const sellTransfer = sellTransfers.reduce((acc, transaction) => ({
-          amount: acc.amount + transaction.amount,
-          currency: transaction.currency,
-          address: transaction.address,
-          fiatAmount: acc.fiatAmount + +(transaction?.fiatAmount || 0),
-        }), {amount: 0, currency: '', address: '', fiatAmount: 0});
-
+        const { receiveAmount, receiveCurrency,receiveCurrencyAddress, receiveUsd, spentAmount, spentCurrency, spentCurrencyAddress, spentUsd,  } = calculateInOutTransferByZerionTransaction(transaction);
 
         return [
           date,
@@ -366,15 +342,15 @@ export class ZerionApiService {
           transactionType,
           status,
           chain,
-          buyTransfer?.amount ?? '',
-          buyTransfer?.currency ?? '',
-          buyTransfer?.address ?? '',
-          buyTransfer?.fiatAmount ?? '',
+          spentAmount ?? '',
+          spentCurrency ?? '',
+          spentCurrencyAddress ?? '',
+          spentUsd ?? '',
           'USD', // Assuming USD as fiat currency for simplicity
-          sellTransfer?.amount ?? '',
-          sellTransfer?.currency ?? '',
-          sellTransfer?.address ?? '',
-          sellTransfer?.fiatAmount ?? '',
+          receiveAmount ?? '',
+          receiveCurrency ?? '',
+          receiveCurrencyAddress?? '',
+          receiveUsd ?? '',
           'USD', // Assuming USD as fiat currency for simplicity
           feeAmount,
           feeCurrency,

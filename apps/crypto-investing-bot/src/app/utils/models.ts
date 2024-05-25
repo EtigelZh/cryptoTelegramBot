@@ -58,11 +58,14 @@ export type Quantity = {
 export type InOutTransactionFields = {
   receiveAmount: number;
   receiveCurrency: CurrencySymbol;
+  receiveCurrencyAddress: string;
   receiveUsd: number;
   receiveUsdRate: number;
 
   spentAmount: number;
   spentCurrency: CurrencySymbol;
+  spentCurrencyAddress: string;
+
   spentUsd: number;
   spentUsdRate: number;
 
@@ -73,6 +76,7 @@ export type InOutTransactionFields = {
 export type AmountGroup = {
   amount: number;
   amountCurrency: CurrencySymbol;
+  amountCurrencyAddress: string;
   amountUsd: number | null;
   amountUsdRate: number | null;
 };
