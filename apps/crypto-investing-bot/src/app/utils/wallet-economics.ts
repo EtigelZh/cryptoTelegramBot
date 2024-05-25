@@ -267,6 +267,7 @@ export type TransactionTradeInfo = InOutTransactionFields & {
   date: Date;
   fee: number;
   feeUsd: number;
+  blockNo: string;
 };
 
 const stableCoins = [
@@ -348,7 +349,7 @@ export function calculateWalletStats(
     source[symbol].transactions.push(transaction);
     source[symbol].commissionAmount += +transaction.fee;
     source[symbol].commissionsUsd += +transaction.feeUsd;
-    
+
     if (isBuy) {
       source[symbol].buyAmount += +transaction.receiveAmount;
       source[symbol].buyUsd += +transaction.spentUsd;

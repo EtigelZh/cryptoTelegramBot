@@ -26,6 +26,10 @@ import {
   mapCurrencyTradeStatsToCSV,
   mapFinancialDataToCsvHeader,
 } from '../utils/csv-humanizers';
+import { TemporaryCalculatingAttributes, WalletTradeStatsSummary } from '../utils/wallet-economics';
+import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
+import { calcSlippage } from '../utils/slippage';
+import { errorContext } from 'rxjs/internal/util/errorContext';
 
 export const walletQueueName = 'processingWallet';
 
@@ -40,7 +44,8 @@ export class ProcessingWalletsConsumer {
     private _googleDriveJobApiService: GoogleDriveJobApiService,
     private _zerionClientJobApiService: ZerionClientJobApiService,
     private _longTermProcessingWalletsService: LongTermProcessingWalletsService,
-    private _transactionService: TransactionService
+    private _transactionService: TransactionService,
+    private _etherscanClientJobApiService: EtherscanClientJobApiService
   ) {}
 
   @Process({
@@ -195,6 +200,26 @@ export class ProcessingWalletsConsumer {
           summarySheetUpdated: false,
         };
       }
+
+      // TODO cal slippage
+      if (walletFinancialStats) {
+        const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
+        for (const attributes of Object.values(source)) {
+          // currency
+          for (const transaction of attributes.transactions) {
+            const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
+            for (const address in [receiveCurrencyAddress, spentCurrencyAddress]) {
+              if (address) {
+                // TODO add address
+                const ethTransactions = await this._etherscanClientJobApiService(blockNo, address);
+                const slipPage = calcSlippage(ethTransactions);
+                console.log('[slipPage]', slipPage);
+              }
+            }
+          }
+        }
+      }
+
       const csvData = await this._zerionService.getCsvTransactions(
         transactions.data
       );
