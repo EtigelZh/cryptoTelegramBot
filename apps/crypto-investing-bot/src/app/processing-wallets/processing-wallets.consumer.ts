@@ -202,7 +202,7 @@ export class ProcessingWalletsConsumer {
         };
       }
 
-      if (walletFinancialStats) {
+      if (walletFinancialStats && apiKeyQueueName === 'manual') {
         const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
         if (source) {
           // SLIPPAGE
