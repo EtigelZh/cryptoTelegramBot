@@ -21,7 +21,7 @@ export function calcSlippage(list: EthTransaction[]): SlippageResult | undefined
     return;
   }
 
-  const firstPrice = Number(list[0].value);
+  const firstPrice = Number(list[0]?.value);
 
   if (isNaN(firstPrice) || firstPrice === 0) {
     console.error('[calcSlippage] Error parsing first transaction value.');
