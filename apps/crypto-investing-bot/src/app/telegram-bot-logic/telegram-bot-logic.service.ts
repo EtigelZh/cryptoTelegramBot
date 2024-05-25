@@ -193,7 +193,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       `Добавлены кошельки в очередь на обработку. Всего кошельков: ${oldWallets.length}`
     );
 
-    await this._processWallets(oldWallets, ctx, 'updating');
+    await this._processWallets(oldWallets, ctx, 'updating', false);
   }
 
   private async handlePossibleWalletHash(
@@ -244,7 +244,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
       return;
     }
-
+    const calculateScore = ctx.message.text.includes('calculate_score');
     const matchedHash = ctx.message.text.match(walletHashRegex);
     if (!matchedHash?.length) {
       return await this._telegramJobApiService.sendMessage(
@@ -252,7 +252,7 @@ export class TelegramBotLogicService implements OnModuleInit {
         `Не указан ни один hash кошелька. ${example}`
       );
     }
-    await this._processWallets(matchedHash, ctx, 'manual');
+    await this._processWallets(matchedHash, ctx, 'manual', calculateScore);
   }
 
   @Cron(AppConfig.updateOldWalletsCron)
@@ -301,7 +301,8 @@ export class TelegramBotLogicService implements OnModuleInit {
   private async _processWallets(
     matchedHash: string[],
     ctx: Context<MountMap['text'] & MountMap['message']>,
-    apiKeyQueueName: ZerionApiQueueName
+    apiKeyQueueName: ZerionApiQueueName,
+    calculateScore,
   ) {
     const jobResults = [];
     for (const walletHash of matchedHash) {
@@ -327,6 +328,7 @@ export class TelegramBotLogicService implements OnModuleInit {
         suffix,
         parentMessageId,
         apiKeyQueueName,
+        calculateScore
       } as ProcessingWalletArguments));
     }
     const summarySheetUpdatedResults = await Promise.allSettled(jobResults);

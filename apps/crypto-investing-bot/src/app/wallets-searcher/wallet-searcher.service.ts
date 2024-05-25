@@ -71,6 +71,7 @@ export class WalletSearcherService {
         suffix: '',
         parentMessageId: null,
         silent: true,
+        calculateScore: false,
         apiKeyQueueName: 'updating',
       }).catch((error) => {
         ErrorHandlingService.handleError({ error, message: `Error processing wallet` });

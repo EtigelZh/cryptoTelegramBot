@@ -11,6 +11,7 @@ export type ProcessingWalletArguments = {
   suffix: string;
   parentMessageId: number | null;
   apiKeyQueueName: ZerionApiQueueName;
+  calculateScore: boolean;
   /** Если true - сообщения в telegram не отправляются */
   silent?: boolean;
   longTermTaskId?: number;

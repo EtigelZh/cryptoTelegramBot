@@ -88,7 +88,8 @@ export class ProcessingWalletsConsumer {
         job.data.suffix,
         job.data.parentMessageId,
         job.data.apiKeyQueueName,
-        job.data.silent
+        job.data.silent,
+        job.data.calculateScore
       );
     }
   }
@@ -99,7 +100,8 @@ export class ProcessingWalletsConsumer {
     suffix: string,
     parentMessageId: number | null,
     apiKeyQueueName: ZerionApiQueueName,
-    silent = false
+    silent = false,
+    calculateScore = false
   ): Promise<{ summarySheetUpdated?: boolean; reason?: string }> {
     let walletAlias = '';
 
@@ -202,7 +204,7 @@ export class ProcessingWalletsConsumer {
         };
       }
 
-      if (walletFinancialStats && apiKeyQueueName === 'manual') {
+      if (walletFinancialStats && calculateScore) {
         const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
         if (source) {
           // SLIPPAGE
