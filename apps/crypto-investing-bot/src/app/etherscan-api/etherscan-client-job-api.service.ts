@@ -20,4 +20,23 @@ export class EtherscanClientJobApiService {
     // TODO
     return [];
   }
+
+  // 0%, 2.5%, 5%
+  //
+  //
+  /**
+   * [0] - Всегда будет покупка нашего чувака, за которым следим
+   * endBlockNo - если не задан, то:
+   *  - продажи не было
+   *  - будет возврашаться 10К транзакций
+   *  - если 10К будет отдана последняя транзакция
+   */
+  async getDexPeriodTransactions(
+    contractAddress: string,
+    startBlockNo: string,
+    endBlockNo?: string
+  ): DexTransaction[] {
+    // TODO
+    return []; // Trale by 0$
+  }
 }

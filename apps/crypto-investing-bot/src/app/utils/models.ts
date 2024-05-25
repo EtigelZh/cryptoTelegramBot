@@ -86,6 +86,7 @@ export type DexTransaction = InOutTransactionFields & {
   type: TradeType;
   timeStamp: string; // В секундах c 1970
   blockNo: string;
+  transactionHash: string;
 }
 
 export type AmountGroup = {
