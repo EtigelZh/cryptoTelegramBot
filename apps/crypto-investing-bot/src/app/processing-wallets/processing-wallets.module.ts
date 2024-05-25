@@ -12,6 +12,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { LongTermProcessingWalletTaskEntity } from './long-term-processing-wallet-task.entity';
 import { LongTermProcessingWalletsService } from './long-term-processing-wallets.service';
 import { TransactionModule } from '../transaction/transaction.module';
+import { EtherscanApiModule } from '../etherscan-api/etherscan-api.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TransactionModule } from '../transaction/transaction.module';
     WalletModule,
     TelegrafModule,
     TransactionModule,
+    EtherscanApiModule,
     TypeOrmModule.forFeature([LongTermProcessingWalletTaskEntity]),
     BullModule.registerQueue({
       name: walletQueueName,

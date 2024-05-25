@@ -82,9 +82,9 @@ export class WalletSearcherService {
     // TODO переделать получение last block на получение из базы данных из таблицы wallets
     const startblock = +(await this._cache.get(getLastBlockKey(walletHash)) || 0);
     const transactions = await this._etherscanClientJobApiService.fetchTransactions({
-      walletAddress: walletHash,
+      address: walletHash,
       action: 'txlist',
-      take: this._appConfig.walletSearcherEtherscanBatchSize,
+      offset: this._appConfig.walletSearcherEtherscanBatchSize,
       startblock
     });
     if (transactions.length) {

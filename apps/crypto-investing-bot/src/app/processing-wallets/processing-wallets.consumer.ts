@@ -26,10 +26,8 @@ import {
   mapCurrencyTradeStatsToCSV,
   mapFinancialDataToCsvHeader,
 } from '../utils/csv-humanizers';
-import { TemporaryCalculatingAttributes, WalletTradeStatsSummary } from '../utils/wallet-economics';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
 import { calcSlippage } from '../utils/slippage';
-import { errorContext } from 'rxjs/internal/util/errorContext';
 
 export const walletQueueName = 'processingWallet';
 
@@ -204,26 +202,25 @@ export class ProcessingWalletsConsumer {
       // TODO cal slippage
       if (walletFinancialStats) {
         const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
-        if (!source) {
-
-        }
-        for (const attributes of Object.values(source)) {
-          // currency
-          for (const transaction of attributes.transactions) {
-            const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
-            for (const address in [receiveCurrencyAddress, spentCurrencyAddress]) {
-              if (address) {
-                // TODO add address
-                const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
-                if (existTrans) {
-                  const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(blockNo, address);
-                  const slippage = calcSlippage(ethTransactions);
-                  if (!existTrans.calculatedAttributes) {
-                    existTrans.calculatedAttributes = {
-                      slippage: null,
+        if (source) {
+          for (const attributes of Object.values(source)) {
+            // currency
+            for (const transaction of attributes.transactions) {
+              const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
+              for (const address in [receiveCurrencyAddress, spentCurrencyAddress]) {
+                if (address) {
+                  // TODO add address
+                  const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
+                  if (existTrans) {
+                    const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(blockNo, address);
+                    const slippage = calcSlippage(ethTransactions);
+                    if (!existTrans.calculatedAttributes) {
+                      existTrans.calculatedAttributes = {
+                        slippage: null,
+                      }
                     }
+                    existTrans.calculatedAttributes.slippage = slippage;
                   }
-                  existTrans.calculatedAttributes.slippage = slippage;
                 }
               }
             }

@@ -1,14 +1,30 @@
-export type FetchTransactionsArguments = {
-  walletAddress: string;
-  action: 'txlist';
-  /** max 10_000 */
-  take: number;
+export type AccountActionArguments = FetchTransactionsArguments | FetchErc20TransfersByContractArguments | FetchInternalTransactionsByBlockRangeArguments;
+
+export type AccountActionCommonArguments = {
+  page?: number;
+  offset?: number;
   startblock?: number;
-};
+  endblock?: number;
+  sort?: 'asc' | 'desc';
+}
+export type FetchTransactionsArguments = {
+  address: string;
+  action: 'txlist';
+} & AccountActionCommonArguments;
+
+export type FetchErc20TransfersByContractArguments = {
+  action: 'tokentx';
+  contractAddress: string;
+  address?: string;
+} & AccountActionCommonArguments;
+
+export type FetchInternalTransactionsByBlockRangeArguments = {
+  action: 'txlistinternal';
+} & AccountActionCommonArguments;
 
 export type EthTransaction = {
   blockNumber: string;
-  timeStamp: string; // В секундах
+  timeStamp: string;
   hash: string;
   nonce: string;
   blockHash: string;
@@ -25,6 +41,78 @@ export type EthTransaction = {
   cumulativeGasUsed: string;
   gasUsed: string;
   confirmations: string;
+};
+
+export type EthInternalTransaction = {
+  /**
+   * Номер блока, в котором произошла транзакция
+   */
+  blockNumber: string;
+
+  /**
+   * Временная метка транзакции (в формате Unix timestamp)
+   */
+  timeStamp: string;
+
+  /**
+   * Хэш транзакции
+   */
+  hash: string;
+
+  /**
+   * Адрес отправителя
+   */
+  from: string;
+
+  /**
+   * Адрес получателя
+   */
+  to: string;
+
+  /**
+   * Значение транзакции в wei (1 эфир = 10^18 wei)
+   */
+  value: string;
+
+  /**
+   * Адрес контракта (если применимо, иначе пустая строка)
+   */
+  contractAddress: string;
+
+  /**
+   * Входные данные транзакции (если есть, иначе пустая строка)
+   */
+  input: string;
+
+  /**
+   * Тип транзакции (например, call)
+   */
+  type: string;
+
+  /**
+   * Лимит газа для транзакции
+   */
+  gas: string;
+
+  /**
+   * Использованный газ в транзакции
+   */
+  gasUsed: string;
+
+  /**
+   * Идентификатор трассировки
+   */
+  traceId: string;
+
+  /**
+   * Флаг ошибки (0 - без ошибок, 1 - ошибка)
+   */
+  isError: string;
+
+  /**
+   * Код ошибки (если есть, иначе пустая строка)
+   */
+  errCode: string;
 };
 
 export type EthTransfer = {
@@ -112,11 +200,6 @@ export type EthTransfer = {
    * Суммарное количество газа, использованное до данной транзакции в блоке
    */
   cumulativeGasUsed: string;
-
-  /**
-   * Данные входа для транзакции (в данном случае "deprecated")
-   */
-  input: string;
 
   /**
    * Количество подтверждений транзакции

@@ -267,7 +267,7 @@ export type TransactionTradeInfo = InOutTransactionFields & {
   date: Date;
   fee: number;
   feeUsd: number;
-  blockNo: string;
+  blockNo?: string;
 };
 
 const stableCoins = [

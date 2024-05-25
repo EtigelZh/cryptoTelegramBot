@@ -18,6 +18,10 @@ export class ErrorHandlingService {
     captureException(errorContainer.error);
   }
 
+  static handleErrors(errors: ErrorContainer[]): void {
+    errors.forEach(errorContainer => ErrorHandlingService.handleError(errorContainer));
+  }
+
   getErrors(): ErrorContainer[] {
     return Array.from(this._errors);
   }

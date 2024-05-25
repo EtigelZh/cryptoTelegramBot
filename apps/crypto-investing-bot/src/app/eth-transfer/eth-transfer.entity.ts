@@ -1,8 +1,11 @@
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 import { WithUpdatedAndCreatedAt } from '../utils/base.entity';
+import { EthTransfer } from '../etherscan-api/etherscan-api.models';
+import { TRANSACTION_HASH_COLUMN, WALLET_HASH_COLUMN } from '../utils/db-utils';
 
 @Entity()
-export class EthTransferEntity extends WithUpdatedAndCreatedAt {
+export class EthTransferEntity extends WithUpdatedAndCreatedAt implements EthTransfer {
+
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
   /**
@@ -20,7 +23,7 @@ export class EthTransferEntity extends WithUpdatedAndCreatedAt {
   /**
    * Хэш транзакции
    */
-  @Column()
+  @Column(TRANSACTION_HASH_COLUMN)
   hash: string;
 
   /**
@@ -38,19 +41,19 @@ export class EthTransferEntity extends WithUpdatedAndCreatedAt {
   /**
    * Адрес отправителя транзакции
    */
-  @Column()
+  @Column(WALLET_HASH_COLUMN)
   from: string;
 
   /**
    * Адрес смарт-контракта, участвующего в транзакции
    */
-  @Column()
+  @Column(WALLET_HASH_COLUMN)
   contractAddress: string;
 
   /**
    * Адрес получателя транзакции
    */
-  @Column()
+  @Column(WALLET_HASH_COLUMN)
   to: string;
 
   /**

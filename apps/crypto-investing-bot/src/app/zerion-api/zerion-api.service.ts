@@ -367,6 +367,12 @@ export class ZerionApiService {
           attributes.mined_at,
           '',
           '',
+          transaction.calculatedAttributes?.slippage?.slip0?.percent,
+          transaction.calculatedAttributes?.slippage?.slip1?.percent,
+          transaction.calculatedAttributes?.slippage?.slip2?.percent,
+          transaction.calculatedAttributes?.slippage?.slip0?.dt,
+          transaction.calculatedAttributes?.slippage?.slip1?.dt,
+          transaction.calculatedAttributes?.slippage?.slip2?.dt,
         ] as string[];
       } catch (error) {
         console.error('Failed to process transaction', transaction, error);
