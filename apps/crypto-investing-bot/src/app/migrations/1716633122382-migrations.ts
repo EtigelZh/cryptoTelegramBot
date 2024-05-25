@@ -6,7 +6,7 @@ export class Migrations1716633122382 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`ALTER TABLE "transactions" ADD "receive_currency_address" character varying(42)`);
         await queryRunner.query(`ALTER TABLE "transactions" ADD "spent_currency_address" character varying(42)`);
-        await queryRunner.query(`ALTER TABLE "transfers" ADD "amount_currency_address" character varying(42) NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "transfers" ADD "amount_currency_address" character varying(42)`);
         await queryRunner.query(`ALTER TYPE "public"."transactions_transaction_type_enum" RENAME TO "transactions_transaction_type_enum_old"`);
         await queryRunner.query(`CREATE TYPE "public"."transactions_transaction_type_enum" AS ENUM('approve', 'borrow', 'burn', 'cancel', 'claim', 'deploy', 'deposit', 'execute', 'mint', 'receive', 'repay', 'send', 'stake', 'trade', 'unstake', 'withdraw')`);
         await queryRunner.query(`ALTER TABLE "transactions" ALTER COLUMN "transaction_type" TYPE "public"."transactions_transaction_type_enum" USING "transaction_type"::"text"::"public"."transactions_transaction_type_enum"`);
