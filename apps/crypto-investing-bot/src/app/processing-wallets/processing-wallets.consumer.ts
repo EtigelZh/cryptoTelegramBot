@@ -30,6 +30,7 @@ import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-
 import { calcSlippage } from '../utils/slippage';
 import { TransactionTradeInfo } from '../utils/wallet-economics';
 import { calcTrailing } from '../utils/trailing';
+import { ETH_SYMBOL } from '../utils/models';
 
 export const walletQueueName = 'processingWallet';
 
@@ -236,7 +237,7 @@ export class ProcessingWalletsConsumer {
             let sellTransaction: TransactionTradeInfo;
             for (let i = 0; i < attributes.transactions.length; i++) {
               const item = attributes.transactions[i];
-              const isBuyTransaction = item.spentCurrency === 'ETH_SYMBOL';
+              const isBuyTransaction = item.spentCurrency === ETH_SYMBOL;
               if (!buyTransaction && isBuyTransaction) {
                 buyTransaction = item;
               } else if (buyTransaction && !sellTransaction && !isBuyTransaction) {
@@ -247,12 +248,15 @@ export class ProcessingWalletsConsumer {
             if (!sellTransaction) {
               sellTransaction = attributes.transactions.at(-1);
             }
+            if (!buyTransaction) {
+              break;
+            }
             const dexTransactions = await this._etherscanClientJobApiService.getDexPeriodTransactions(
               attributes.endTransactionHash,
               buyTransaction.blockNo,
               sellTransaction.blockNo,
             );
-            const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
+            const existTrans: ZerionTransaction | undefined = transactions.data.find(({attributes}) => attributes.id === buyTransaction.id);
             if (existTrans) {
               const trailing = calcTrailing(
                 dexTransactions,
@@ -266,11 +270,11 @@ export class ProcessingWalletsConsumer {
                 }
               }
               existTrans.calculatedAttributes.trailing = trailing;
+            } else {
+              console.log('[ ___ NOT FOUND existTrans ___ ]', buyTransaction.id);
             }
           }
         }
-
-
       }
 
       const csvData = await this._zerionService.getCsvTransactions(
