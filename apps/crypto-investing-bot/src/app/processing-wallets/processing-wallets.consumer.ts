@@ -199,28 +199,30 @@ export class ProcessingWalletsConsumer {
         };
       }
 
+      console.log('__BEFOREEE_____SLIPPAGE_____')
       // TODO cal slippage
       if (walletFinancialStats) {
         const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
         if (source) {
-          for (const attributes of Object.values(source)) {
-            // currency
-            for (const transaction of attributes.transactions) {
-              const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
-              for (const address in [receiveCurrencyAddress, spentCurrencyAddress]) {
-                if (address) {
-                  // TODO add address
-                  const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
-                  if (existTrans) {
-                    const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(blockNo, address);
-                    const slippage = calcSlippage(ethTransactions);
-                    if (!existTrans.calculatedAttributes) {
-                      existTrans.calculatedAttributes = {
-                        slippage: null,
-                      }
+        console.log('_____SLIPPAGE_____')
+        for (const attributes of Object.values(source)) {
+          // currency
+          for (const transaction of attributes.transactions) {
+            const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
+            for (const address in [receiveCurrencyAddress, spentCurrencyAddress]) {
+              if (address) {
+                // TODO add address
+                const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
+                if (existTrans) {
+                  const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(blockNo, address);
+                  const slippage = calcSlippage(ethTransactions);
+                  if (!existTrans.calculatedAttributes) {
+                    existTrans.calculatedAttributes = {
+                      slippage: null,
+                      trailing: null,
                     }
-                    existTrans.calculatedAttributes.slippage = slippage;
                   }
+                  existTrans.calculatedAttributes.slippage = slippage;}
                 }
               }
             }

@@ -77,6 +77,7 @@ export class TransactionService {
           id: transaction.id,
           fee: transaction.fee,
           feeUsd: transaction.feeUsd,
+          blockNo: String(transaction.blockNumber),
         });
         await this._transactionRepository.update(transaction.id, { ...calculatedAttributes });
       }

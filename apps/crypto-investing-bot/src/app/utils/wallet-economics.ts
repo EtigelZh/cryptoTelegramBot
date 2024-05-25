@@ -538,6 +538,7 @@ export function calculateWalletStats(
           spentCurrency: transaction.spentCurrency,
           spentUsd: transaction.spentUsd,
           spentUsdRate: transaction.spentUsdRate,
+          blockNo: transaction.blockNo,
         }
     );
     symbolStats.sellTransactions = symbolStats.sellTransactions.map(
