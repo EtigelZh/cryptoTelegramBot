@@ -209,7 +209,7 @@ export class ProcessingWalletsConsumer {
           // currency
           for (const transaction of attributes.transactions) {
             const { blockNo, receiveCurrencyAddress, spentCurrencyAddress } = transaction;
-            for (const address in [receiveCurrencyAddress, spentCurrencyAddress]) {
+            for (const address of [receiveCurrencyAddress, spentCurrencyAddress]) {
               if (address) {
                 // TODO add address
                 const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);

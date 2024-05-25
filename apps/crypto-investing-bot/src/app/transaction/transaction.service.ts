@@ -68,7 +68,10 @@ export class TransactionService {
     for (const transaction of transactionsDirty) {
       // Если транзакция уже посчитана, то просто добавляем ее в список
       if (transaction.inOutTransactionFieldsVersion === CalculationVersion.FIXED_SELL_TRANSFERS) {
-        tradeInfos.push(transaction);
+        tradeInfos.push({
+          ...transaction,
+          blockNo: String(transaction.blockNumber),
+        });
       } else {
         const calculatedAttributes = calculateInOutTransferByZerionTransaction(transaction.zerionSource);
         tradeInfos.push({

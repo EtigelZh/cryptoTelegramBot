@@ -6,7 +6,7 @@ import { EthInternalTransaction, EthTransaction, EthTransfer, FetchErc20Transfer
 import { EthTransferService } from '../eth-transfer/eth-transfer.service';
 import { inspect } from 'util';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
-import { DexTransaction } from '../utils/models';
+import { CurrencySymbol, DexTransaction, InOutTransactionFields, TradeType } from '../utils/models';
 
 @Injectable()
 export class EtherscanClientJobApiService {
@@ -94,40 +94,82 @@ export class EtherscanClientJobApiService {
     return internalTransactions;
 
   }
+
+
   async getDexTransactions(contractAddress: string, blockNo: string): Promise<DexTransaction[]> {
     const transfers = await this.getTransferByContractAddress(contractAddress, +blockNo);
-    if (transfers.length) {
+    if (!transfers.length) {
       return [];
     }
     const startblock = +transfers[transfers.length - 1].blockNumber;
     const endblock = +transfers[0].blockNumber;
-
+  
     const internalTransactions = await this.loadInternalTransactionsByBlockRange(startblock, endblock);
-
+  
+    // Группировка транзакций по хэшу
     const transactionMap: Record<string, {
       transfers: EthTransfer[],
       internalTransactions: EthInternalTransaction[],
     }> = {};
-
-    for (const hash of new Set(transfers.map(({hash})=> hash))) {
+  
+    for (const hash of new Set(transfers.map(({ hash }) => hash))) {
       transactionMap[hash] = {
-        transfers: transfers.filter( t => t.hash === hash),
-        internalTransactions: internalTransactions.filter( it => it.hash === hash),
+        transfers: transfers.filter(t => t.hash === hash),
+        internalTransactions: internalTransactions.filter(it => it.hash === hash),
       };
     }
-
-    const dexTransactions = [] as DexTransaction[];
-    for (const [hash, {transfers, internalTransactions}] of Object.entries(transactionMap)) {
-      
-      const dexTransaction = {
-        transactionHash: hash,
-         
-      } as DexTransaction;
-
+  
+    const dexTransactions: DexTransaction[] = [];
+  
+    for (const [hash, { transfers, internalTransactions }] of Object.entries(transactionMap)) {
+      if (transfers.length === 0 || internalTransactions.length === 0) continue;
+  
+      // Предположим, что первая транзакция в каждом списке связана с нужными данными
+      const transfer = transfers[0];
+      const internalTransaction = internalTransactions[0];
+  
+      // Преобразование строковых значений в числа
+      const spentAmount = parseFloat(internalTransaction.value);
+      const spentCurrency = 'ETH';
+      const receiveAmount = parseFloat(transfer.value);
+      const receiveCurrency = transfer.tokenSymbol as CurrencySymbol;
+  
+      // Определение типа транзакции
+      const type: TradeType = spentCurrency === 'ETH' ? TradeType.BUY : TradeType.SELL;
+  
+      // Заполнение полей InOutTransactionFields
+      const inOutTransactionFields: InOutTransactionFields = {
+        receiveAmount,
+        receiveCurrency,
+        receiveCurrencyAddress: transfer.contractAddress,
+        receiveUsd: receiveAmount * parseFloat(transfer.gasPrice), // Предположим, что receiveUsd можно вычислить таким образом
+        receiveUsdRate: parseFloat(transfer.gasPrice),
+        spentAmount,
+        spentCurrency,
+        spentCurrencyAddress: internalTransaction.to,
+        spentUsd: spentAmount * parseFloat(internalTransaction.gasUsed), // Предположим, что spentUsd можно вычислить таким образом
+        spentUsdRate: parseFloat(internalTransaction.gasUsed),
+        inOutTransactionFieldsVersion: 1
+      };
+  
+      // Расчет цены токена в WEI
+      const weiTokenPrice = spentAmount / receiveAmount;
+  
+      // Создание объекта DexTransaction
+      const dexTransaction: DexTransaction = {
+        ...inOutTransactionFields,
+        weiTokenPrice,
+        type,
+        timeStamp: transfer.timeStamp,
+        blockNo: transfer.blockNumber,
+        transactionHash: hash
+      };
+  
       dexTransactions.push(dexTransaction);
     }
-    
 
+    Logger.log(`dexTransactions: ${inspect(dexTransactions)}`)
+  
     return dexTransactions;
   }
 
