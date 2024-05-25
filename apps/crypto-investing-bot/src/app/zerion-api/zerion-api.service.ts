@@ -321,6 +321,9 @@ export class ZerionApiService {
       'Slippage1 date',
       'Slippage3 date',
       'Slippage5 date',
+      'Trailing 0%',
+      'Trailing 2.5%',
+      'Trailing 5%',
     ];
     const errors = [];
     const transactions = data.map((transaction, rowIndex) => {
@@ -373,6 +376,9 @@ export class ZerionApiService {
           transaction.calculatedAttributes?.slippage?.slip0?.dt,
           transaction.calculatedAttributes?.slippage?.slip1?.dt,
           transaction.calculatedAttributes?.slippage?.slip2?.dt,
+          transaction.calculatedAttributes?.trailing?.trail0,
+          transaction.calculatedAttributes?.trailing?.trail2_5,
+          transaction.calculatedAttributes?.trailing?.trail5,
         ] as string[];
       } catch (error) {
         console.error('Failed to process transaction', transaction, error);
