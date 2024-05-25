@@ -73,6 +73,15 @@ export type InOutTransactionFields = {
   inOutTransactionFieldsVersion: number;
 };
 
+export type DexTransaction = InOutTransactionFields & {
+  /**
+   * Стоимость купленных/проданных монет в эфирах
+   */
+  weiTokenPrice: number;
+  timeStamp: string; // В секундах c 1970
+  blockNo: string;
+}
+
 export type AmountGroup = {
   amount: number;
   amountCurrency: CurrencySymbol;

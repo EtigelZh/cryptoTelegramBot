@@ -1,4 +1,5 @@
 import { EthTransaction } from '../etherscan-api/etherscan-api.models';
+import { DexTransaction } from './models';
 
 export interface SlipItem {
   percent: number;  // Процент изменения относительно первой транзакции
@@ -15,21 +16,21 @@ export interface SlippageResult {
  * Рассчитывает скользящие изменения между первой транзакцией
  * и трёмя заданными последующими транзакциями.
  */
-export function calcSlippage(list: EthTransaction[]): SlippageResult | undefined {
+export function calcSlippage(list: DexTransaction[]): SlippageResult | undefined {
   if (!Array.isArray(list)) {
     console.error('[calcSlippage] Invalid input: Expected an array');
     return;
   }
 
-  const firstPrice = Number(list[0]?.value);
+  const firstPrice = Number(list[0]?.weiTokenPrice);
 
   if (isNaN(firstPrice) || firstPrice === 0) {
     console.error('[calcSlippage] Error parsing first transaction value.');
     return;
   }
 
-  const createSlipItem = (transaction: EthTransaction): SlipItem => ({
-    percent: (Number(transaction.value) - firstPrice) / firstPrice * 100,
+  const createSlipItem = (transaction: DexTransaction): SlipItem => ({
+    percent: (Number(transaction.weiTokenPrice) - firstPrice) / firstPrice * 100,
     dt: new Date(+transaction.timeStamp * 1000),
   });
 

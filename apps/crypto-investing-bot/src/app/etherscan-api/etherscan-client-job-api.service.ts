@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { etherscanApiQueueName } from './etherscan-api.consumer';
 import { Queue } from 'bull';
 import { EthTransaction, FetchTransactionsArguments } from './etherscan-api.models';
+import { DexTransaction } from '../utils/models';
 
 @Injectable()
 export class EtherscanClientJobApiService {
@@ -15,7 +16,7 @@ export class EtherscanClientJobApiService {
     return await job.finished();
   }
 
-  async getTransferByContractAddress(contractAddress: string, blockNo: string): EthTransaction[] {
+  async getDexTransactions(contractAddress: string, blockNo: string): DexTransaction[] {
     // TODO
     return [];
   }

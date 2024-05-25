@@ -204,6 +204,9 @@ export class ProcessingWalletsConsumer {
       // TODO cal slippage
       if (walletFinancialStats) {
         const { source } = walletFinancialStats.periods[Period.ONE_MONTH];
+        if (!source) {
+
+        }
         for (const attributes of Object.values(source)) {
           // currency
           for (const transaction of attributes.transactions) {
@@ -213,15 +216,14 @@ export class ProcessingWalletsConsumer {
                 // TODO add address
                 const existTrans: ZerionTransaction | undefined = transactions.data.find(({id}) => id === transaction.id);
                 if (existTrans) {
-                  const ethTransactions = await this._etherscanClientJobApiService.getTransferByContractAddress(blockNo, address);
+                  const ethTransactions = await this._etherscanClientJobApiService.getDexTransactions(blockNo, address);
                   const slippage = calcSlippage(ethTransactions);
-                  if (existTrans.calculatedAttributes) {
+                  if (!existTrans.calculatedAttributes) {
                     existTrans.calculatedAttributes = {
                       slippage: null,
                     }
                   }
                   existTrans.calculatedAttributes.slippage = slippage;
-                  console.log('[slipPage]', slippage);
                 }
               }
             }
