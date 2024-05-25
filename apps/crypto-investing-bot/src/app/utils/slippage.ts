@@ -30,7 +30,7 @@ export function calcSlippage(list: DexTransaction[]): SlippageResult | undefined
   }
 
   const createSlipItem = (transaction: DexTransaction): SlipItem => ({
-    percent: (Number(transaction.weiTokenPrice) - firstPrice) / firstPrice * 100,
+    percent: (Number(transaction?.weiTokenPrice || 0) - firstPrice) / firstPrice * 100,
     dt: new Date(+transaction.timeStamp * 1000),
   });
 
