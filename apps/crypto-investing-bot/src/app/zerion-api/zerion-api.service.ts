@@ -351,15 +351,15 @@ export class ZerionApiService {
           transactionType,
           status,
           chain,
-          spentAmount ?? '',
-          spentCurrency ?? '',
-          spentCurrencyAddress ?? '',
-          spentUsd ?? '',
-          'USD', // Assuming USD as fiat currency for simplicity
           receiveAmount ?? '',
           receiveCurrency ?? '',
           receiveCurrencyAddress?? '',
           receiveUsd ?? '',
+          'USD', // Assuming USD as fiat currency for simplicity
+          spentAmount ?? '',
+          spentCurrency ?? '',
+          spentCurrencyAddress ?? '',
+          spentUsd ?? '',
           'USD', // Assuming USD as fiat currency for simplicity
           feeAmount,
           feeCurrency,
