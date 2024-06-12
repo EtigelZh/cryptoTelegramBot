@@ -1,0 +1,201 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "target": {
+            "limit": 100,
+            "matchAny": false,
+            "tags": [],
+            "type": "dashboard"
+          },
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 36,
+    "iteration": 1718095697184,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "panels": [
+          {
+            "datasource": "${datasource}",
+            "gridPos": {
+              "h": 1,
+              "w": 24,
+              "x": 0,
+              "y": 0
+            },
+            "id": 2,
+            "options": {
+              "content": "Select a database to view its tables, their sizes, and the number of records.",
+              "mode": "markdown"
+            },
+            "title": "Instructions",
+            "type": "text"
+          }
+        ],
+        "title": "Database Filters",
+        "type": "row"
+      },
+      {
+        "datasource": "${datasource}",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto",
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green"
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "total_size"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "bytes"
+                },
+                {
+                  "id": "decimals",
+                  "value": 2
+                },
+                {
+                  "id": "displayName",
+                  "value": "Total Size (GB/MB)"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "rows"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "short"
+                },
+                {
+                  "id": "decimals",
+                  "value": 2
+                },
+                {
+                  "id": "displayName",
+                  "value": "Number of Rows (M/Thousands)"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 24,
+          "x": 0,
+          "y": 1
+        },
+        "id": 3,
+        "options": {
+          "footer": {
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "Total Size (GB/MB)"
+            }
+          ]
+        },
+        "pluginVersion": "8.5.13",
+        "targets": [
+          {
+            "format": "table",
+            "rawSql": "SELECT schemaname, relname as tablename, pg_total_relation_size(relid) as total_size, (SELECT reltuples FROM pg_class WHERE oid = relid) as rows FROM pg_catalog.pg_statio_user_tables",
+            "refId": "A"
+          }
+        ],
+        "title": "Table Sizes and Records",
+        "type": "table"
+      }
+    ],
+    "refresh": "",
+    "schemaVersion": 36,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": true,
+            "text": "PostgreSQL",
+            "value": "PostgreSQL"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Datasource",
+          "multi": false,
+          "name": "datasource",
+          "options": [],
+          "query": "postgres",
+          "queryValue": "",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "datasource"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "postgres tables",
+    "uid": "eSO4378Ik",
+    "version": 3,
+    "weekStart": ""
+  }
