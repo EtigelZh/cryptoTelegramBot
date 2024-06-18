@@ -1,7 +1,7 @@
 // Command-line utilities
 import yargs from "yargs/yargs"
 import { hideBin } from 'yargs/helpers'
-import 'dotenv/config'
+import dotenv from 'dotenv';
 
 // Uniswap and Web3 modules
 import { ethers } from "ethers";
@@ -14,7 +14,10 @@ import IUniswapV3Factory from '@uniswap/v3-core/artifacts/contracts/interfaces/I
 import { BigNumber } from '@ethersproject/bignumber';
 
 import ERC20_abi from "./ERC20-abi.json"
+import { resolve } from "path";
 
+const defaultEnvPath = resolve(__dirname, '.env');
+dotenv.config({ path: defaultEnvPath })
 async function main() {
     const options = await yargs(hideBin(process.argv))
         .usage("Swaps tokens, based on Uniswap V3 SDK")
@@ -32,7 +35,7 @@ async function main() {
     const tokenOutContractAddress = options.tokenOutAddress;
     const inAmountStr = options.amountIn;
     const { API_URL = '', PRIVATE_KEY = '' } = process.env;
-
+    console.log(`API_URL: ${API_URL}`);
     // ============= PART 1 --- connect to blockchain and get token balances
     console.log("Connecting to blockchain, loading token balances...");
     console.log('');
