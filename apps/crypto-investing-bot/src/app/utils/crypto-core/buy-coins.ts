@@ -79,9 +79,13 @@ export async function swapTokens({
         [tokenOut, balanceTokenOut] = await getTokenAndBalance(tokenOutContract);
     }
 
-    console.log(`Wallet ${walletAddress} balances:`);
-    console.log(`   Input: ${tokenIn.symbol} (${tokenIn.name}): ${ethers.utils.formatUnits(balanceTokenIn, tokenIn.decimals)}`);
-    console.log(`   Output: ${tokenOut.symbol} (${tokenOut.name}): ${ethers.utils.formatUnits(balanceTokenOut, tokenOut.decimals)}`);
+    try {
+        console.log(`Wallet ${walletAddress} balances:`);
+        console.log(`   Input: ${tokenIn.symbol} (${tokenIn.name}): ${ethers.utils.formatUnits(balanceTokenIn, tokenIn.decimals)}`);
+        console.log(`   Output: ${tokenOut.symbol} (${tokenOut.name}): ${ethers.utils.formatUnits(balanceTokenOut, tokenOut.decimals)}`);    
+    } catch (e) {
+        console.log(e);
+    }
 
     const factoryContract = new ethers.Contract(UNISWAP_FACTORY_ADDRESS, IUniswapV3Factory.abi, provider);
     const poolAddress = await factoryContract.getPool(tokenIn.address, tokenOut.address, 3000);
