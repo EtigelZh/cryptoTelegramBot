@@ -18,6 +18,7 @@ import { WalletSearcherService } from '../wallets-searcher/wallet-searcher.servi
 import { TelegramReportingService } from './telegram-reporting.service';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
+import { WalletService } from '../wallet/wallet.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -35,7 +36,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     @Inject(TELEGRAF)
     public readonly _bot: Telegraf,
     private _walletSearcherService: WalletSearcherService,
-    private _telegramReportingService: TelegramReportingService
+    private _telegramReportingService: TelegramReportingService,
+    private _walletService: WalletService,
   ) {}
 
   onModuleInit() {
@@ -50,8 +52,8 @@ export class TelegramBotLogicService implements OnModuleInit {
   private initializeBotCommands(): void {
     this._bot.command('start', this.handleStartCommand.bind(this));
     this._bot.command('transactions', this.handleTransactionsCommand.bind(this));
-    this._bot.command('subscribe', this.handleTransactionsCommand.bind(this));
-    this._bot.command('unsubscribe', this.handleTransactionsCommand.bind(this));
+    this._bot.command('subscribe', this.handleSubscribeCommand.bind(this));
+    this._bot.command('unsubscribe', this.handleUnsubscribeCommand.bind(this));
     this._bot.command(
       'update_old_wallets',
       this.handleUpdateOldWalletsCommand.bind(this)
@@ -79,6 +81,62 @@ export class TelegramBotLogicService implements OnModuleInit {
     );
     await this._googleDriveJobApiService.cleanup();
 
+  }
+
+  private async handleSubscribeCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    console.log(`ctx.message.text: ${ctx.message.text}`);
+    const matchedHash = ctx.message.text.match(walletHashRegex);
+    if (!matchedHash?.length) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один hash кошелька. ${example}`
+      );
+      return;
+    }
+    const walletHash = matchedHash[0];
+    const wallet = await this._walletService.getWallet(walletHash);
+    if (!wallet) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Кошелек ${walletHash} не найден.`
+      );
+      return;
+    }
+    wallet.isWatching = true;
+    wallet.walletSubscriptionMessages = wallet.walletSubscriptionMessages || {};
+    wallet.walletSubscriptionMessages[ctx.chat.id] = ctx.message.message_id.toString();
+    await this._walletService.saveWallet(wallet);
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      `Вы подписаны на обновления кошелька ${walletHash}.`
+    );
+  }
+
+  private async handleUnsubscribeCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    const matchedHash = ctx.message.text.match(walletHashRegex);
+    if (!matchedHash?.length) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один hash кошелька. ${example}`
+      );
+      return;
+    }
+    const walletHash = matchedHash[0];
+    const wallet = await this._walletService.getWallet(walletHash);
+    if (!wallet) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Кошелек ${walletHash} не найден.`
+      );
+      return;
+    }
+    wallet.isWatching = false;
+    delete wallet.walletSubscriptionMessages[ctx.chat.id];
+    await this._walletService.saveWallet(wallet);
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      `Вы отписаны от обновлений кошелька ${walletHash}.`
+    );
   }
 
   private async handleReport( ctx: Context<MountMap['text']>) {

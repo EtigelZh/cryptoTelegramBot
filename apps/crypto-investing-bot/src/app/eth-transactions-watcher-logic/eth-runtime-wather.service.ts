@@ -1,11 +1,12 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
 import { ethers } from "ethers";
 import { AppConfig } from "../app.config";
 import { fromEvent, Subscription } from "rxjs";
-import { filter, switchMap, tap } from "rxjs/operators";
+import { catchError, filter, switchMap, tap } from "rxjs/operators";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { WalletService } from "../wallet/wallet.service";
 import { WalletEntity } from "../wallet/wallet.entity";
+import { TelegramJobApiService } from "../telegraf/telegram-job-api.service";
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -23,7 +24,11 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         "event Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)"
     ];
 
-    constructor(private _config: AppConfig, private readonly _walletService: WalletService) {}
+    constructor(
+        private readonly _config: AppConfig, 
+        private readonly _walletService: WalletService,
+        private readonly _telegramJobApiService: TelegramJobApiService,
+    ) {}
 
     async onModuleInit() {
         const websocketUrl = this._config.getAlchemyWebsocketUrl();
@@ -70,11 +75,23 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             .pipe(
                 filter(([from, to]) => this._isWatchingTransaction(from, to)),
                 tap(([from, to, value, event]) => {
-                    console.log(`ERC-20 Transfer involving target wallet:`);
-                    console.log(`From: ${from}`);
-                    console.log(`To: ${to}`);
-                    console.log(`Value: ${ethers.utils.formatUnits(value, 18)}`);
-                    console.log(event);
+                    const walletEntity = this._getWalletEntity(from, to);
+                    
+                    const message = [
+                        `Wallet ${walletEntity?.hash} (${walletEntity?.alias})`,
+                        `ERC-20 Transfer involving target wallet:`,
+                        `From: ${from}`,
+                        `To: ${to}`,
+                        `Value: ${ethers.utils.formatUnits(value, 18)}`
+                    ].join('\n');
+
+                    Logger.log(message);
+                    Logger.log(event);
+
+                    if (walletEntity && walletEntity.walletSubscriptionMessages) {
+                        const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+                        Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message)));
+                    }
                 })
             )
             .subscribe();
@@ -90,14 +107,26 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             .pipe(
                 filter(([sender, , , , , to]) => this._isWatchingTransaction(sender, to)),
                 tap(([sender, amount0In, amount1In, amount0Out, amount1Out, to, event]) => {
-                    console.log(`Swap involving target wallet:`);
-                    console.log(`Sender: ${sender}`);
-                    console.log(`To: ${to}`);
-                    console.log(`Amount0 In: ${ethers.utils.formatUnits(amount0In, 18)}`);
-                    console.log(`Amount1 In: ${ethers.utils.formatUnits(amount1In, 18)}`);
-                    console.log(`Amount0 Out: ${ethers.utils.formatUnits(amount0Out, 18)}`);
-                    console.log(`Amount1 Out: ${ethers.utils.formatUnits(amount1Out, 18)}`);
-                    console.log(event);
+                    const walletEntity = this._getWalletEntity(sender, to);
+                    
+                    const message = [
+                        `Wallet ${walletEntity?.hash} (${walletEntity?.alias})`,
+                        `Swap involving target wallet:`,
+                        `Sender: ${sender}`,
+                        `To: ${to}`,
+                        `Amount0 In: ${ethers.utils.formatUnits(amount0In, 18)}`,
+                        `Amount1 In: ${ethers.utils.formatUnits(amount1In, 18)}`,
+                        `Amount0 Out: ${ethers.utils.formatUnits(amount0Out, 18)}`,
+                        `Amount1 Out: ${ethers.utils.formatUnits(amount1Out, 18)}`
+                    ].join('\n');
+
+                    Logger.log(message);
+                    Logger.log(event);
+
+                    if (walletEntity && walletEntity.walletSubscriptionMessages) {
+                        const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+                        Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message)));
+                    }
                 })
             )
             .subscribe();
@@ -110,15 +139,29 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
         const subscription = blockEvents$
             .pipe(
-                tap((blockNumber: number) => console.log(`New block received: ${blockNumber}`)),
                 switchMap(async (blockNumber: number) => {
                     const block = await this._provider.getBlockWithTransactions(blockNumber);
-                    console.log(`Block ${blockNumber} transactions: ${block.transactions.length}`);
+                    // Logger.verbose(`Block ${blockNumber} transactions: ${block.transactions.length}`);
 
                     for (const tx of block.transactions) {
                         if (tx.to && this._isWatchingTransaction(tx.from, tx.to)) {
-                            console.log(`Transaction involving target wallet found: ${tx.hash}`);
-                            console.log(tx);
+                            Logger.log(`Transaction involving target wallet found: ${tx.hash}`);
+                            Logger.log(tx);
+
+                            const walletEntity = this._getWalletEntity(tx.from, tx.to);
+
+                            const message = [
+                                `Wallet ${walletEntity?.hash} (${walletEntity?.alias})`,
+                                `Transaction involving target wallet found: ${tx.hash}`,
+                                `From: ${tx.from}`,
+                                `To: ${tx.to}`,
+                                `Value: ${ethers.utils.formatUnits(tx.value, 18)}`
+                            ].join('\n');
+
+                            if (walletEntity && walletEntity.walletSubscriptionMessages) {
+                                const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+                                Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message)));
+                            }
 
                             // Проверяем, является ли адрес контракта ERC-20 токеном
                             const code = await this._provider.getCode(tx.to);
@@ -129,7 +172,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                                     // Подписываемся на события Transfer для этого контракта
                                     this._trackTransfers(tx.to);
                                 } catch (error) {
-                                    console.log(`Contract at ${tx.to} is not a valid ERC-20 token contract.`);
+                                    Logger.log(`Contract at ${tx.to} is not a valid ERC-20 token contract.`);
                                 }
 
                                 // Проверяем, является ли адрес контракта парой Uniswap V2
@@ -139,11 +182,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                                     // Подписываемся на события Swap для этой пары
                                     this._trackSwaps(tx.to);
                                 } catch (error) {
-                                    console.log(`Contract at ${tx.to} is not a valid Uniswap V2 pair contract.`);
+                                    Logger.log(`Contract at ${tx.to} is not a valid Uniswap V2 pair contract.`);
                                 }
                             }
                         }
                     }
+                }),
+                catchError(error => {
+                    Logger.error(`Error processing block: ${error.message} ${error.message}`);
+                    return [];
                 })
             )
             .subscribe();
@@ -155,15 +202,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
         this._subscriptions.push(
             websocketErrorEvents$.subscribe((error: Error) => {
-                console.log(`WebSocket Error: ${error.message}`);
+                Logger.log(`WebSocket Error: ${error.message}`);
             })
         );
 
         this._subscriptions.push(
             websocketCloseEvents$.subscribe((code: number) => {
-                console.log(`WebSocket Closed: ${code}`);
+                Logger.log(`WebSocket Closed: ${code}`);
                 // Реализуйте переподключение при закрытии соединения
-                console.log('Attempting to reconnect in 3 seconds...');
+                Logger.log('Attempting to reconnect in 3 seconds...');
                 setTimeout(() => {
                     this._provider = new ethers.providers.WebSocketProvider(this._config.getAlchemyWebsocketUrl());
                     this._setupWebSocket();
@@ -171,11 +218,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             })
         );
 
-        console.log('WebSocket connection established, listening for ERC-20 transfers and swaps involving target wallet...');
+        Logger.log('WebSocket connection established, listening for ERC-20 transfers and swaps involving target wallet...');
     }
 
-    private _isWatchingTransaction(from: string, to?: string) {
+    private _isWatchingTransaction(from: string, to: string) {
         return this._watchingWalletsHashesMap.has(from) || (typeof to === 'string' && this._watchingWalletsHashesMap.has(to));
+    }
+
+    private _getWalletEntity(from: string, to: string): WalletEntity | undefined {
+        return this._targetWalletAddresses.find(wallet => wallet.hash === from || wallet.hash === to);
     }
 
     @Cron(CronExpression.EVERY_30_SECONDS)

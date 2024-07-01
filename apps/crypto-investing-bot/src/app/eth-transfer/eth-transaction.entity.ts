@@ -7,7 +7,7 @@ export enum EthTransactionType {
 }
 
 @Entity()
-export class EthTransaction {
+export class EthTransactionEntity {
     @PrimaryGeneratedColumn()
     id: number;
 

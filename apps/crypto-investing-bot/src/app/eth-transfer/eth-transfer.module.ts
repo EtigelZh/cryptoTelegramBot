@@ -3,20 +3,19 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { EthTransferEntity } from "./eth-transfer.entity";
 import { EthInternalTransactionEntity } from "./eth-internal-transaction.entity";
 import { EthTransferService } from "./eth-transfer.service";
-import { EthRuntimeWatcherService } from "./eth-runtime-wather.service";
 import { AppConfigModule } from "../app.config";
-import { WalletModule } from "../wallet/wallet.module";
+import { EthTransactionEntity } from "./eth-transaction.entity";
 
 @Module({
     imports: [
         AppConfigModule,
-        WalletModule,
         TypeOrmModule.forFeature([
             EthTransferEntity,
+            EthTransactionEntity,
             EthInternalTransactionEntity,
         ]),
     ],
-    providers: [EthTransferService, EthRuntimeWatcherService],
+    providers: [EthTransferService],
     exports: [EthTransferService]
 })
 export class EthTransferModule {}
