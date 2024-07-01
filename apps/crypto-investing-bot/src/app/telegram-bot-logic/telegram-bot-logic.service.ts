@@ -50,6 +50,8 @@ export class TelegramBotLogicService implements OnModuleInit {
   private initializeBotCommands(): void {
     this._bot.command('start', this.handleStartCommand.bind(this));
     this._bot.command('transactions', this.handleTransactionsCommand.bind(this));
+    this._bot.command('subscribe', this.handleTransactionsCommand.bind(this));
+    this._bot.command('unsubscribe', this.handleTransactionsCommand.bind(this));
     this._bot.command(
       'update_old_wallets',
       this.handleUpdateOldWalletsCommand.bind(this)

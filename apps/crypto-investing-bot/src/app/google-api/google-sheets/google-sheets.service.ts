@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import GoogleSheetConnectorDto from './dto/google-sheet-connector.dto';
 import { google, sheets_v4, drive_v3 } from 'googleapis';
-import { JWT } from 'google-auth-library';
 import { FinanceData } from './google-sheets.models';
+import { JWT } from 'googleapis-common';
 
 @Injectable()
 export class GoogleSheetsService {
@@ -61,7 +61,7 @@ export class GoogleSheetsService {
     return google.drive({ version: 'v3', auth: this._jwtClient });
   }
 
-  private getClient() {
+  private getClient(): JWT {
     const { client_email: email, private_key: key } = this._credentials;
 
     return new google.auth.JWT({

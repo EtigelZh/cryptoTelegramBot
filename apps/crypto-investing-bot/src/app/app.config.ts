@@ -9,6 +9,7 @@ import { inspect } from 'util';
 import { QueueOptions } from 'bull';
 import * as process from 'node:process';
 import { ErrorHandlingService } from './error-handling/error-handling-service';
+import { CronExpression } from '@nestjs/schedule';
 
 let defaultEnvPath = resolve(__dirname, 'assets', 'config', 'default.env');
 let privateEnvPath = resolve(__dirname, 'assets', 'config', 'private.env');
@@ -74,6 +75,7 @@ export class AppConfig {
   static readonly newMessageTelegramReportingCron = process.env.NEW_MESSAGE_TELEGRAM_REPORTING_CRON || '0 * * * *';
   static readonly zerionSearcherCron = process.env.ZERION_SEARCHER_CRON || '*/20 * * * *';
   static readonly etherscanSearcherCron = process.env.ETHERSCAN_SEARCHER_CRON || '0 0 * * *';
+  static readonly checkMissingBlockCron = process.env.CHECK_MISSING_BLOCK_CRON || CronExpression.EVERY_HOUR;
 
   minioEndpoint: string = process.env.MINIO_ENDPOINT || '';
   minioEndpointPort: number = +(process.env.MINIO_ENDPOINT_PORT || 9000);
@@ -116,6 +118,10 @@ export class AppConfig {
   dailyUpdateReportChatId: number = +(process.env.DAILY_UPDATE_REPORT_CHAT_ID || '254372545'); // -1002079084911
 
   devPrefix: string = process.env.DEV_MESSAGE_PREFIX || '';
+
+  network: string = process.env.NETWORK || 'mainnet';
+  alchemyApiKey: string = process.env.ALCHEMY_API_KEY || '';
+
   public async getDbConfig() {
     return dataSourceOptions({
       host: process.env.POSTGRES_HOST,
@@ -144,6 +150,19 @@ export class AppConfig {
     return {
       redis: this.getRedisConfig(),
     };
+  }
+
+  public getAlchemyWebsocketUrl() {
+    const network = this.network === 'arbitrum' ? 'arb-mainnet' : 'eth-mainnet';
+    if (!this.alchemyApiKey) {
+      throw new Error('Alchemy API key is not set');
+    }
+    return `wss://${network}.g.alchemy.com/v2/${this.alchemyApiKey}`;
+  }
+
+  public getAlchemyHttpUrl() {
+    const network = this.network === 'arbitrum' ? 'arb-mainnet' : 'eth-mainnet';
+    return `https://${network}.alchemyapi.io/v2/${this.alchemyApiKey}`;
   }
 
   private _parseApiKeyAndLimits(apiKeyAndLimits: string): ApiKeyAndLimit[] {
