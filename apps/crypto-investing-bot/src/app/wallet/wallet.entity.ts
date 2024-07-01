@@ -42,4 +42,11 @@ export class WalletEntity extends WithUpdatedAndCreatedAt {
 
     @Column({ type: 'jsonb', nullable: true })
     walletFinancialStats?: WalletFinancialStats;
+
+    @Column({ default: false })
+    isWatching: boolean;
+
+    // key - chatId, value - messageId
+    @Column({ type: 'jsonb', default: '{}' })
+    walletSubscriptionMessages: Record<string, string>;
 }

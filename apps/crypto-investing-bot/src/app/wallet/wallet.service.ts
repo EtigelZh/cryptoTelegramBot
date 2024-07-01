@@ -56,6 +56,10 @@ export class WalletService {
     return this._walletRepository.findOne({ where: { hash } });
   }
 
+  getWatchingWallets(): Promise<WalletEntity[]> {
+    return this._walletRepository.find({ where: { isWatching: true } });
+  }
+
   createWallet(wallet: Pick<WalletEntity, 'hash' | 'alias'>): Promise<WalletEntity> {
     return this._walletRepository.save(wallet);
   }

@@ -9,12 +9,14 @@ import { TelegramReportingService } from './telegram-reporting.service';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { ErrorHandlingModule } from '../error-handling/error-handling-module';
 import { WalletSearcherModule } from '../wallets-searcher/wallet-searcher.module';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
   imports: [
     AppConfigModule,
     TelegrafModule,
     ZerionApiModule,
+    WalletModule,
     GoogleDriveModule,
     ProcessingWalletsModule,
     AnalyticsModule,

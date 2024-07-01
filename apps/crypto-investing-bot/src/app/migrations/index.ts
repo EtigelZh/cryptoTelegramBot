@@ -17,6 +17,8 @@ import { AddTransactionCalculationField1715772659417 } from './1715772659417-add
 import { Migrations1716633122382 } from './1716633122382-migrations';
 import { Migrations1716655623696 } from './1716655623696-migrations';
 import { Migrations1716655938772 } from './1716655938772-migrations';
+import { WatchingTransactions1719833289664 } from './1719833289664-watching-transactions';
+import { WatchingStats1719834487494 } from './1719834487494-watching-stats';
 
 export const migrations = [
   Migrations1710903030686,
@@ -38,4 +40,6 @@ export const migrations = [
   Migrations1716633122382,
   Migrations1716655623696,
   Migrations1716655938772,
+  WatchingTransactions1719833289664,
+  WatchingStats1719834487494,
 ];

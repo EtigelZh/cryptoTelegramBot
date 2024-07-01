@@ -51,7 +51,8 @@ export class TelegramJobApiService {
 
   async sendMessage(
     chatId: string | number,
-    message: string
+    message: string,
+    extra?: unknown
   ): Promise<{ message_id: number }> {
     try {
       const job = await this.telegramQueue.add(
@@ -59,6 +60,7 @@ export class TelegramJobApiService {
         {
           chatId,
           message,
+          extra,
         },
         {
           removeOnComplete: true,

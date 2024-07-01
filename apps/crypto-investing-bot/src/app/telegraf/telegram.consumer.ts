@@ -5,6 +5,7 @@ import { TELEGRAF } from './telegraf.token';
 import { Telegraf } from 'telegraf';
 import { Job } from 'bull';
 import { AppConfig } from '../app.config';
+import { ExtraReplyMessage } from 'telegraf/typings/telegram-types';
 
 @Processor(telegramQueueName)
 export class TelegramConsumer {
@@ -22,9 +23,10 @@ export class TelegramConsumer {
       chatId: number;
       message: string;
       parentMessageId: number | null;
+      extra?: ExtraReplyMessage
     }>
   ) {
-    return await this.bot.telegram.sendMessage(job.data.chatId, job.data.message);
+    return await this.bot.telegram.sendMessage(job.data.chatId, job.data.message, job.data.extra);
   }
 
     @Process({

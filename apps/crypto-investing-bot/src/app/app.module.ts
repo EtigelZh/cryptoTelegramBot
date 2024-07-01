@@ -11,6 +11,7 @@ import { redisStore } from 'cache-manager-redis-store';
 import { ScheduleModule } from '@nestjs/schedule';
 import type { RedisClientOptions } from 'redis';
 import { WalletSearcherModule } from './wallets-searcher/wallet-searcher.module';
+import { EthTransactionsWatcherLogicModule } from './eth-transactions-watcher-logic/eth-transactions-watcher-logic.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { WalletSearcherModule } from './wallets-searcher/wallet-searcher.module'
     ScheduleModule.forRoot(),
     HealthModule,
     WalletSearcherModule,
+    EthTransactionsWatcherLogicModule,
   ],
   controllers: [AppController],
   providers: [AppService],
