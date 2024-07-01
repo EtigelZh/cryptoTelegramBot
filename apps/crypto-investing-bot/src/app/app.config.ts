@@ -165,6 +165,11 @@ export class AppConfig {
     return `https://${network}.alchemyapi.io/v2/${this.alchemyApiKey}`;
   }
 
+  public getEtherscanTxUrl(txHash: string): string {
+    const network = this.network === 'arbitrum' ? 'arbiscan.io' : 'etherscan.io';
+    return `https://${network}/tx/${txHash}`;
+  }
+
   private _parseApiKeyAndLimits(apiKeyAndLimits: string): ApiKeyAndLimit[] {
     return apiKeyAndLimits.split(',').map(tokenAndLimit => tokenAndLimit.split(':')).map(([token, limit]) => ({token, limit: +(limit || 0)})).filter(({token, limit}) => token && limit);
   }
