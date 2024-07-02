@@ -9,9 +9,8 @@ import { TelegramJobApiService } from "../telegraf/telegram-job-api.service";
 import { Alchemy, Network } from "alchemy-sdk";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import WebSocket from 'ws';
-import { inspect } from "util";
 
-type Log = { topics: Array<string>, data: string, transactionHash: string, blockNumber: number, removed: boolean, logIndex: number };
+type Log = { topics: Array<string>, data: string, transactionHash: string, blockNumber: number, removed: boolean, logIndex: number, address: string };
 type Fungible = { name: string, symbol: string, contractAddress: string };
 
 @Injectable()
@@ -23,15 +22,20 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _tokensMap = new Map<string, Fungible>();
     private blockSubject = new Subject<number>();
     private transferSubject = new Subject<Log>();
-    private swapSubject = new Subject<Log>();  // New subject for Swap logs
+    private swapSubject = new Subject<Log>();
     private reconnectSubject = new Subject<void>();
     private ethUsdPrice = 0;
 
     private readonly ERC20_ABI = [
         "event Transfer(address indexed from, address indexed to, uint256 value)",
-        "event Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)", // New Swap event
+        "event Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)",
         "function name() view returns (string)",
         "function symbol() view returns (string)"
+    ];
+
+    private readonly POOL_ABI = [
+        "function token0() external view returns (address)",
+        "function token1() external view returns (address)"
     ];
 
     constructor(
@@ -87,7 +91,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 contract.name(),
                 contract.symbol()
             ]);
-            Logger.log(`Fetched token metadata for contract ${contractAddress}: ${name} (${symbol})`);
+
             const tokenData: Fungible = { name, symbol, contractAddress };
             this._tokensMap.set(contractAddress, tokenData);
 
@@ -97,6 +101,23 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             const tokenData: Fungible = { name: 'Unknown', symbol: 'UNK', contractAddress };
             this._tokensMap.set(contractAddress, tokenData);
             return tokenData;
+        }
+    }
+
+    private async _getTokenAddresses(poolAddress: string): Promise<[string, string]> {
+        const provider = new ethers.providers.AlchemyProvider(this._config.network, this._config.alchemyApiKey);
+        const poolContract = new ethers.Contract(poolAddress, this.POOL_ABI, provider);
+
+        try {
+            const [token0, token1] = await Promise.all([
+                poolContract.token0(),
+                poolContract.token1()
+            ]);
+
+            return [token0, token1];
+        } catch (error) {
+            Logger.error(`Failed to fetch token addresses for pool ${poolAddress}: ${error.message}`);
+            return ['0x0', '0x0'];
         }
     }
 
@@ -222,16 +243,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    private _processSwapLogs(logs: Log[]) {
-        logs.forEach(async log => {
+    private async _processSwapLogs(logs: Log[]) {
+        for (const log of logs) {
             try {
                 const parsedLog = new ethers.utils.Interface(this.ERC20_ABI).parseLog(log);
                 const { sender, amount0In, amount1In, amount0Out, amount1Out, to } = parsedLog.args;
                 const walletEntity = this._getWalletEntity(sender, to);
-                Logger.log(`LOG SWAP ${inspect(log)}`);
-                // Fetch token data for involved tokens
-                const token0Address = ethers.utils.getAddress(log.topics[1]);
-                const token1Address = ethers.utils.getAddress(log.topics[2]);
+
+                const [token0Address, token1Address] = await this._getTokenAddresses(log.address);
+
                 const token0 = await this._getTokenMetaData(token0Address);
                 const token1 = await this._getTokenMetaData(token1Address);
 
@@ -244,8 +264,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                     `Swap Event:`,
                     `Sender: \`${sender}\``,
                     `To: \`${to}\``,
-                    `Amount In: ${amount0InFormatted} ${token0.symbol} (${token0.name}), ${amount1InFormatted} ${token1.symbol} (${token1.name})`,
-                    `Amount Out: ${amount0OutFormatted} ${token0.symbol} (${token0.name}), ${amount1OutFormatted} ${token1.symbol} (${token1.name})`,
+                    `Amount In: ${amount0InFormatted} ${token0.symbol}, ${amount1InFormatted} ${token1.symbol}`,
+                    `Amount Out: ${amount0OutFormatted} ${token0.symbol}, ${amount1OutFormatted} ${token1.symbol}`,
                     `Transaction: [${log.transactionHash}](${this._config.getEtherscanTxUrl(log.transactionHash)})`
                 ].join('\n');
 
@@ -258,7 +278,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 Logger.error(`Error processing swap event: ${error.message}`);
                 Logger.verbose(log);
             }
-        });
+        }
     }
 
     private async _handleBlock(blockNumber: number) {
