@@ -21,6 +21,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _subscriptions: Subscription[] = [];
     private readonly _tokensMap = new Map<string, Fungible>();
     private readonly _poolsCache = new Map<string, [string, string]>();
+    private readonly _blockCache: Array<{ blockNumber: number, transactions: ethers.providers.TransactionResponse[] }> = [];
     private blockSubject = new Subject<number>();
     private transferSubject = new Subject<Log>();
     private swapSubject = new Subject<Log>();
@@ -255,11 +256,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             try {
                 const parsedLog = new ethers.utils.Interface(this.ERC20_ABI).parseLog(log);
                 const { sender, amount0In, amount1In, amount0Out, amount1Out, to } = parsedLog.args;
-                if (!this._isWatchingTransaction(sender, to)) {
+                
+                let walletEntity = this._getWalletEntity(sender, to);
+                if (!walletEntity) {
+                    const foundTx = await this._getTransactionFromCache(log.transactionHash, log.blockNumber);
+                    walletEntity = this._getWalletEntity(foundTx?.from, foundTx?.to);  
+                }
+                if (!walletEntity) {
                     return;
                 }
-                const walletEntity = this._getWalletEntity(sender, to);
-    
                 const [token0Address, token1Address] = await this._getTokenAddresses(log.address);
     
                 const token0 = await this._getTokenMetaData(token0Address);
@@ -306,7 +311,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 const tokenPerUsd = (parseFloat(tokenPerEth) / this.ethUsdPrice).toFixed(6);
     
                 const message = `[${action} ${amountToken} ${tokenSymbol} ${action === 'BUY' ? '<=' : '=>'} ${amountWETH} WETH (~$${amountUSD}). Price: 1 ETH = ~${tokenPerEth} ${tokenSymbol}, 1$ = ~${tokenPerUsd} ${tokenSymbol}](${this._config.getEtherscanTxUrl(log.transactionHash)})`;
-    
+                Logger.log(message);
                 
                 if (walletEntity && walletEntity.walletSubscriptionMessages) {
                     const entries = Object.entries(walletEntity.walletSubscriptionMessages);
@@ -319,10 +324,14 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         }
     }
     
-
     private async _handleBlock(blockNumber: number) {
         const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
         Logger.log(`New block received: ${blockNumber} Transactions: ${block.transactions.length} ${this._watchingWalletsHashesMap.size}`);
+
+        this._blockCache.push({ blockNumber, transactions: block.transactions });
+        if (this._blockCache.length > 30) {
+            this._blockCache.shift();
+        }
 
         for (const tx of block.transactions) {
             if (tx.to && this._isWatchingTransaction(tx.from, tx.to)) {
@@ -346,6 +355,19 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
     private _getWalletEntity(from: string, to: string): WalletEntity | undefined {
         return this._targetWalletAddresses.find(wallet => wallet.hash === from.toLowerCase() || wallet.hash === to.toLowerCase());
+    }
+
+    private async _getTransactionFromCache(txHash: string, blockNumber: number): Promise<ethers.providers.TransactionResponse | null> {
+        if (!this._blockCache.length || this._blockCache[this._blockCache.length - 1].blockNumber < blockNumber) {
+            await this.blockSubject.pipe(filter(block => block >= blockNumber)).toPromise();
+        }
+        for (const block of this._blockCache) {
+            const tx = block.transactions.find(tx => tx.hash === txHash);
+            if (tx) {
+                return tx;
+            }
+        }
+        return null;
     }
 
     private _formatTransactionMessage(walletEntity: WalletEntity | undefined, from: string, to: string, value: ethers.BigNumber, tokenData: Fungible | null, type: string, txHash: string): string {
