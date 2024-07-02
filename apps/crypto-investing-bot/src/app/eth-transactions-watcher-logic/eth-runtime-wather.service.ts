@@ -232,10 +232,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                     
                     const tokenData = await this._getTokenMetaData(log.address);
                     const valueFormatted = ethers.utils.formatUnits(value, 18);
-                    const valueInUsd = parseFloat(valueFormatted) * this.ethUsdPrice;
     
                     const message = [
-                        `Value: \`${walletEntity?.hash || from || to}\` (${walletEntity?.alias || 'Unknown'}) ${valueFormatted} ${tokenData.symbol} (~$${valueInUsd.toFixed(2)}) Transaction: [${log.transactionHash}](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
+                        `Value: \`${walletEntity?.hash || from || to}\` (${walletEntity?.alias || 'Unknown'}) ${valueFormatted} ${tokenData.symbol} Transaction: [${log.transactionHash}](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
                     ].join('\n');
                     
                     Logger.log(`Transfer event: ${message}`);
