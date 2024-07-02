@@ -143,7 +143,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             .pipe(
                 bufferTime(1000),
                 filter((logs) => Array.isArray(logs) && logs.length > 0),
-                tap((logs) => this._processLogs(logs)),
+                tap((logs) => this._processTransferLogs(logs)),
                 catchError(error => {
                     Logger.error(`Error processing transfer events: ${error.message}`);
                     return of();
@@ -154,6 +154,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 ))
             )
             .subscribe();
+
+        this._subscriptions.push(transferEvents$);
 
         const swapEvents$ = this.swapSubject
             .pipe(
@@ -171,7 +173,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             )
             .subscribe();
 
-        this._subscriptions.push(transferEvents$, swapEvents$);
+        this._subscriptions.push(swapEvents$);
 
         this.alchemy.ws.on("block", (blockNumber) => {
             this.blockSubject.next(blockNumber);
@@ -198,7 +200,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         Logger.log('WebSocket connection setup complete, listening for ERC-20 transfers and DEX logs involving target wallets...');
     }
 
-    private _processLogs(logs: Log[]) {
+    private _processTransferLogs(logs: Log[]) {
         const logsByBlock = logs.reduce((acc, log) => {
             const blockNumber = log.blockNumber;
             if (!acc[blockNumber]) {
@@ -239,7 +241,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                     Logger.log(`Transfer event: ${message}`);
                     if (walletEntity && walletEntity.walletSubscriptionMessages) {
                         const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-                        Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown' })));
+                        Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown', disable_web_page_preview: true })));
                     }
                 } catch (error) {
                     Logger.error(`Error processing transfer event: ${error.message}`);
@@ -254,31 +256,62 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             try {
                 const parsedLog = new ethers.utils.Interface(this.ERC20_ABI).parseLog(log);
                 const { sender, amount0In, amount1In, amount0Out, amount1Out, to } = parsedLog.args;
+                if (!this._isWatchingTransaction(sender, to)) {
+                    return;
+                }
                 const walletEntity = this._getWalletEntity(sender, to);
-
+    
                 const [token0Address, token1Address] = await this._getTokenAddresses(log.address);
-
+    
                 const token0 = await this._getTokenMetaData(token0Address);
                 const token1 = await this._getTokenMetaData(token1Address);
-
+    
                 const amount0InFormatted = ethers.utils.formatUnits(amount0In, 18);
                 const amount1InFormatted = ethers.utils.formatUnits(amount1In, 18);
                 const amount0OutFormatted = ethers.utils.formatUnits(amount0Out, 18);
                 const amount1OutFormatted = ethers.utils.formatUnits(amount1Out, 18);
-
-                const message = [
-                    `Swap Event:`,
-                    `Sender: \`${sender}\``,
-                    `To: \`${to}\``,
-                    `Amount In: ${amount0InFormatted} ${token0.symbol}, ${amount1InFormatted} ${token1.symbol}`,
-                    `Amount Out: ${amount0OutFormatted} ${token0.symbol}, ${amount1OutFormatted} ${token1.symbol}`,
-                    `Transaction: [${log.transactionHash}](${this._config.getEtherscanTxUrl(log.transactionHash)})`
-                ].join('\n');
-
-                Logger.log(`Swap event: ${message}`);
+    
+                let action, amountToken, amountWETH, tokenSymbol, tokenPerEth;
+    
+                if (token0.symbol === 'WETH') {
+                    if (parseFloat(amount0InFormatted) > 0) {
+                        action = 'BUY';
+                        amountToken = amount1OutFormatted;
+                        amountWETH = amount0InFormatted;
+                        tokenSymbol = token1.symbol;
+                        tokenPerEth = (parseFloat(amount1OutFormatted) / parseFloat(amount0InFormatted)).toFixed(6);
+                    } else {
+                        action = 'SELL';
+                        amountToken = amount1InFormatted;
+                        amountWETH = amount0OutFormatted;
+                        tokenSymbol = token1.symbol;
+                        tokenPerEth = (parseFloat(amount1InFormatted) / parseFloat(amount0OutFormatted)).toFixed(6);
+                    }
+                } else {
+                    if (parseFloat(amount1InFormatted) > 0) {
+                        action = 'BUY';
+                        amountToken = amount0OutFormatted;
+                        amountWETH = amount1InFormatted;
+                        tokenSymbol = token0.symbol;
+                        tokenPerEth = (parseFloat(amount0OutFormatted) / parseFloat(amount1InFormatted)).toFixed(6);
+                    } else {
+                        action = 'SELL';
+                        amountToken = amount0InFormatted;
+                        amountWETH = amount1OutFormatted;
+                        tokenSymbol = token0.symbol;
+                        tokenPerEth = (parseFloat(amount0InFormatted) / parseFloat(amount1OutFormatted)).toFixed(6);
+                    }
+                }
+    
+                const amountUSD = (parseFloat(amountWETH) * this.ethUsdPrice).toFixed(2);
+                const tokenPerUsd = (parseFloat(tokenPerEth) / this.ethUsdPrice).toFixed(6);
+    
+                const message = `[${action} ${amountToken} ${tokenSymbol} ${action === 'BUY' ? '<=' : '=>'} ${amountWETH} WETH (~$${amountUSD}). Price: 1 ETH = ~${tokenPerEth} ${tokenSymbol}, 1$ = ~${tokenPerUsd} ${tokenSymbol}](${this._config.getEtherscanTxUrl(log.transactionHash)})`;
+    
+                
                 if (walletEntity && walletEntity.walletSubscriptionMessages) {
                     const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-                    Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown' })));
+                    Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown', disable_web_page_preview: true })));
                 }
             } catch (error) {
                 Logger.error(`Error processing swap event: ${error.message}`);
@@ -286,6 +319,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             }
         }
     }
+    
 
     private async _handleBlock(blockNumber: number) {
         const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
@@ -301,7 +335,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
                 if (walletEntity && walletEntity.walletSubscriptionMessages) {
                     const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-                    Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown' })));
+                    Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown', disable_web_page_preview: true })));
                 }
             }
         }
@@ -318,15 +352,10 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private _formatTransactionMessage(walletEntity: WalletEntity | undefined, from: string, to: string, value: ethers.BigNumber, tokenData: Fungible | null, type: string, txHash: string): string {
         const txUrl = this._config.getEtherscanTxUrl(txHash);
         const valueFormatted = tokenData ? ethers.utils.formatUnits(value, 18) : ethers.utils.formatEther(value);
-
-        return [
-            `Wallet: \`${walletEntity?.hash}\` (${walletEntity?.alias})`,
-            `*${type} involving target wallet:*`,
-            `From: \`${from}\``,
-            `To: \`${to}\``,
-            `Value: ${valueFormatted} ${tokenData ? tokenData.symbol : 'ETH'}`,
-            `Transaction: [${txHash}](${txUrl})`
-        ].join('\n');
+        const symbol = tokenData ? tokenData.symbol : 'ETH';
+        const walletInfo = walletEntity ? `(${walletEntity.alias})` : '';
+    
+        return `Wallet: ${walletEntity?.hash} ${walletInfo} ${type} involving target wallet: From: ${from} To: ${to} Value: ${valueFormatted} ${symbol}. Transaction: [${txHash}](${txUrl})`;
     }
 
     private _reconnectWebSocket() {
