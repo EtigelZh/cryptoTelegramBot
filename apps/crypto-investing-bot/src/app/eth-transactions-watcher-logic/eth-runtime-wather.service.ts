@@ -20,6 +20,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _watchingWalletsHashesMap = new Map<string, Subscription[]>();
     private readonly _subscriptions: Subscription[] = [];
     private readonly _tokensMap = new Map<string, Fungible>();
+    private readonly _poolsCache = new Map<string, [string, string]>();
     private blockSubject = new Subject<number>();
     private transferSubject = new Subject<Log>();
     private swapSubject = new Subject<Log>();
@@ -105,6 +106,10 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     }
 
     private async _getTokenAddresses(poolAddress: string): Promise<[string, string]> {
+        if (this._poolsCache.has(poolAddress)) {
+            return this._poolsCache.get(poolAddress);
+        }
+
         const provider = new ethers.providers.AlchemyProvider(this._config.network, this._config.alchemyApiKey);
         const poolContract = new ethers.Contract(poolAddress, this.POOL_ABI, provider);
 
@@ -114,6 +119,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 poolContract.token1()
             ]);
 
+            this._poolsCache.set(poolAddress, [token0, token1]);
             return [token0, token1];
         } catch (error) {
             Logger.error(`Failed to fetch token addresses for pool ${poolAddress}: ${error.message}`);
