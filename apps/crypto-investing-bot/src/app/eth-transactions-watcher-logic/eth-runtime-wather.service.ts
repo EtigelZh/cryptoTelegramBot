@@ -9,6 +9,7 @@ import { TelegramJobApiService } from "../telegraf/telegram-job-api.service";
 import { Alchemy, Network } from "alchemy-sdk";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import WebSocket from 'ws';
+import { inspect } from "util";
 
 type Log = { topics: Array<string>, data: string, transactionHash: string, blockNumber: number, removed: boolean, logIndex: number };
 type Fungible = { name: string, symbol: string, contractAddress: string };
@@ -22,11 +23,13 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _tokensMap = new Map<string, Fungible>();
     private blockSubject = new Subject<number>();
     private transferSubject = new Subject<Log>();
+    private swapSubject = new Subject<Log>();  // New subject for Swap logs
     private reconnectSubject = new Subject<void>();
     private ethUsdPrice = 0;
 
     private readonly ERC20_ABI = [
         "event Transfer(address indexed from, address indexed to, uint256 value)",
+        "event Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)", // New Swap event
         "function name() view returns (string)",
         "function symbol() view returns (string)"
     ];
@@ -84,15 +87,13 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 contract.name(),
                 contract.symbol()
             ]);
-            // Logger.log(`Fetched token metadata for contract ${contractAddress}: ${name} (${symbol})`);
-
+            Logger.log(`Fetched token metadata for contract ${contractAddress}: ${name} (${symbol})`);
             const tokenData: Fungible = { name, symbol, contractAddress };
             this._tokensMap.set(contractAddress, tokenData);
 
             return tokenData;
         } catch (error) {
             Logger.error(`Failed to fetch token metadata for contract ${contractAddress}: ${error.message}`);
-            // Fallback token data
             const tokenData: Fungible = { name: 'Unknown', symbol: 'UNK', contractAddress };
             this._tokensMap.set(contractAddress, tokenData);
             return tokenData;
@@ -100,12 +101,16 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     }
 
     private _setupWebSocket() {
-        const eventFilter = {
+        const transferFilter = {
             topics: [ethers.utils.id("Transfer(address,address,uint256)")],
         };
-        
-        this.alchemy.ws.on(eventFilter, (log) => this.transferSubject.next(log));
-        
+
+        const swapFilter = {
+            topics: [ethers.utils.id("Swap(address,uint256,uint256,uint256,uint256,address)")],
+        };
+
+        this.alchemy.ws.on(transferFilter, (log) => this.transferSubject.next(log));
+        this.alchemy.ws.on(swapFilter, (log) => this.swapSubject.next(log));
 
         const transferEvents$ = this.transferSubject
             .pipe(
@@ -123,8 +128,23 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             )
             .subscribe();
 
-        this._subscriptions.push(transferEvents$);
-        
+        const swapEvents$ = this.swapSubject
+            .pipe(
+                bufferTime(1000),
+                filter((logs) => Array.isArray(logs) && logs.length > 0),
+                tap((logs) => this._processSwapLogs(logs)),
+                catchError(error => {
+                    Logger.error(`Error processing swap events: ${error.message}`);
+                    return of();
+                }),
+                retryWhen(errors => errors.pipe(
+                    tap(error => Logger.log(`WebSocket error: ${error.message}. Reconnecting...`)),
+                    delayWhen(() => timer(3000))
+                ))
+            )
+            .subscribe();
+
+        this._subscriptions.push(transferEvents$, swapEvents$);
 
         this.alchemy.ws.on("block", (blockNumber) => {
             this.blockSubject.next(blockNumber);
@@ -201,7 +221,45 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             });
         }
     }
-    
+
+    private _processSwapLogs(logs: Log[]) {
+        logs.forEach(async log => {
+            try {
+                const parsedLog = new ethers.utils.Interface(this.ERC20_ABI).parseLog(log);
+                const { sender, amount0In, amount1In, amount0Out, amount1Out, to } = parsedLog.args;
+                const walletEntity = this._getWalletEntity(sender, to);
+                Logger.log(`LOG SWAP ${inspect(log)}`);
+                // Fetch token data for involved tokens
+                const token0Address = ethers.utils.getAddress(log.topics[1]);
+                const token1Address = ethers.utils.getAddress(log.topics[2]);
+                const token0 = await this._getTokenMetaData(token0Address);
+                const token1 = await this._getTokenMetaData(token1Address);
+
+                const amount0InFormatted = ethers.utils.formatUnits(amount0In, 18);
+                const amount1InFormatted = ethers.utils.formatUnits(amount1In, 18);
+                const amount0OutFormatted = ethers.utils.formatUnits(amount0Out, 18);
+                const amount1OutFormatted = ethers.utils.formatUnits(amount1Out, 18);
+
+                const message = [
+                    `Swap Event:`,
+                    `Sender: \`${sender}\``,
+                    `To: \`${to}\``,
+                    `Amount In: ${amount0InFormatted} ${token0.symbol} (${token0.name}), ${amount1InFormatted} ${token1.symbol} (${token1.name})`,
+                    `Amount Out: ${amount0OutFormatted} ${token0.symbol} (${token0.name}), ${amount1OutFormatted} ${token1.symbol} (${token1.name})`,
+                    `Transaction: [${log.transactionHash}](${this._config.getEtherscanTxUrl(log.transactionHash)})`
+                ].join('\n');
+
+                Logger.log(`Swap event: ${message}`);
+                if (walletEntity && walletEntity.walletSubscriptionMessages) {
+                    const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+                    Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown' })));
+                }
+            } catch (error) {
+                Logger.error(`Error processing swap event: ${error.message}`);
+                Logger.verbose(log);
+            }
+        });
+    }
 
     private async _handleBlock(blockNumber: number) {
         const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
