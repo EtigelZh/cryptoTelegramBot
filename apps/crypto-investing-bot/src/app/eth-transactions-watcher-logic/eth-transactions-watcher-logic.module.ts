@@ -5,11 +5,13 @@ import { EthRuntimeWatcherService } from "./eth-runtime-wather.service";
 import { WalletModule } from "../wallet/wallet.module";
 import { EthMissingBlockCheckerService } from "./eth-missing-block-checker.service";
 import { EthTransferModule } from "../eth-transfer/eth-transfer.module";
+import { FungibleModule } from "../fungible/fungible.module";
 
 @Module({
     imports: [
         AppConfigModule,
         WalletModule,
+        FungibleModule,
         TelegrafModule,
         EthTransferModule,
     ],

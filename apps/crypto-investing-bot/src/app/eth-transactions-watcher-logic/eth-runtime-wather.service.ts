@@ -1,23 +1,34 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
 import { ethers } from "ethers";
 import { AppConfig } from "../app.config";
-import { fromEvent, Subscription } from "rxjs";
-import { catchError, filter, switchMap, tap } from "rxjs/operators";
-import { Cron, CronExpression } from "@nestjs/schedule";
+import { Subscription, of, timer, Subject } from "rxjs";
+import { filter, tap, catchError, retryWhen, delayWhen, bufferTime } from "rxjs/operators";
 import { WalletService } from "../wallet/wallet.service";
 import { WalletEntity } from "../wallet/wallet.entity";
 import { TelegramJobApiService } from "../telegraf/telegram-job-api.service";
+import { Alchemy, Network } from "alchemy-sdk";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import WebSocket from 'ws';
+
+type Log = { topics: Array<string>, data: string, transactionHash: string, blockNumber: number, removed: boolean, logIndex: number };
+type Fungible = { name: string, symbol: string, contractAddress: string };
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
-    private _provider: ethers.providers.WebSocketProvider;
-    private _httpProvider: ethers.providers.JsonRpcProvider;
+    private alchemy: Alchemy;
     private readonly _targetWalletAddresses: WalletEntity[] = [];
     private readonly _watchingWalletsHashesMap = new Map<string, Subscription[]>();
     private readonly _subscriptions: Subscription[] = [];
+    private readonly _tokensMap = new Map<string, Fungible>();
+    private blockSubject = new Subject<number>();
+    private transferSubject = new Subject<Log>();
+    private reconnectSubject = new Subject<void>();
+    private ethUsdPrice = 0;
 
     private readonly ERC20_ABI = [
-        "event Transfer(address indexed from, address indexed to, uint256 value)"
+        "event Transfer(address indexed from, address indexed to, uint256 value)",
+        "function name() view returns (string)",
+        "function symbol() view returns (string)"
     ];
 
     constructor(
@@ -27,20 +38,17 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     ) {}
 
     async onModuleInit() {
-        const websocketUrl = this._config.getAlchemyWebsocketUrl();
-        const httpUrl = this._config.getAlchemyHttpUrl();
-
-        this._provider = new ethers.providers.WebSocketProvider(websocketUrl);
-        this._httpProvider = new ethers.providers.JsonRpcProvider(httpUrl);
-
+        const settings = {
+            apiKey: this._config.alchemyApiKey,
+            network: this._config.network === 'mainnet' ? Network.ETH_MAINNET : Network.ARB_MAINNET,
+        };
+        this.alchemy = new Alchemy(settings);
         this._setupWebSocket();
+        this._connectToBinanceWebSocket();
     }
 
     async onModuleDestroy() {
-        if (this._provider) {
-            this._provider.removeAllListeners();
-            await this._provider.destroy();
-        }
+        this.alchemy.ws.removeAllListeners();
         this._subscriptions.forEach(sub => sub.unsubscribe());
     }
 
@@ -63,127 +71,190 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    private async _checkAndSubscribeToContract(address: string) {
-        const code = await this._httpProvider.getCode(address);
-        if (code !== '0x') {
-            const contract = new ethers.Contract(address, this.ERC20_ABI, this._provider);
-            try {
-                await contract.deployed();
-                this._trackTransfers(address);
-            } catch (error) {
-                Logger.log(`Contract at ${address} is not a valid ERC-20 token contract.`);
-            }
+    private async _getTokenMetaData(contractAddress: string): Promise<Fungible> {
+        if (this._tokensMap.has(contractAddress)) {
+            return this._tokensMap.get(contractAddress);
+        }
+
+        const provider = new ethers.providers.AlchemyProvider(this._config.network, this._config.alchemyApiKey);
+        const contract = new ethers.Contract(contractAddress, this.ERC20_ABI, provider);
+
+        try {
+            const [name, symbol] = await Promise.all([
+                contract.name(),
+                contract.symbol()
+            ]);
+            // Logger.log(`Fetched token metadata for contract ${contractAddress}: ${name} (${symbol})`);
+
+            const tokenData: Fungible = { name, symbol, contractAddress };
+            this._tokensMap.set(contractAddress, tokenData);
+
+            return tokenData;
+        } catch (error) {
+            Logger.error(`Failed to fetch token metadata for contract ${contractAddress}: ${error.message}`);
+            // Fallback token data
+            const tokenData: Fungible = { name: 'Unknown', symbol: 'UNK', contractAddress };
+            this._tokensMap.set(contractAddress, tokenData);
+            return tokenData;
         }
     }
 
-    private _trackTransfers(contractAddress: string) {
-        const contract = new ethers.Contract(contractAddress, this.ERC20_ABI, this._provider);
-        const transferEvents$ = fromEvent(contract, "Transfer");
+    private _setupWebSocket() {
+        const eventFilter = {
+            topics: [ethers.utils.id("Transfer(address,address,uint256)")],
+        };
+        
+        this.alchemy.ws.on(eventFilter, (log) => this.transferSubject.next(log));
+        
 
-        const subscription = transferEvents$
+        const transferEvents$ = this.transferSubject
             .pipe(
-                filter(([from, to]) => this._isWatchingTransaction(from, to)),
-                tap(([from, to, value, event]) => {
+                bufferTime(1000),
+                filter((logs) => Array.isArray(logs) && logs.length > 0),
+                tap((logs) => this._processLogs(logs)),
+                catchError(error => {
+                    Logger.error(`Error processing transfer events: ${error.message}`);
+                    return of();
+                }),
+                retryWhen(errors => errors.pipe(
+                    tap(error => Logger.log(`WebSocket error: ${error.message}. Reconnecting...`)),
+                    delayWhen(() => timer(3000))
+                ))
+            )
+            .subscribe();
+
+        this._subscriptions.push(transferEvents$);
+        
+
+        this.alchemy.ws.on("block", (blockNumber) => {
+            this.blockSubject.next(blockNumber);
+            this._handleBlock(blockNumber);
+        });
+
+        this.alchemy.ws.on("open", () => {
+            this.reconnectSubject.next();
+            Logger.log('WebSocket connection established');
+        });
+
+        this.alchemy.ws.on("error", (error) => {
+            Logger.log(`WebSocket Error: ${error.message}`);
+        });
+
+        this.alchemy.ws.on("close", (code) => {
+            Logger.log(`WebSocket Closed: ${code}`);
+            Logger.log('Attempting to reconnect in 3 seconds...');
+            setTimeout(() => {
+                this._reconnectWebSocket();
+            }, 3000);
+        });
+
+        Logger.log('WebSocket connection setup complete, listening for ERC-20 transfers and DEX logs involving target wallets...');
+    }
+
+    private _processLogs(logs: Log[]) {
+        const logsByBlock = logs.reduce((acc, log) => {
+            const blockNumber = log.blockNumber;
+            if (!acc[blockNumber]) {
+                acc[blockNumber] = { logs: [], emptyDataLogsCount: 0 };
+            }
+            
+            if (log.data === "0x" || !log.data) {
+                acc[blockNumber].emptyDataLogsCount++;
+            } else {
+                acc[blockNumber].logs.push(log);
+            }
+            return acc;
+        }, {});
+    
+        for (const blockNumber in logsByBlock) {
+            const blockLogs = logsByBlock[blockNumber].logs;
+            const emptyDataLogsCount = logsByBlock[blockNumber].emptyDataLogsCount;
+    
+            Logger.log(`Block ${blockNumber} - Received ${blockLogs.length} transfer events; ${emptyDataLogsCount} logs with empty data; ${this._tokensMap.size} tokens cached.`);
+    
+            blockLogs.forEach(async log => {
+                try {
+                    const parsedLog = new ethers.utils.Interface(this.ERC20_ABI).parseLog(log);
+                    const { from, to, value } = parsedLog.args;
+                    if (!this._isWatchingTransaction(from, to)) {
+                        return;
+                    }
                     const walletEntity = this._getWalletEntity(from, to);
                     
-                    const message = this._formatTransactionMessage(walletEntity, from, to, value, 'ERC-20 Transfer', event.transactionHash);
-
-                    Logger.log(message);
-                    Logger.log(event);
-
+                    const tokenData = await this._getTokenMetaData(log.address);
+                    const valueFormatted = ethers.utils.formatUnits(value, 18);
+                    const valueInUsd = parseFloat(valueFormatted) * this.ethUsdPrice;
+    
+                    const message = [
+                        `Value: \`${walletEntity?.hash || from || to}\` (${walletEntity?.alias || 'Unknown'}) ${valueFormatted} ${tokenData.symbol} (~$${valueInUsd.toFixed(2)}) Transaction: [${log.transactionHash}](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
+                    ].join('\n');
+                    
+                    Logger.log(`Transfer event: ${message}`);
                     if (walletEntity && walletEntity.walletSubscriptionMessages) {
                         const entries = Object.entries(walletEntity.walletSubscriptionMessages);
                         Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown' })));
                     }
-                })
-            )
-            .subscribe();
-
-        this._subscriptions.push(subscription);
+                } catch (error) {
+                    Logger.error(`Error processing transfer event: ${error.message}`);
+                    Logger.verbose(log);
+                }
+            });
+        }
     }
+    
 
-    private _setupWebSocket() {
-        const blockEvents$ = fromEvent(this._provider, "block");
+    private async _handleBlock(blockNumber: number) {
+        const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
+        Logger.log(`New block received: ${blockNumber} Transactions: ${block.transactions.length} ${this._watchingWalletsHashesMap.size}`);
 
-        const subscription = blockEvents$
-            .pipe(
-                switchMap(async (blockNumber: number) => {
-                    const block = await this._provider.getBlockWithTransactions(blockNumber);
+        for (const tx of block.transactions) {
+            if (tx.to && this._isWatchingTransaction(tx.from, tx.to)) {
+                Logger.log(`Transaction involving target wallet found: ${tx.hash}`);
+                Logger.log(tx);
 
-                    for (const tx of block.transactions) {
-                        if (tx.to && this._isWatchingTransaction(tx.from, tx.to)) {
-                            
+                const walletEntity = this._getWalletEntity(tx.from, tx.to);
+                const message = this._formatTransactionMessage(walletEntity, tx.from, tx.to, tx.value, null, 'Transaction', tx.hash);
 
-                            Logger.log(`Transaction involving target wallet found: ${tx.hash}`);
-                            Logger.log(tx);
-
-                            const walletEntity = this._getWalletEntity(tx.from, tx.to);
-
-                            const message = this._formatTransactionMessage(walletEntity, tx.from, tx.to, tx.value, 'Transaction', tx.hash);
-
-                            if (walletEntity && walletEntity.walletSubscriptionMessages) {
-                                const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-                                Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown' })));
-                            }
-
-                            await this._checkAndSubscribeToContract(tx.to);
-
-                            // Фильтрация approve транзакций TODO закончить
-                            const txReceipt = await this._provider.getTransactionReceipt(tx.hash);
-                            const logs = txReceipt.logs.map(log => {
-                                return new ethers.utils.Interface(this.ERC20_ABI).parseLog(log);
-                            });
-                            Logger.log(logs);
-                            if (!logs.some(log => log.name === 'Transfer')) {
-                                // continue;
-                                Logger.log(`Transaction is not a transfer: ${tx.hash}`);
-                            }
-                        }
-                    }
-                }),
-                catchError(error => {
-                    Logger.error(`Error processing block: ${error.message} ${error.message}`);
-                    return [];
-                })
-            )
-            .subscribe();
-
-        this._subscriptions.push(subscription);
-
-        const websocketErrorEvents$ = fromEvent(this._provider._websocket, "error");
-        const websocketCloseEvents$ = fromEvent(this._provider._websocket, "close");
-
-        this._subscriptions.push(
-            websocketErrorEvents$.subscribe((error: Error) => {
-                Logger.log(`WebSocket Error: ${error.message}`);
-            })
-        );
-
-        this._subscriptions.push(
-            websocketCloseEvents$.subscribe((code: number) => {
-                Logger.log(`WebSocket Closed: ${code}`);
-                Logger.log('Attempting to reconnect in 3 seconds...');
-                setTimeout(() => {
-                    this._provider = new ethers.providers.WebSocketProvider(this._config.getAlchemyWebsocketUrl());
-                    this._setupWebSocket();
-                }, 3000);
-            })
-        );
-
-        Logger.log('WebSocket connection established, listening for ERC-20 transfers involving target wallet...');
+                if (walletEntity && walletEntity.walletSubscriptionMessages) {
+                    const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+                    Promise.allSettled(entries.map(([chatId, messageId]) => this._telegramJobApiService.sendMessage(+chatId, message, { parse_mode: 'Markdown' })));
+                }
+            }
+        }
     }
 
     private _isWatchingTransaction(from: string, to: string) {
-        return this._watchingWalletsHashesMap.has(from) || (typeof to === 'string' && this._watchingWalletsHashesMap.has(to));
+        return this._watchingWalletsHashesMap.has(from.toLowerCase()) || (typeof to === 'string' && this._watchingWalletsHashesMap.has(to.toLowerCase()));
     }
 
     private _getWalletEntity(from: string, to: string): WalletEntity | undefined {
-        return this._targetWalletAddresses.find(wallet => wallet.hash === from || wallet.hash === to);
+        return this._targetWalletAddresses.find(wallet => wallet.hash === from.toLowerCase() || wallet.hash === to.toLowerCase());
     }
 
-    @Cron(CronExpression.EVERY_30_SECONDS)
-    async getActualWatchingWallets() {
+    private _formatTransactionMessage(walletEntity: WalletEntity | undefined, from: string, to: string, value: ethers.BigNumber, tokenData: Fungible | null, type: string, txHash: string): string {
+        const txUrl = this._config.getEtherscanTxUrl(txHash);
+        const valueFormatted = tokenData ? ethers.utils.formatUnits(value, 18) : ethers.utils.formatEther(value);
+
+        return [
+            `Wallet: \`${walletEntity?.hash}\` (${walletEntity?.alias})`,
+            `*${type} involving target wallet:*`,
+            `From: \`${from}\``,
+            `To: \`${to}\``,
+            `Value: ${valueFormatted} ${tokenData ? tokenData.symbol : 'ETH'}`,
+            `Transaction: [${txHash}](${txUrl})`
+        ].join('\n');
+    }
+
+    private _reconnectWebSocket() {
+        Logger.log('Attempting to reconnect WebSocket...');
+        this.alchemy.ws.removeAllListeners();
+        this._setupWebSocket();
+    }
+
+    @Cron(CronExpression.EVERY_MINUTE)
+    async getActualWatchingWalletsAndTokens() {
         const watchingWallets = await this._walletService.getWatchingWallets();
+        watchingWallets.forEach(wallet => wallet.hash = wallet.hash.toLowerCase());
         const watchingWalletsSet = new Set(watchingWallets.map(wallet => wallet.hash));
         const walletsForSubscribe = watchingWallets.filter(wallet => !this._watchingWalletsHashesMap.has(wallet.hash));
         const walletsForUnsubscribe = this._targetWalletAddresses.filter(wallet => !watchingWalletsSet.has(wallet.hash));
@@ -192,15 +263,24 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         walletsForUnsubscribe.forEach(wallet => this.removeTargetWalletAddress(wallet));
     }
 
-    private _formatTransactionMessage(walletEntity: WalletEntity | undefined, from: string, to: string, value: ethers.BigNumber, type: string, txHash: string): string {
-        const txUrl = this._config.getEtherscanTxUrl(txHash);
-        return [
-            `Wallet: \`${walletEntity?.hash}\` (${walletEntity?.alias})`,
-            `*${type} involving target wallet:*`,
-            `From: \`${from}\``,
-            `To: \`${to}\``,
-            `Value: ${ethers.utils.formatUnits(value, 18)}`,
-            `Transaction: [${txHash}](${txUrl})`
-        ].join('\n');
+    private _connectToBinanceWebSocket() {
+        const ws = new WebSocket('wss://stream.binance.com:9443/ws/ethusdt@trade');
+
+        ws.on('message', (data) => {
+            const trade = JSON.parse(data.toString());
+            const price = parseFloat(trade.p);
+            this.ethUsdPrice = price;
+        });
+
+        ws.on('error', (error) => {
+            Logger.error(`WebSocket Error: ${error.message}`);
+        });
+
+        ws.on('close', () => {
+            Logger.log('WebSocket connection closed. Attempting to reconnect...');
+            setTimeout(() => this._connectToBinanceWebSocket(), 3000);
+        });
+
+        Logger.log('Connected to Binance WebSocket for ETH/USD price updates.');
     }
 }
