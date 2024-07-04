@@ -129,18 +129,16 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     }
 
     private _setupWebSocket() {
-        const transferFilter = {
-            topics: [ethers.utils.id("Transfer(address,address,uint256)")],
-        };
+        
 
-        const swapFilter = {
-            topics: [ethers.utils.id("Swap(address,uint256,uint256,uint256,uint256,address)")],
-        };
+        
 
-        this.alchemy.ws.on(transferFilter, (log) => this.transferSubject.next(log));
-        this.alchemy.ws.on(swapFilter, (log) => this.swapSubject.next(log));
-
-        const transferEvents$ = this.transferSubject
+        if (this._config.isWebsocketTransfersWatcherEnabled) {
+            const transferFilter = {
+                topics: [ethers.utils.id("Transfer(address,address,uint256)")],
+            };
+            this.alchemy.ws.on(transferFilter, (log) => this.transferSubject.next(log));
+            const transferEvents$ = this.transferSubject
             .pipe(
                 bufferTime(1000),
                 filter((logs) => Array.isArray(logs) && logs.length > 0),
@@ -156,9 +154,16 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             )
             .subscribe();
 
-        this._subscriptions.push(transferEvents$);
+            this._subscriptions.push(transferEvents$);
+        }
+        
+        if (!this._config.isWebsocketSwapsWatcherEnabled) {
+            const swapFilter = {
+                topics: [ethers.utils.id("Swap(address,uint256,uint256,uint256,uint256,address)")],
+            };            
+            this.alchemy.ws.on(swapFilter, (log) => this.swapSubject.next(log));
 
-        const swapEvents$ = this.swapSubject
+            const swapEvents$ = this.swapSubject
             .pipe(
                 bufferTime(1000),
                 filter((logs) => Array.isArray(logs) && logs.length > 0),
@@ -174,7 +179,10 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             )
             .subscribe();
 
-        this._subscriptions.push(swapEvents$);
+            this._subscriptions.push(swapEvents$);
+        }
+
+        
 
         this.alchemy.ws.on("block", (blockNumber) => {
             this.blockSubject.next(blockNumber);

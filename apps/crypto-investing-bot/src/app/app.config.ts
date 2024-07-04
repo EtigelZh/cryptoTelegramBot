@@ -98,6 +98,9 @@ export class AppConfig {
   walletSearcherSourceEtherscanWallets: string[] = (process.env.WALLET_SEARCHER_ETHERSCAN_SOURCE_WALLETS || '0xe592427a0aece92de3edee1f18e0157c05861564,0x3328f7f4a1d1c57c35df56bbf0c9dcafca309c49,0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D,0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad,0x80a64c6d7f12c47b7c66c5b4e20e72bc1fcd5d9e,0x881d40237659c251811cec9c364ef91dc08d300c').split(',');
   walletSearcherEtherscanBatchSize: number = +(process.env.WALLET_SEARCHER_ETHERSCAN_BATCH_SIZE || 10000);
 
+  isWebsocketTransfersWatcherEnabled: boolean = process.env.IS_WEBSOCKET_TRANSFERS_WATCHER_ENABLED === 'true';
+  isWebsocketSwapsWatcherEnabled: boolean = process.env.IS_WEBSOCKET_SWAPS_WATCHER_ENABLED === 'true';
+
   cacheTTL: number = +(process.env.CACHE_TTL || 60_000 * 60 * 24);
   maxWalletsToUpdate: number = +(process.env.MAX_WALLETS_TO_UPDATE || 5);
 
