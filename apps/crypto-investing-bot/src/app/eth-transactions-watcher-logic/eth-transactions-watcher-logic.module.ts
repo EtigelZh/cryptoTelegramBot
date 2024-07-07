@@ -6,6 +6,8 @@ import { WalletModule } from "../wallet/wallet.module";
 import { EthMissingBlockCheckerService } from "./eth-missing-block-checker.service";
 import { EthTransferModule } from "../eth-transfer/eth-transfer.module";
 import { FungibleModule } from "../fungible/fungible.module";
+import { EthPriceService } from "./eth-price.service";
+import { EtherscanApiModule } from "../etherscan-api/etherscan-api.module";
 
 @Module({
     imports: [
@@ -14,8 +16,10 @@ import { FungibleModule } from "../fungible/fungible.module";
         FungibleModule,
         TelegrafModule,
         EthTransferModule,
+        EtherscanApiModule,
     ],
-    providers: [EthRuntimeWatcherService, EthMissingBlockCheckerService],
+    providers: [EthRuntimeWatcherService, EthPriceService, EthMissingBlockCheckerService],
+    exports: [EthPriceService],
 })
 export class EthTransactionsWatcherLogicModule {
 }

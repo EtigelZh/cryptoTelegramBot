@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { etherscanApiQueueName } from './etherscan-api.consumer';
 import { Queue } from 'bull';
-import { EthInternalTransaction, EthTransaction, EthTransfer, FetchErc20TransfersByContractArguments, FetchTransactionsArguments } from './etherscan-api.models';
+import { EthInternalTransaction, EthTransaction, EthTransfer, FetchErc20TransfersByContractArguments, FetchTransactionsArguments, LogsEtherscanApiParams } from './etherscan-api.models';
 import { EthTransferService } from '../eth-transfer/eth-transfer.service';
 import { inspect } from 'util';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
@@ -18,6 +18,21 @@ export class EtherscanClientJobApiService {
   }
 
   async fetchTransactions(jobArguments: FetchTransactionsArguments): Promise<EthTransaction[]> {
+    const job = await this._etherscanApiQueue.add('fetchTransactions', jobArguments);
+    return await job.finished();
+  }
+
+  async getLogsByBlockRangeAndTopics<T = unknown>(startBlock: number, endBlock: number, methodSignature: string, additionalParams?: LogsEtherscanApiParams): Promise<T[]> {
+    const jobArguments: LogsEtherscanApiParams = {
+      action: 'getLogs',
+      startblock: startBlock,
+      endblock: endBlock,
+      topic0: methodSignature,
+    };
+    if (additionalParams) {
+      Object.assign(jobArguments, additionalParams);
+    }
+
     const job = await this._etherscanApiQueue.add('fetchTransactions', jobArguments);
     return await job.finished();
   }

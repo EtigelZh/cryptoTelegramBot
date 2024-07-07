@@ -8,7 +8,8 @@ import { WalletEntity } from "../wallet/wallet.entity";
 import { TelegramJobApiService } from "../telegraf/telegram-job-api.service";
 import { Alchemy, Network } from "alchemy-sdk";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import WebSocket from 'ws';
+import { EthPriceService } from "./eth-price.service";
+import { EtherscanClientJobApiService } from "../etherscan-api/etherscan-client-job-api.service";
 
 type Log = { topics: Array<string>, data: string, transactionHash: string, blockNumber: number, removed: boolean, logIndex: number, address: string };
 type Fungible = { name: string, symbol: string, contractAddress: string };
@@ -26,7 +27,6 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private transferSubject = new Subject<Log>();
     private swapSubject = new Subject<Log>();
     private reconnectSubject = new Subject<void>();
-    private ethUsdPrice = 0;
 
     private readonly ERC20_ABI = [
         "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -35,15 +35,25 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         "function symbol() view returns (string)"
     ];
 
+    private readonly TRANSFER_EVENT_ABI = [
+        "event Transfer(address indexed from, address indexed to, uint256 value)"
+    ];
+      
+    private readonly SWAP_EVENT_API = [
+        "event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)"
+    ];
+
     private readonly POOL_ABI = [
         "function token0() external view returns (address)",
         "function token1() external view returns (address)"
     ];
 
     constructor(
-        private readonly _config: AppConfig, 
+        private readonly _config: AppConfig,
         private readonly _walletService: WalletService,
         private readonly _telegramJobApiService: TelegramJobApiService,
+        private readonly _ethPriceService: EthPriceService,
+        private readonly _etherscanApi: EtherscanClientJobApiService,
     ) {}
 
     async onModuleInit() {
@@ -53,7 +63,6 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         };
         this.alchemy = new Alchemy(settings);
         this._setupWebSocket();
-        this._connectToBinanceWebSocket();
     }
 
     async onModuleDestroy() {
@@ -129,16 +138,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     }
 
     private _setupWebSocket() {
-        
-
-        
 
         if (this._config.isWebsocketTransfersWatcherEnabled) {
             const transferFilter = {
                 topics: [ethers.utils.id("Transfer(address,address,uint256)")],
             };
             this.alchemy.ws.on(transferFilter, (log) => this.transferSubject.next(log));
-            const transferEvents$ = this.transferSubject
+        }
+
+        const transferEvents$ = this.transferSubject
             .pipe(
                 bufferTime(1000),
                 filter((logs) => Array.isArray(logs) && logs.length > 0),
@@ -155,15 +163,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             .subscribe();
 
             this._subscriptions.push(transferEvents$);
-        }
         
         if (!this._config.isWebsocketSwapsWatcherEnabled) {
             const swapFilter = {
                 topics: [ethers.utils.id("Swap(address,uint256,uint256,uint256,uint256,address)")],
             };            
             this.alchemy.ws.on(swapFilter, (log) => this.swapSubject.next(log));
+        }
 
-            const swapEvents$ = this.swapSubject
+        const swapEvents$ = this.swapSubject
             .pipe(
                 bufferTime(1000),
                 filter((logs) => Array.isArray(logs) && logs.length > 0),
@@ -180,13 +188,19 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             .subscribe();
 
             this._subscriptions.push(swapEvents$);
-        }
 
-        
-
-        this.alchemy.ws.on("block", (blockNumber) => {
+        this.alchemy.ws.on("block", async (blockNumber) => {
             this.blockSubject.next(blockNumber);
             this._handleBlock(blockNumber);
+            try {
+                const transfers = await this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(blockNumber - 1, blockNumber - 1, ethers.utils.id("Transfer(address,address,uint256)"));
+                const swaps = await this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(blockNumber - 1, blockNumber - 1, ethers.utils.id("Swap(address,uint256,uint256,uint256,uint256,address)"));
+                transfers.forEach(log => this.transferSubject.next(log));
+                swaps.forEach(log => this.swapSubject.next(log));
+                Logger.log(`Block ${blockNumber - 1} - Received ${transfers.length} transfer events, ${swaps.length} swap events`);
+            } catch (error) {
+                Logger.error(`Error processing block ${blockNumber}: ${error.message}`);
+            }
         });
 
         this.alchemy.ws.on("open", () => {
@@ -315,8 +329,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                     }
                 }
     
-                const amountUSD = (parseFloat(amountWETH) * this.ethUsdPrice).toFixed(2);
-                const tokenPerUsd = (parseFloat(tokenPerEth) / this.ethUsdPrice).toFixed(6);
+                const amountUSD = (parseFloat(amountWETH) * this._ethPriceService.price).toFixed(2);
+                const tokenPerUsd = (parseFloat(tokenPerEth) / this._ethPriceService.price).toFixed(6);
     
                 const message = `[${action} ${amountToken} ${tokenSymbol} ${action === 'BUY' ? '<=' : '=>'} ${amountWETH} WETH (~$${amountUSD}). Price: 1 ETH = ~${tokenPerEth} ${tokenSymbol}, 1$ = ~${tokenPerUsd} ${tokenSymbol}](${this._config.getEtherscanTxUrl(log.transactionHash)})`;
                 Logger.log(message);
@@ -358,11 +372,11 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     }
 
     private _isWatchingTransaction(from: string, to: string) {
-        return this._watchingWalletsHashesMap.has(from.toLowerCase()) || (typeof to === 'string' && this._watchingWalletsHashesMap.has(to.toLowerCase()));
+        return this._watchingWalletsHashesMap.has(from?.toLowerCase()) || (typeof to === 'string' && this._watchingWalletsHashesMap.has(to?.toLowerCase()));
     }
 
     private _getWalletEntity(from: string, to: string): WalletEntity | undefined {
-        return this._targetWalletAddresses.find(wallet => wallet.hash === from.toLowerCase() || wallet.hash === to.toLowerCase());
+        return this._targetWalletAddresses.find(wallet => wallet.hash === from?.toLowerCase() || wallet.hash === to?.toLowerCase());
     }
 
     private async _getTransactionFromCache(txHash: string, blockNumber: number): Promise<ethers.providers.TransactionResponse | null> {
@@ -396,33 +410,14 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     @Cron(CronExpression.EVERY_MINUTE)
     async getActualWatchingWalletsAndTokens() {
         const watchingWallets = await this._walletService.getWatchingWallets();
-        watchingWallets.forEach(wallet => wallet.hash = wallet.hash.toLowerCase());
+        watchingWallets.forEach(wallet => wallet.hash = wallet.hash?.toLowerCase());
         const watchingWalletsSet = new Set(watchingWallets.map(wallet => wallet.hash));
         const walletsForSubscribe = watchingWallets.filter(wallet => !this._watchingWalletsHashesMap.has(wallet.hash));
         const walletsForUnsubscribe = this._targetWalletAddresses.filter(wallet => !watchingWalletsSet.has(wallet.hash));
 
         walletsForSubscribe.forEach(wallet => this.addTargetWalletAddress(wallet));
         walletsForUnsubscribe.forEach(wallet => this.removeTargetWalletAddress(wallet));
-    }
 
-    private _connectToBinanceWebSocket() {
-        const ws = new WebSocket('wss://stream.binance.com:9443/ws/ethusdt@trade');
-
-        ws.on('message', (data) => {
-            const trade = JSON.parse(data.toString());
-            const price = parseFloat(trade.p);
-            this.ethUsdPrice = price;
-        });
-
-        ws.on('error', (error) => {
-            Logger.error(`WebSocket Error: ${error.message}`);
-        });
-
-        ws.on('close', () => {
-            Logger.log('WebSocket connection closed. Attempting to reconnect...');
-            setTimeout(() => this._connectToBinanceWebSocket(), 3000);
-        });
-
-        Logger.log('Connected to Binance WebSocket for ETH/USD price updates.');
+        // TODO получить список ассетов -> получаем список адресов токенов для отслеживания realtime цены монета/эфир (скорей всего нужно получить список адресов пулов + перерасчитываем цену на токены в каждом пуле)
     }
 }

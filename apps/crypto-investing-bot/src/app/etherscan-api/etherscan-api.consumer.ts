@@ -1,6 +1,6 @@
 import { EtherscanApiClientService } from './etherscan-api-client.service';
 import { Process, Processor } from '@nestjs/bull';
-import { AccountActionArguments, FetchErc20TransfersByContractArguments, FetchInternalTransactionsByBlockRangeArguments, FetchTransactionsArguments } from './etherscan-api.models';
+import { AccountActionArguments, FetchErc20TransfersByContractArguments, FetchInternalTransactionsByBlockRangeArguments, FetchTransactionsArguments, LogsEtherscanApiParams } from './etherscan-api.models';
 import { Job } from 'bull';
 
 export const etherscanApiQueueName = 'etherscan-api';
@@ -19,8 +19,9 @@ export class EtherscanApiConsumer {
       return this._etherscanApiClientService.fetchErc20TransfersByContract(job.data);
     } else if (this._isFetchInternalTransactionsByBlockRangeArguments(job.data)) {
       return this._etherscanApiClientService.fetchInternalTransactionsByBlockRange(job.data);
+    } else if (this._isGetLogsArguments(job.data)) {
+      return this._etherscanApiClientService.fetchLogsByBlockRangeAndTopics(job.data);
     }
-    
   }
 
   private _isFetchTransactionsArguments(data: AccountActionArguments): data is FetchTransactionsArguments {
@@ -33,6 +34,10 @@ export class EtherscanApiConsumer {
 
   private _isFetchInternalTransactionsByBlockRangeArguments(data: AccountActionArguments): data is FetchInternalTransactionsByBlockRangeArguments {
     return data.action === 'txlistinternal';
+  }
+
+  private _isGetLogsArguments(data: AccountActionArguments): data is LogsEtherscanApiParams {
+    return data.action === 'getLogs';
   }
 
 }

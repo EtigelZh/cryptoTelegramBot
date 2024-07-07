@@ -9,6 +9,7 @@ import { BigNumber } from '@ethersproject/bignumber';
 import ERC20_abi from "./ERC20-abi.json";
 import dotenv from 'dotenv';
 import { resolve } from "path";
+import { Logger } from "@nestjs/common";
 
 const WETH_ADDRESS_NETWORK_MAP = {
     [1]: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
@@ -59,7 +60,7 @@ export async function swapTokens({
         throw new Error(`WETH address is not defined for chainId ${chainId}`);
     }
 
-    const isETH = (address) => address.toLowerCase() === ethers.constants.AddressZero.toLowerCase();
+    const isETH = (address) => address?.toLowerCase() === ethers.constants.AddressZero?.toLowerCase();
 
     let tokenIn, tokenOut, balanceTokenIn, balanceTokenOut, tokenOutContract, tokenInContract;
     if (isETH(tokenInAddress)) {
@@ -80,11 +81,11 @@ export async function swapTokens({
     }
 
     try {
-        console.log(`Wallet ${walletAddress} balances:`);
-        console.log(`   Input: ${tokenIn.symbol} (${tokenIn.name}): ${ethers.utils.formatUnits(balanceTokenIn, tokenIn.decimals)}`);
-        console.log(`   Output: ${tokenOut.symbol} (${tokenOut.name}): ${ethers.utils.formatUnits(balanceTokenOut, tokenOut.decimals)}`);    
-    } catch (e) {
-        console.log(e);
+        Logger.log(`Wallet ${walletAddress} balances:`);
+        Logger.log(`   Input: ${tokenIn.symbol} (${tokenIn.name}): ${ethers.utils.formatUnits(balanceTokenIn, tokenIn.decimals)}`);
+        Logger.log(`   Output: ${tokenOut.symbol} (${tokenOut.name}): ${ethers.utils.formatUnits(balanceTokenOut, tokenOut.decimals)}`);    
+    } catch (error) {
+        Logger.error(`Error while logging balances: ${error}`);
     }
 
     const factoryContract = new ethers.Contract(UNISWAP_FACTORY_ADDRESS, IUniswapV3Factory.abi, provider);

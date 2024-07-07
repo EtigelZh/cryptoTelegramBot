@@ -1,4 +1,4 @@
-export type AccountActionArguments = FetchTransactionsArguments | FetchErc20TransfersByContractArguments | FetchInternalTransactionsByBlockRangeArguments;
+export type AccountActionArguments = FetchTransactionsArguments | FetchErc20TransfersByContractArguments | FetchInternalTransactionsByBlockRangeArguments | LogsEtherscanApiParams;
 
 export type AccountActionCommonArguments = {
   page?: number;
@@ -205,4 +205,27 @@ export type EthTransfer = {
    * Количество подтверждений транзакции
    */
   confirmations: string;
+};
+
+export type AccountEtherscanApiParams = {
+  address?: string;
+  contractAddress?: string;
+} & AccountActionCommonArguments;
+
+export type LogsEtherscanApiParams = {
+  action?: 'getLogs';
+  startblock: number;
+  endblock: number;
+  page?: number;
+  offset?: number;
+  topic0: string;
+  topic1?: string;
+  topic2?: string;
+  topic3?: string;
+  topic0_1_opr?: 'and' | 'or';
+  topic1_2_opr?: 'and' | 'or';
+  topic2_3_opr?: 'and' | 'or';
+  topic0_2_opr?: 'and' | 'or';
+  topic0_3_opr?: 'and' | 'or';
+  topic1_3_opr?: 'and' | 'or';
 };
