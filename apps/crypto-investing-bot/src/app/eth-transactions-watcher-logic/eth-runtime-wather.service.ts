@@ -22,6 +22,7 @@ import { Alchemy, Network } from 'alchemy-sdk';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EthPriceService } from './eth-price.service';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
+import { inspect } from 'util';
 
 type Log = {
   topics: Array<string>;
@@ -263,11 +264,20 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
     this._subscriptions.push(swapEvents$);
 
+    const mockBlocks = [
+      20260760, 20263549, 20264042, 20264909, 20265268, 20265890, 20270922,
+      20271864, 20273761,
+    ].reduce((acc, blockNo) => [...acc, blockNo - 1, blockNo, blockNo + 1], []);
+    let index = 0;
     this.alchemy.ws.on('block', async (blockNumber) => {
+      index = (index + 1) % (mockBlocks.length - 1);
+      blockNumber = mockBlocks[index];
+
       this.blockSubject.next(blockNumber);
       this._handleBlock(blockNumber);
       try {
         const prevBlock = blockNumber - 1;
+        Logger.log(`Fetch logs for block ${prevBlock}`);
         const [transfers, swaps] = await Promise.all([
           this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(
             prevBlock,
@@ -286,6 +296,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           (entry) => entry.blockNumber === prevBlock
         );
         if (foundCacheEntry) {
+          Logger.debug(`Set logging for block ${foundCacheEntry.blockNumber}`);
           foundCacheEntry.transfers = transfers;
           foundCacheEntry.swaps = swaps;
         } else {
@@ -296,7 +307,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         transfers.forEach((log) => this.transferSubject.next(log));
 
         Logger.log(
-          `Block ${prevBlock} - Received ${transfers.length} transfer events, ${swaps.length} swap events`
+          `Block ${prevBlock} - Received ${transfers?.length} transfer events, ${swaps?.length} swap events`
         );
       } catch (error) {
         Logger.error(`Error processing block ${blockNumber}: ${error.message}`);
@@ -350,11 +361,11 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     );
 
     for (const blockNumber in logsByBlock) {
-      const blockLogs = logsByBlock[blockNumber].logs;
+      const blockLogs = logsByBlock[blockNumber]?.logs;
       const emptyDataLogsCount = logsByBlock[blockNumber].emptyDataLogsCount;
 
       Logger.log(
-        `Block ${blockNumber} - Received ${blockLogs.length} transfer events; ${emptyDataLogsCount} logs with empty data; ${this._tokensMap.size} tokens cached.`
+        `Block ${blockNumber} - Received ${blockLogs?.length} transfer events; ${emptyDataLogsCount} logs with empty data; ${this._tokensMap.size} tokens cached.`
       );
 
       blockLogs
@@ -373,7 +384,11 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
               return;
             }
             const walletEntity = this._getWalletEntity(from, to);
-
+            Logger.log(
+              `walletEntity?.hash ${
+                walletEntity?.hash
+              } From: ${from.toLowerCase()}`
+            );
             // TODO проверяем что walletEntity -> from topic1 - извлекаем topic2 (адрес второго трансфера)
             if (walletEntity?.hash === from.toLowerCase()) {
               // Ищем связанный transfer по topic0 и topic1 -> получаем topic2(адрес свапа)
@@ -382,8 +397,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
               );
               if (secondWethTransfer) {
                 const secondTransferParsedLog = secondWethTransfer.parsedLog;
-                const { to: secondTo, value: secondValue } =
-                  secondTransferParsedLog.args;
+                const { to: secondTo } = secondTransferParsedLog.args;
                 // Ищем нужный нам swap -> из него видно всю экономику
                 const swap = this._blockCache
                   .find((block) => block.blockNumber === +blockNumber)
@@ -432,89 +446,87 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
   private async _handleSwap(walletEntity: WalletEntity, log: Log) {
     if (!log?.parsedLog) {
-        Logger.warn('Parsed log is missing');
-        return;
+      Logger.warn('Parsed log is missing');
+      return;
     }
     const { amount0In, amount1In, amount0Out, amount1Out } = log.parsedLog.args;
     const [token0Address, token1Address] = await this._getTokenAddresses(
-        log.address
-      );
+      log.address
+    );
 
-      const token0 = await this._getTokenMetaData(token0Address);
-      const token1 = await this._getTokenMetaData(token1Address);
+    const token0 = await this._getTokenMetaData(token0Address);
+    const token1 = await this._getTokenMetaData(token1Address);
 
-      const amount0InFormatted = ethers.utils.formatUnits(amount0In, 18);
-      const amount1InFormatted = ethers.utils.formatUnits(amount1In, 18);
-      const amount0OutFormatted = ethers.utils.formatUnits(amount0Out, 18);
-      const amount1OutFormatted = ethers.utils.formatUnits(amount1Out, 18);
+    const amount0InFormatted = ethers.utils.formatUnits(amount0In, 18);
+    const amount1InFormatted = ethers.utils.formatUnits(amount1In, 18);
+    const amount0OutFormatted = ethers.utils.formatUnits(amount0Out, 18);
+    const amount1OutFormatted = ethers.utils.formatUnits(amount1Out, 18);
 
-      let action, amountToken, amountWETH, tokenSymbol, tokenPerEth;
+    let action, amountToken, amountWETH, tokenSymbol, tokenPerEth;
 
-      if (token0.symbol === 'WETH') {
-        if (parseFloat(amount0InFormatted) > 0) {
-          action = 'BUY';
-          amountToken = amount1OutFormatted;
-          amountWETH = amount0InFormatted;
-          tokenSymbol = token1.symbol;
-          tokenPerEth = (
-            parseFloat(amount1OutFormatted) / parseFloat(amount0InFormatted)
-          ).toFixed(6);
-        } else {
-          action = 'SELL';
-          amountToken = amount1InFormatted;
-          amountWETH = amount0OutFormatted;
-          tokenSymbol = token1.symbol;
-          tokenPerEth = (
-            parseFloat(amount1InFormatted) / parseFloat(amount0OutFormatted)
-          ).toFixed(6);
-        }
+    if (token0.symbol === 'WETH') {
+      if (parseFloat(amount0InFormatted) > 0) {
+        action = 'BUY';
+        amountToken = amount1OutFormatted;
+        amountWETH = amount0InFormatted;
+        tokenSymbol = token1.symbol;
+        tokenPerEth = (
+          parseFloat(amount1OutFormatted) / parseFloat(amount0InFormatted)
+        ).toFixed(6);
       } else {
-        if (parseFloat(amount1InFormatted) > 0) {
-          action = 'BUY';
-          amountToken = amount0OutFormatted;
-          amountWETH = amount1InFormatted;
-          tokenSymbol = token0.symbol;
-          tokenPerEth = (
-            parseFloat(amount0OutFormatted) / parseFloat(amount1InFormatted)
-          ).toFixed(6);
-        } else {
-          action = 'SELL';
-          amountToken = amount0InFormatted;
-          amountWETH = amount1OutFormatted;
-          tokenSymbol = token0.symbol;
-          tokenPerEth = (
-            parseFloat(amount0InFormatted) / parseFloat(amount1OutFormatted)
-          ).toFixed(6);
-        }
+        action = 'SELL';
+        amountToken = amount1InFormatted;
+        amountWETH = amount0OutFormatted;
+        tokenSymbol = token1.symbol;
+        tokenPerEth = (
+          parseFloat(amount1InFormatted) / parseFloat(amount0OutFormatted)
+        ).toFixed(6);
       }
-
-      const amountUSD = (
-        parseFloat(amountWETH) * this._ethPriceService.price
-      ).toFixed(2);
-      const tokenPerUsd = (
-        parseFloat(tokenPerEth) / this._ethPriceService.price
-      ).toFixed(6);
-
-      const message = `[${action} ${amountToken} ${tokenSymbol} ${
-        action === 'BUY' ? '<=' : '=>'
-      } ${amountWETH} WETH (~$${amountUSD}). Price: 1 ETH = ~${tokenPerEth} ${tokenSymbol}, 1$ = ~${tokenPerUsd} ${tokenSymbol}](${this._config.getEtherscanTxUrl(
-        log.transactionHash
-      )})`;
-      Logger.log(message);
-
-      if (walletEntity && walletEntity.walletSubscriptionMessages) {
-        const entries = Object.entries(
-          walletEntity.walletSubscriptionMessages
-        );
-        Promise.allSettled(
-          entries.map(([chatId, messageId]) =>
-            this._telegramJobApiService.sendMessage(+chatId, message, {
-              parse_mode: 'Markdown',
-              disable_web_page_preview: true,
-            })
-          )
-        );
+    } else {
+      if (parseFloat(amount1InFormatted) > 0) {
+        action = 'BUY';
+        amountToken = amount0OutFormatted;
+        amountWETH = amount1InFormatted;
+        tokenSymbol = token0.symbol;
+        tokenPerEth = (
+          parseFloat(amount0OutFormatted) / parseFloat(amount1InFormatted)
+        ).toFixed(6);
+      } else {
+        action = 'SELL';
+        amountToken = amount0InFormatted;
+        amountWETH = amount1OutFormatted;
+        tokenSymbol = token0.symbol;
+        tokenPerEth = (
+          parseFloat(amount0InFormatted) / parseFloat(amount1OutFormatted)
+        ).toFixed(6);
       }
+    }
+
+    const amountUSD = (
+      parseFloat(amountWETH) * this._ethPriceService.price
+    ).toFixed(2);
+    const tokenPerUsd = (
+      parseFloat(tokenPerEth) / this._ethPriceService.price
+    ).toFixed(6);
+
+    const message = `[${action} ${amountToken} ${tokenSymbol} ${
+      action === 'BUY' ? '<=' : '=>'
+    } ${amountWETH} WETH (~$${amountUSD}). Price: 1 ETH = ~${tokenPerEth} ${tokenSymbol}, 1$ = ~${tokenPerUsd} ${tokenSymbol}](${this._config.getEtherscanTxUrl(
+      log.transactionHash
+    )})`;
+    Logger.log(message);
+
+    if (walletEntity && walletEntity.walletSubscriptionMessages) {
+      const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+      Promise.allSettled(
+        entries.map(([chatId, messageId]) =>
+          this._telegramJobApiService.sendMessage(+chatId, message, {
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
+          })
+        )
+      );
+    }
   }
 
   private async _processSwapLogs(logs: Log[]) {
@@ -524,8 +536,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           log
         );
         log.parsedLog = parsedLog;
-        const { sender, to } =
-          parsedLog.args;
+        const { sender, to } = parsedLog.args;
 
         let walletEntity = this._getWalletEntity(sender, to);
         if (!walletEntity) {
@@ -538,7 +549,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         if (!walletEntity) {
           log.processingHandler = (wallet: WalletEntity) => {
             Logger.debug(`Call processing swap handler`);
-            this._handleSwap(wallet, log)
+            this._handleSwap(wallet, log);
           };
           return;
         }
@@ -554,10 +565,10 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
   private async _handleBlock(blockNumber: number) {
     const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
     Logger.log(
-      `New block received: ${blockNumber} Transactions: ${block.transactions.length} ${this._watchingWalletsHashesMap.size}`
+      `New block received: ${blockNumber} Transactions: ${block.transactions?.length} ${this._watchingWalletsHashesMap.size}`
     );
 
-    this._blockCache.push({ blockNumber, transactions: block.transactions });
+    this._blockCache.push(Object.assign(block, { blockNumber }));
     if (this._blockCache.length > 30) {
       this._blockCache.shift();
     }
@@ -658,6 +669,17 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async getActualWatchingWalletsAndTokens() {
+    Logger.log(
+      `Cache ${inspect(
+        this._blockCache.map((block) => ({
+          blockNo: block.blockNumber,
+          swaps: block.swaps?.length,
+          transfers: block.transfers?.length,
+        })),
+        false,
+        6
+      )}`
+    );
     const watchingWallets = await this._walletService.getWatchingWallets();
     watchingWallets.forEach(
       (wallet) => (wallet.hash = wallet.hash?.toLowerCase())
