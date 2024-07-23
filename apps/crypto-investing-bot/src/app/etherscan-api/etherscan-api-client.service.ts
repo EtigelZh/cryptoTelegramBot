@@ -134,7 +134,7 @@ export class EtherscanApiClientService {
       return response.data.result;
     };
 
-    return await this.retryRequest(requestFn);
+    return await this.retryRequest(requestFn, params.retryParams?.length || 3, params.retryParams || [4000, 8000, 24000]);
   }
 
   private async retryRequest<T = unknown>(requestFn: () => Promise<unknown>, retries = 3, delayTimes: number[] = [4000, 8000, 24000]): Promise<T> {
@@ -151,8 +151,8 @@ export class EtherscanApiClientService {
           Logger.warn(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delayTime / 1000} seconds...`);
           await new Promise(resolve => setTimeout(resolve, delayTime));
         } else {
-          Logger.error('Attempt ${attempt + 1} failed: ${error.message}. Failed to fetch logs after 3 attempts');
-          throw new Error('Failed to fetch logs after 3 attempts');
+          Logger.error(`Attempt ${attempt + 1} failed: ${error.message}. Failed to fetch logs after 3 attempts`);
+          throw new Error(`Failed to fetch logs after ${delayTimes.length} attempts`);
         }
       }
     }

@@ -22,7 +22,7 @@ export class EtherscanClientJobApiService {
     return await job.finished();
   }
 
-  async getLogsByBlockRangeAndTopics<T = unknown>(startBlock: number, endBlock: number, methodSignature: string, additionalParams?: LogsEtherscanApiParams): Promise<T[]> {
+  async getLogsByBlockRangeAndTopics<T = unknown>(startBlock: number, endBlock: number, methodSignature: string, additionalParams?: LogsEtherscanApiParams, retryParams?: number[]): Promise<T[]> {
     const jobArguments: LogsEtherscanApiParams = {
       action: 'getLogs',
       startblock: startBlock,
@@ -31,6 +31,10 @@ export class EtherscanClientJobApiService {
     };
     if (additionalParams) {
       Object.assign(jobArguments, additionalParams);
+    }
+
+    if (retryParams) {
+      jobArguments.retryParams = retryParams;
     }
 
     const job = await this._etherscanApiQueue.add('fetchTransactions', jobArguments);
