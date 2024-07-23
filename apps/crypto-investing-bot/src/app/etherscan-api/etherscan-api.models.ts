@@ -228,4 +228,5 @@ export type LogsEtherscanApiParams = {
   topic0_2_opr?: 'and' | 'or';
   topic0_3_opr?: 'and' | 'or';
   topic1_3_opr?: 'and' | 'or';
+  retryParams?: number[];
 };
