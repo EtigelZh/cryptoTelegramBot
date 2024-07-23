@@ -110,7 +110,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
               prevBlock,
               ethers.utils.id(
                 'Swap(address,uint256,uint256,uint256,uint256,address)'
-              )
+              ),
+              undefined,
+              [12_000, 24_000]
             ).catch((error) => {
               Logger.error(error);
               return [];
@@ -120,7 +122,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
               prevBlock,
               ethers.utils.id('SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'),
               undefined,
-              [12_000],
+              [36_000],
             ).catch((error) => {
               Logger.error(error);
               return [];
