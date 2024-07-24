@@ -204,11 +204,11 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
   private async _handleSwap(walletEntity: WalletEntity, log: Log) {
     const { action, amountToken, tokenSymbol, amountWETH, amountUSD, tokenPerEth, tokenPerUsd } = await handleSwap(log, this._provider, this._poolsCache, this._tokensMap, this._ethPriceService.price);
-    const message = `[${action} ${amountToken} ${tokenSymbol} ${
-      action === 'BUY' ? '<=' : '=>'
-    } ${amountWETH} WETH (~$${amountUSD}). Price: 1 ETH = ~${tokenPerEth} ${tokenSymbol}, 1$ = ~${tokenPerUsd} ${tokenSymbol}](${this._config.getEtherscanTxUrl(
+    const message = `[${walletEntity?.alias || walletEntity?.hash}](${this._config.getEtherscanTxUrl(
       log.transactionHash
-    )})`;
+    )}) ${action} ${amountToken} ${tokenSymbol} ${
+      action === 'BUY' ? '<=' : '=>'
+    } ${amountWETH} WETH (~$${amountUSD}). Price: 1 ETH = ~${tokenPerEth} ${tokenSymbol}, 1$ = ~${tokenPerUsd} ${tokenSymbol}`;
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {
