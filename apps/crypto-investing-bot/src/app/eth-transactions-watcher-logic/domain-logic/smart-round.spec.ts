@@ -8,12 +8,14 @@ describe('smartRound', () => {
   });
 
   test('handles small fractions', () => {
-    expect(smartRound(0.123123)).toBe('0.12');
-    expect(smartRound(0.562148042210)).toBe('0.56');
-    expect(smartRound(0.00012321)).toBe('0.00012');
+    expect(smartRound(0.0012)).toBe('0.0012');
+    expect(smartRound(0.00123)).toBe('0.00123');
+    expect(smartRound(0.123123)).toBe('0.123');
+    expect(smartRound(0.562148042210)).toBe('0.562');
+    expect(smartRound(0.00012321)).toBe('0.000123');
     expect(smartRound(0.000000000001)).toBe('0.000000000001');
-    expect(smartRound(0.000000000001221231)).toBe('0.0000000000012');
-    expect(smartRound(0.000000000001251231)).toBe('0.0000000000013');
+    expect(smartRound(0.000000000001221231)).toBe('0.00000000000122');
+    expect(smartRound(0.000000000001255231)).toBe('0.00000000000126');
   });
 
   test('rounds fractions', () => {
