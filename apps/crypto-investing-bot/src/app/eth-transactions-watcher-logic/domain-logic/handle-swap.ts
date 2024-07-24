@@ -5,13 +5,13 @@ import { getTokenAddresses } from './get-token-address';
 import { ERC20_ABI, getTokenMetaData } from './get-token-metadata';
 
 export type HandledSwap = {
-  action: string;
-  amountToken: string;
-  amountWETH: string;
-  amountUSD: string;
+  action: 'BUY' | 'SELL';
+  amountToken: number;
+  amountWETH: number;
+  amountUSD: number;
   tokenSymbol: string;
-  tokenPerEth: string;
-  tokenPerUsd: string;
+  tokenPerEth: number;
+  tokenPerUsd: number;
 };
 
 export async function handleSwap(
@@ -63,7 +63,7 @@ export async function handleSwap(
       tokenSymbol = token1.symbol;
       tokenPerEth = (
         parseFloat(amount1OutFormatted) / parseFloat(amount0InFormatted)
-      ).toFixed(6);
+      );
     } else {
       action = 'SELL';
       amountToken = amount1InFormatted;
@@ -71,7 +71,7 @@ export async function handleSwap(
       tokenSymbol = token1.symbol;
       tokenPerEth = (
         parseFloat(amount1InFormatted) / parseFloat(amount0OutFormatted)
-      ).toFixed(6);
+      );
     }
   } else {
     if (parseFloat(amount1InFormatted) > 0) {
@@ -81,7 +81,7 @@ export async function handleSwap(
       tokenSymbol = token0.symbol;
       tokenPerEth = (
         parseFloat(amount0OutFormatted) / parseFloat(amount1InFormatted)
-      ).toFixed(6);
+      );
     } else {
       action = 'SELL';
       amountToken = amount0InFormatted;
@@ -89,12 +89,12 @@ export async function handleSwap(
       tokenSymbol = token0.symbol;
       tokenPerEth = (
         parseFloat(amount0InFormatted) / parseFloat(amount1OutFormatted)
-      ).toFixed(6);
+      );
     }
   }
 
-  const amountUSD = (parseFloat(amountWETH) * ethPrice).toFixed(2);
-  const tokenPerUsd = (parseFloat(tokenPerEth) / ethPrice).toFixed(6);
+  const amountUSD = (parseFloat(amountWETH) * ethPrice);
+  const tokenPerUsd = (parseFloat(tokenPerEth) / ethPrice);
 
   return {
     action,

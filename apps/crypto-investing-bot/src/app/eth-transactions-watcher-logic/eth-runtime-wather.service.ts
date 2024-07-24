@@ -17,6 +17,7 @@ import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-
 import { inspect } from 'util';
 import { handleSwap } from './domain-logic/handle-swap';
 import { Fungible, Log } from './domain-logic/models';
+import { smartRound } from './domain-logic/smart-round';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -102,41 +103,39 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       try {
         const prevBlock = blockNumber;
         Logger.log(`Fetch logs for block ${prevBlock}`);
-        const [block, swaps] = await Promise.all([
+        const [block, commonSwaps, erc20Swaps] = await Promise.all([
           this.alchemy.core.getBlockWithTransactions(blockNumber),
-          Promise.race([
-            this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(
-              prevBlock,
-              prevBlock,
-              ethers.utils.id(
-                'Swap(address,uint256,uint256,uint256,uint256,address)'
-              ),
-              undefined,
-              [12_000, 24_000]
-            ).catch((error) => {
-              Logger.error(error);
-              return [];
-            }),
-            this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(
-              prevBlock,
-              prevBlock,
-              ethers.utils.id('SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'),
-              undefined,
-              [36_000],
-            ).catch((error) => {
-              Logger.error(error);
-              return [];
-            }),
-          ]),
+          this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(
+            prevBlock,
+            prevBlock,
+            ethers.utils.id(
+              'Swap(address,uint256,uint256,uint256,uint256,address)'
+            ),
+            undefined,
+            [12_000, 12_000]
+          ).catch((error) => {
+            Logger.error(error);
+            return [];
+          }),
+          this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(
+            prevBlock,
+            prevBlock,
+            ethers.utils.id('SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'),
+            undefined,
+            [24_000],
+          ).catch((error) => {
+            Logger.error(error);
+            return [];
+          }),
         ]);
         const blockTransactions = block.transactions;
-
+        const swaps = [...commonSwaps, ...erc20Swaps];
+        
         Logger.log(`Block ${blockNumber} - Received ${blockTransactions?.length} transactions ${swaps?.length} swap events`);
 
         const walletHashes = this._targetWalletAddresses.map(
           (wallet) => wallet.hash?.toLocaleLowerCase()
         );
-
         const dexTransactions = await this._findDexTransactions(
           block,
           swaps,
@@ -206,9 +205,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     const { action, amountToken, tokenSymbol, amountWETH, amountUSD, tokenPerEth, tokenPerUsd } = await handleSwap(log, this._provider, this._poolsCache, this._tokensMap, this._ethPriceService.price);
     const message = `[${walletEntity?.alias || walletEntity?.hash}](${this._config.getEtherscanTxUrl(
       log.transactionHash
-    )}) ${action} ${amountToken} ${tokenSymbol} ${
+    )}) ${action} ${smartRound(amountToken)} ${tokenSymbol} ${
       action === 'BUY' ? '<=' : '=>'
-    } ${amountWETH} WETH (~$${amountUSD}). Price: 1 ETH = ~${tokenPerEth} ${tokenSymbol}, 1$ = ~${tokenPerUsd} ${tokenSymbol}`;
+    } ${smartRound(amountWETH)} WETH (~$${smartRound(amountUSD)}). Price: 1 ETH = ~${smartRound(tokenPerEth)} ${tokenSymbol}, 1$ = ~${smartRound(tokenPerUsd)} ${tokenSymbol}`;
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {
