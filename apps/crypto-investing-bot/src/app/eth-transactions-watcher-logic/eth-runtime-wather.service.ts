@@ -15,7 +15,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { EthPriceService } from './eth-price.service';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
 import { inspect } from 'util';
-import { handleSwap } from './domain-logic/handle-swap';
+import { formatAction, handleSwap } from './domain-logic/handle-swap';
 import { Fungible, Log } from './domain-logic/models';
 import { smartRound } from './domain-logic/smart-round';
 
@@ -99,7 +99,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     this.alchemy.ws.on('block', async (blockNumber) => {
       Logger.log(`Block ${blockNumber} received`);
       // blockNumber = 20370183;      
-      // blockNumber = 20369801;      
+      //blockNumber = 20369801;      
       try {
         const prevBlock = blockNumber;
         Logger.log(`Fetch logs for block ${prevBlock}`);
@@ -202,12 +202,13 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async _handleSwap(walletEntity: WalletEntity, log: Log) {
-    const { action, amountToken, tokenSymbol, amountWETH, amountUSD, tokenPerEth, tokenPerUsd } = await handleSwap(log, this._provider, this._poolsCache, this._tokensMap, this._ethPriceService.price);
-    const message = `[${walletEntity?.alias || walletEntity?.hash}](${this._config.getEtherscanTxUrl(
-      log.transactionHash
-    )}) ${action} ${smartRound(amountToken)} ${tokenSymbol} ${
-      action === 'BUY' ? '<=' : '=>'
-    } ${smartRound(amountWETH)} WETH (~$${smartRound(amountUSD)}). Price: 1 ETH = ~${smartRound(tokenPerEth)} ${tokenSymbol}, 1$ = ~${smartRound(tokenPerUsd)} ${tokenSymbol}`;
+    const { action, amountToken, tokenSymbol, amountWETH, amountUSD, tokenPerEth, tokenPerUsd, usdPerToken, ethPerToken, ethPrice } = await handleSwap(log, this._provider, this._poolsCache, this._tokensMap, this._ethPriceService.price);
+    const message = [
+      `${formatAction(action)} [${walletEntity?.alias || walletEntity?.hash}](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
+      `${smartRound(amountToken)} ${tokenSymbol} ${action === 'BUY' ? '←' : '→'} ${smartRound(amountWETH)} ETH (${smartRound(amountUSD)}$)`,
+      `1 ETH = ${smartRound(tokenPerEth)} ${tokenSymbol}, 1$ = ${smartRound(tokenPerUsd)} ${tokenSymbol}`,
+      `1 ${tokenSymbol} = ${smartRound(ethPerToken)} ETH (${smartRound(usdPerToken)}$), 1 ETH = ${smartRound(ethPrice)}$`,
+    ].join('\n');
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {

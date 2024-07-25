@@ -4,6 +4,10 @@ import { Fungible, Log } from './models';
 import { getTokenAddresses } from './get-token-address';
 import { ERC20_ABI, getTokenMetaData } from './get-token-metadata';
 
+export function formatAction(action: HandledSwap['action']): string {
+  return action === 'BUY' ? '💸 BUY' : '💰 SELL';
+}
+
 export type HandledSwap = {
   action: 'BUY' | 'SELL';
   amountToken: number;
@@ -12,6 +16,9 @@ export type HandledSwap = {
   tokenSymbol: string;
   tokenPerEth: number;
   tokenPerUsd: number;
+  ethPrice: number;
+  ethPerToken: number;
+  usdPerToken: number;
 };
 
 export async function handleSwap(
@@ -53,7 +60,7 @@ export async function handleSwap(
   const amount0OutFormatted = ethers.utils.formatUnits(amount0Out, 18);
   const amount1OutFormatted = ethers.utils.formatUnits(amount1Out, 18);
 
-  let action, amountToken, amountWETH, tokenSymbol, tokenPerEth;
+  let action, amountToken, amountWETH, tokenSymbol, tokenPerEth, ethPerToken;
 
   if (token0.symbol === 'WETH') {
     if (parseFloat(amount0InFormatted) > 0) {
@@ -64,6 +71,9 @@ export async function handleSwap(
       tokenPerEth = (
         parseFloat(amount1OutFormatted) / parseFloat(amount0InFormatted)
       );
+      ethPerToken = (
+        parseFloat(amount0InFormatted) / parseFloat(amount1OutFormatted)
+      );
     } else {
       action = 'SELL';
       amountToken = amount1InFormatted;
@@ -71,6 +81,9 @@ export async function handleSwap(
       tokenSymbol = token1.symbol;
       tokenPerEth = (
         parseFloat(amount1InFormatted) / parseFloat(amount0OutFormatted)
+      );
+      ethPerToken = (
+        parseFloat(amount0OutFormatted) / parseFloat(amount1InFormatted)
       );
     }
   } else {
@@ -82,6 +95,9 @@ export async function handleSwap(
       tokenPerEth = (
         parseFloat(amount0OutFormatted) / parseFloat(amount1InFormatted)
       );
+      ethPerToken = (
+        parseFloat(amount1InFormatted) / parseFloat(amount0OutFormatted)
+      );
     } else {
       action = 'SELL';
       amountToken = amount0InFormatted;
@@ -90,11 +106,15 @@ export async function handleSwap(
       tokenPerEth = (
         parseFloat(amount0InFormatted) / parseFloat(amount1OutFormatted)
       );
+      ethPerToken = (
+        parseFloat(amount1OutFormatted) / parseFloat(amount0InFormatted)
+      );
     }
   }
 
   const amountUSD = (parseFloat(amountWETH) * ethPrice);
   const tokenPerUsd = (parseFloat(tokenPerEth) / ethPrice);
+  const usdPerToken = (parseFloat(ethPerToken) * ethPrice);
 
   return {
     action,
@@ -104,5 +124,8 @@ export async function handleSwap(
     tokenSymbol,
     tokenPerEth,
     tokenPerUsd,
+    ethPrice,
+    ethPerToken,
+    usdPerToken
   };
 }
