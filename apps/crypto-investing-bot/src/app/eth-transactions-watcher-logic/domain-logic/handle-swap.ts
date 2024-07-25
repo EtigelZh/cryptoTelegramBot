@@ -4,12 +4,17 @@ import { Fungible, Log } from './models';
 import { getTokenAddresses } from './get-token-address';
 import { ERC20_ABI, getTokenMetaData } from './get-token-metadata';
 
-export function formatAction(action: HandledSwap['action']): string {
+export function formatAction(action: DexTransactionType): string {
   return action === 'BUY' ? '💸 BUY' : '💰 SELL';
 }
 
-export type HandledSwap = {
-  action: 'BUY' | 'SELL';
+export enum DexTransactionType {
+  BUY = 'BUY',
+  SELL = 'SELL',
+}
+
+export type DexTransactionEconomics = {
+  action: DexTransactionType;
   amountToken: number;
   amountWETH: number;
   amountUSD: number;
@@ -19,6 +24,7 @@ export type HandledSwap = {
   ethPrice: number;
   ethPerToken: number;
   usdPerToken: number;
+  tokenAddress: string;
 };
 
 export async function handleSwap(
@@ -27,7 +33,7 @@ export async function handleSwap(
   poolCache: Map<string, [string, string]>,
   tokenCache: Map<string, Fungible>,
   ethPrice: number
-): Promise<HandledSwap | undefined> {
+): Promise<DexTransactionEconomics | undefined> {
   const parsedLog = new ethers.utils.Interface(ERC20_ABI).parseLog(swapLog);
   if (!parsedLog) {
     Logger.warn('Parsed swapLog is missing');
@@ -60,7 +66,7 @@ export async function handleSwap(
   const amount0OutFormatted = ethers.utils.formatUnits(amount0Out, 18);
   const amount1OutFormatted = ethers.utils.formatUnits(amount1Out, 18);
 
-  let action, amountToken, amountWETH, tokenSymbol, tokenPerEth, ethPerToken;
+  let action, amountToken, amountWETH, tokenSymbol, tokenPerEth, ethPerToken, tokenAddress;
 
   if (token0.symbol === 'WETH') {
     if (parseFloat(amount0InFormatted) > 0) {
@@ -68,17 +74,20 @@ export async function handleSwap(
       amountToken = amount1OutFormatted;
       amountWETH = amount0InFormatted;
       tokenSymbol = token1.symbol;
+      tokenAddress = token1.contractAddress;
       tokenPerEth = (
         parseFloat(amount1OutFormatted) / parseFloat(amount0InFormatted)
       );
       ethPerToken = (
         parseFloat(amount0InFormatted) / parseFloat(amount1OutFormatted)
       );
+      
     } else {
       action = 'SELL';
       amountToken = amount1InFormatted;
       amountWETH = amount0OutFormatted;
       tokenSymbol = token1.symbol;
+      tokenAddress = token1.contractAddress;
       tokenPerEth = (
         parseFloat(amount1InFormatted) / parseFloat(amount0OutFormatted)
       );
@@ -92,6 +101,7 @@ export async function handleSwap(
       amountToken = amount0OutFormatted;
       amountWETH = amount1InFormatted;
       tokenSymbol = token0.symbol;
+      tokenAddress = token0.contractAddress;
       tokenPerEth = (
         parseFloat(amount0OutFormatted) / parseFloat(amount1InFormatted)
       );
@@ -103,6 +113,7 @@ export async function handleSwap(
       amountToken = amount0InFormatted;
       amountWETH = amount1OutFormatted;
       tokenSymbol = token0.symbol;
+      tokenAddress = token0.contractAddress;
       tokenPerEth = (
         parseFloat(amount0InFormatted) / parseFloat(amount1OutFormatted)
       );
@@ -126,6 +137,7 @@ export async function handleSwap(
     tokenPerUsd,
     ethPrice,
     ethPerToken,
-    usdPerToken
+    usdPerToken,
+    tokenAddress,
   };
 }

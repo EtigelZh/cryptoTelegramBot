@@ -19,6 +19,7 @@ import { Migrations1716655623696 } from './1716655623696-migrations';
 import { Migrations1716655938772 } from './1716655938772-migrations';
 import { WatchingTransactions1719833289664 } from './1719833289664-watching-transactions';
 import { WatchingStats1719834487494 } from './1719834487494-watching-stats';
+import { AddDexTransactions1721911710291 } from './1721911710291-add-dex-transactions';
 
 export const migrations = [
   Migrations1710903030686,
@@ -42,4 +43,5 @@ export const migrations = [
   Migrations1716655938772,
   WatchingTransactions1719833289664,
   WatchingStats1719834487494,
+  AddDexTransactions1721911710291,
 ];
