@@ -101,7 +101,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     this.alchemy.ws.on('block', async (blockNumber) => {
       Logger.log(`Block ${blockNumber} received`);
       // blockNumber = 20370183;
-      blockNumber = 20369801;
+      // blockNumber = 20369801;
       try {
         const prevBlock = blockNumber;
         Logger.log(`Fetch logs for block ${prevBlock}`);
