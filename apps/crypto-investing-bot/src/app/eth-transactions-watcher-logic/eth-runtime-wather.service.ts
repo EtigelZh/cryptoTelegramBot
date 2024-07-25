@@ -15,9 +15,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { EthPriceService } from './eth-price.service';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
 import { inspect } from 'util';
-import { handleSwap } from './domain-logic/handle-swap';
+import { formatAction, handleSwap } from './domain-logic/handle-swap';
 import { Fungible, Log } from './domain-logic/models';
 import { smartRound } from './domain-logic/smart-round';
+import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -46,7 +47,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _walletService: WalletService,
     private readonly _telegramJobApiService: TelegramJobApiService,
     private readonly _ethPriceService: EthPriceService,
-    private readonly _etherscanApi: EtherscanClientJobApiService
+    private readonly _etherscanApi: EtherscanClientJobApiService,
+    private readonly _dexTransactionService: DexTransactionService
   ) {
     this._provider = new ethers.providers.AlchemyProvider(
       this._config.network,
@@ -98,54 +100,66 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
   private _setupWebSocket() {
     this.alchemy.ws.on('block', async (blockNumber) => {
       Logger.log(`Block ${blockNumber} received`);
-      // blockNumber = 20370183;      
-      // blockNumber = 20369801;      
+      // blockNumber = 20370183;
+      blockNumber = 20369801;
       try {
         const prevBlock = blockNumber;
         Logger.log(`Fetch logs for block ${prevBlock}`);
         const [block, commonSwaps, erc20Swaps] = await Promise.all([
           this.alchemy.core.getBlockWithTransactions(blockNumber),
-          this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(
-            prevBlock,
-            prevBlock,
-            ethers.utils.id(
-              'Swap(address,uint256,uint256,uint256,uint256,address)'
-            ),
-            undefined,
-            [12_000, 12_000]
-          ).catch((error) => {
-            Logger.error(error);
-            return [];
-          }),
-          this._etherscanApi.getLogsByBlockRangeAndTopics<Log>(
-            prevBlock,
-            prevBlock,
-            ethers.utils.id('SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'),
-            undefined,
-            [24_000],
-          ).catch((error) => {
-            Logger.error(error);
-            return [];
-          }),
+          this._etherscanApi
+            .getLogsByBlockRangeAndTopics<Log>(
+              prevBlock,
+              prevBlock,
+              ethers.utils.id(
+                'Swap(address,uint256,uint256,uint256,uint256,address)'
+              ),
+              undefined,
+              [12_000, 12_000]
+            )
+            .catch((error) => {
+              Logger.error(error);
+              return [];
+            }),
+          this._etherscanApi
+            .getLogsByBlockRangeAndTopics<Log>(
+              prevBlock,
+              prevBlock,
+              ethers.utils.id(
+                'SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'
+              ),
+              undefined,
+              [24_000]
+            )
+            .catch((error) => {
+              Logger.error(error);
+              return [];
+            }),
         ]);
         const blockTransactions = block.transactions;
         const swaps = [...commonSwaps, ...erc20Swaps];
-        
-        Logger.log(`Block ${blockNumber} - Received ${blockTransactions?.length} transactions ${swaps?.length} swap events`);
 
-        const walletHashes = this._targetWalletAddresses.map(
-          (wallet) => wallet.hash?.toLocaleLowerCase()
+        Logger.log(
+          `Block ${blockNumber} - Received ${blockTransactions?.length} transactions ${swaps?.length} swap events`
+        );
+
+        const walletHashes = this._targetWalletAddresses.map((wallet) =>
+          wallet.hash?.toLocaleLowerCase()
         );
         const dexTransactions = await this._findDexTransactions(
           block,
           swaps,
-          walletHashes,
+          walletHashes
         );
         Logger.log(
           `Block ${prevBlock} - Found ${dexTransactions.length} DEX transactions`
         );
         Logger.log(
-          `Watching wallets: ${this._targetWalletAddresses.length} ${this._targetWalletAddresses.map(({ hash, alias }) => `${hash}(${alias})`).join(', ')}`
+          `Watching wallets: ${
+            this._targetWalletAddresses.length
+          } ${this._targetWalletAddresses
+            .map(({ hash, alias }) => `${hash}(${alias})`)
+            .join(', ')}`
         );
         Logger.log(`${inspect(dexTransactions, false, 6)}`);
       } catch (error) {
@@ -175,9 +189,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  private async _findDexTransactions(block: BlockWithTransactions, swaps: Log[], walletHashes: string[]) {
-    const dexTransactions = block.transactions.filter((tx) =>
-      walletHashes.includes(tx.from?.toLocaleLowerCase()) || walletHashes.includes(tx.to?.toLocaleLowerCase())
+  private async _findDexTransactions(
+    block: BlockWithTransactions,
+    swaps: Log[],
+    walletHashes: string[]
+  ) {
+    const dexTransactions = block.transactions.filter(
+      (tx) =>
+        walletHashes.includes(tx.from?.toLocaleLowerCase()) ||
+        walletHashes.includes(tx.to?.toLocaleLowerCase())
     );
     const results = [];
     for (const tx of dexTransactions) {
@@ -195,31 +215,65 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           this._handleSwap(walletEntity, swap);
         })
       );
-      
+
       results.push({ tx, swap: relatedSwap });
     }
     return results;
   }
 
   private async _handleSwap(walletEntity: WalletEntity, log: Log) {
-    const { action, amountToken, tokenSymbol, amountWETH, amountUSD, tokenPerEth, tokenPerUsd } = await handleSwap(log, this._provider, this._poolsCache, this._tokensMap, this._ethPriceService.price);
-    const message = `[${walletEntity?.alias || walletEntity?.hash}](${this._config.getEtherscanTxUrl(
-      log.transactionHash
-    )}) ${action} ${smartRound(amountToken)} ${tokenSymbol} ${
-      action === 'BUY' ? '<=' : '=>'
-    } ${smartRound(amountWETH)} WETH (~$${smartRound(amountUSD)}). Price: 1 ETH = ~${smartRound(tokenPerEth)} ${tokenSymbol}, 1$ = ~${smartRound(tokenPerUsd)} ${tokenSymbol}`;
+    const economics = await handleSwap(
+      log,
+      this._provider,
+      this._poolsCache,
+      this._tokensMap,
+      this._ethPriceService.price
+    );
+    const {
+      action,
+      amountToken,
+      amountWETH,
+      amountUSD,
+      tokenSymbol,
+      tokenPerEth,
+      tokenPerUsd,
+      ethPrice,
+      ethPerToken,
+      usdPerToken,
+    } = economics;
+    const message = [
+      `${formatAction(action)} [${
+        walletEntity?.alias || walletEntity?.hash
+      }](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
+      `${smartRound(amountToken)} ${tokenSymbol} ${
+        action === 'BUY' ? '←' : '→'
+      } ${smartRound(amountWETH)} ETH (${smartRound(amountUSD)}$)`,
+      `1 ETH = ${smartRound(tokenPerEth)} ${tokenSymbol}, 1$ = ${smartRound(
+        tokenPerUsd
+      )} ${tokenSymbol}`,
+      `1 ${tokenSymbol} = ${smartRound(ethPerToken)} ETH (${smartRound(
+        usdPerToken
+      )}$), 1 ETH = ${smartRound(ethPrice)}$`,
+    ].join('\n');
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {
       const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-      Promise.allSettled(
-        entries.map(([chatId, messageId]) =>
+      Promise.allSettled([
+        ...entries.map(([chatId, messageId]) =>
           this._telegramJobApiService.sendMessage(+chatId, message, {
             parse_mode: 'Markdown',
             disable_web_page_preview: true,
           })
-        )
-      );
+        ),
+        this._dexTransactionService.saveDexTransaction(
+          log.blockNumber,
+          log.transactionHash,
+          walletEntity.hash,
+          economics,
+          message
+        ),
+      ]);
     }
   }
 

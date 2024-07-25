@@ -8,6 +8,7 @@ import { EthTransferModule } from "../eth-transfer/eth-transfer.module";
 import { FungibleModule } from "../fungible/fungible.module";
 import { EthPriceService } from "./eth-price.service";
 import { EtherscanApiModule } from "../etherscan-api/etherscan-api.module";
+import { DexTransactionsModule } from "../dex-transactions/dex-transactions.module";
 
 @Module({
     imports: [
@@ -17,6 +18,7 @@ import { EtherscanApiModule } from "../etherscan-api/etherscan-api.module";
         TelegrafModule,
         EthTransferModule,
         EtherscanApiModule,
+        DexTransactionsModule,
     ],
     providers: [EthRuntimeWatcherService, EthPriceService, EthMissingBlockCheckerService],
     exports: [EthPriceService],
