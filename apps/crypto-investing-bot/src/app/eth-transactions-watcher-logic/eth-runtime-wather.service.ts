@@ -237,8 +237,6 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       amountWETH,
       amountUSD,
       tokenSymbol,
-      tokenPerEth,
-      tokenPerUsd,
       ethPrice,
       ethPerToken,
       usdPerToken,
@@ -258,11 +256,18 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {
-      try {if(action === 'SELL') {
-        const prevDexTransactions = await this._dexTransactionService.findPreviousTransactions(walletEntity.hash, tokenAddress, Number(log.blockNumber));
-        
+      try {
+        if (action === 'SELL') {
+          const prevDexTransactions =
+            await this._dexTransactionService.findPreviousTransactions(
+              walletEntity.hash,
+              tokenAddress,
+              Number(log.blockNumber)
+            );
 
-          message += `\n${formatTradeProfitResult(calculateTradeProfit(economics, prevDexTransactions))}`;
+          message += `\n${formatTradeProfitResult(
+            calculateTradeProfit(economics, prevDexTransactions)
+          )}`;
         }
       } catch (error) {
         Logger.error(`Error sending message: ${error.message}`);
