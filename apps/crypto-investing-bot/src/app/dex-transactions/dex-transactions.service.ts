@@ -43,6 +43,7 @@ export class DexTransactionService {
         tokenAddress,
         blockNumber: LessThan(blockNumber),
       },
+      order: { blockNumber: 'DESC', id: 'DESC' },
     });
   }
 }

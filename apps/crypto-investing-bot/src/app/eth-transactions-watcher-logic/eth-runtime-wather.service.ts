@@ -19,6 +19,8 @@ import { formatAction, handleSwap } from './domain-logic/handle-swap';
 import { Fungible, Log } from './domain-logic/models';
 import { smartRound } from './domain-logic/smart-round';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
+import { calculateTradeProfit } from './domain-logic/calculate-profit';
+import { formatTradeProfitResult } from './domain-logic/format-trade-profit';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -240,17 +242,15 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       ethPrice,
       ethPerToken,
       usdPerToken,
+      tokenAddress,
     } = economics;
-    const message = [
+    let message = [
       `${formatAction(action)} [${
         walletEntity?.alias || walletEntity?.hash
       }](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
       `${smartRound(amountToken)} ${tokenSymbol} ${
         action === 'BUY' ? '←' : '→'
       } ${smartRound(amountWETH)} ETH (${smartRound(amountUSD)}$)`,
-      `1 ETH = ${smartRound(tokenPerEth)} ${tokenSymbol}, 1$ = ${smartRound(
-        tokenPerUsd
-      )} ${tokenSymbol}`,
       `1 ${tokenSymbol} = ${smartRound(ethPerToken)} ETH (${smartRound(
         usdPerToken
       )}$), 1 ETH = ${smartRound(ethPrice)}$`,
@@ -258,6 +258,16 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {
+      try {if(action === 'SELL') {
+        const prevDexTransactions = await this._dexTransactionService.findPreviousTransactions(walletEntity.hash, tokenAddress, Number(log.blockNumber));
+        
+
+          message += `\n${formatTradeProfitResult(calculateTradeProfit(economics, prevDexTransactions))}`;
+        }
+      } catch (error) {
+        Logger.error(`Error sending message: ${error.message}`);
+      }
+
       const entries = Object.entries(walletEntity.walletSubscriptionMessages);
       Promise.allSettled([
         ...entries.map(([chatId, messageId]) =>

@@ -25,6 +25,7 @@ export type DexTransactionEconomics = {
   ethPerToken: number;
   usdPerToken: number;
   tokenAddress: string;
+  calculatedAt: Date;
 };
 
 export async function handleSwap(
@@ -139,5 +140,6 @@ export async function handleSwap(
     ethPerToken,
     usdPerToken,
     tokenAddress,
+    calculatedAt: new Date(),
   };
 }
