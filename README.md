@@ -21,3 +21,5 @@ search_etherscan - Поиск по etherscan добавляется много �
 [Follow docs](./docs/FOLLOW.md)
 
 ## ONBOARDING
+
+[READ HERE](./docs/ONBOARDING.md)
