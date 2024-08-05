@@ -279,7 +279,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
-        'Работа бота доступна только для избранных.'
+        'Работа бота доступна только для избранных.'+ctx.from.id
       );
       return;
     }
