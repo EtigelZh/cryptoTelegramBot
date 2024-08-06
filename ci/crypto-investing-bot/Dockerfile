@@ -1,4 +1,4 @@
-FROM node:20-slim as builder
+FROM node:22-slim as builder
 # Choose a workdir
 WORKDIR /usr/src/app
 # Copy sources
@@ -19,7 +19,7 @@ RUN npm run build:crypto-investing-bot
 
 RUN npm prune --production
 
-FROM node:20-alpine
+FROM node:22-alpine
 #ENV NODE_ENV=production
 RUN mkdir -p /usr/api
 

@@ -12,6 +12,9 @@
     "migration:crypto-investing-bot": "npm run typeorm:crypto-investing-bot && npx typeorm-ts-node-esm migration:generate -d ./dist/apps/crypto-investing-bot/main.js apps/crypto-investing-bot/src/app/migrations/${npm_config_migration_name}",
     "build:crypto-investing-bot": "nx build crypto-investing-bot --configuration=production"
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "private": true,
   "dependencies": {
     "@ethersproject/bignumber": "^5.7.0",
