@@ -14,6 +14,7 @@ export type Fungible = {
   name: string;
   symbol: string;
   contractAddress: string;
+  decimals: number,
 };
 export type BlockCacheEntry = {
   blockNumber: number;

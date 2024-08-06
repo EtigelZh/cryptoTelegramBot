@@ -101,54 +101,55 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
   private _setupWebSocket() {
     this.alchemy.ws.on('block', async (blockNumber) => {
       Logger.log(`Block ${blockNumber} received`);
+      // Блоки для дебага
       // blockNumber = 20370183;
-      // blockNumber = 20369801;
+      // blockNumber = 20467291;
+      blockNumber = 20468735;
       try {
-        const prevBlock = blockNumber;
-        Logger.log(`Fetch logs for block ${prevBlock}`);
+        Logger.log(`Fetch logs for block ${blockNumber}`);
         const walletHashes = this._targetWalletAddresses.map((wallet) =>
           wallet.hash?.toLocaleLowerCase()
         );
+        Logger.log(`Wallets to watch: ${walletHashes.join(', ')}`);
         const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
         
         // Паралельно обрабатываем каждый тип свапов
         await Promise.all([
           this._etherscanApi
             .getLogsByBlockRangeAndTopics<Log>(
-              prevBlock,
-              prevBlock,
+              blockNumber,
+              blockNumber,
               ethers.utils.id(
                 'Swap(address,uint256,uint256,uint256,uint256,address)'
               ),
               undefined,
-              [4_000, 8_000, 12_000]
-            ).then( swaps => this._findDexTransactions(
+              [8_000, 12_000]
+            ).catch((error) => {
+              Logger.error(error);
+              return [];
+            }).then( swaps => this._findDexTransactions(
               block,
               swaps,
               walletHashes
-            ))
-            .catch((error) => {
-              Logger.error(error);
-              return [];
-            }),
+            )),
           this._etherscanApi
             .getLogsByBlockRangeAndTopics<Log>(
-              prevBlock,
-              prevBlock,
+              blockNumber,
+              blockNumber,
               ethers.utils.id(
                 'SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'
               ),
               undefined,
-              [4_000, 8_000, 12_000]
-            ).then( swaps => this._findDexTransactions(
-              block,
-              swaps,
-              walletHashes
-            ))
+              [24_000]
+            )
             .catch((error) => {
               Logger.error(error);
               return [];
-            }),
+            }).then( swaps => this._findDexTransactions(
+              block,
+              swaps,
+              walletHashes
+            )),
         ]);
       } catch (error) {
         Logger.error(`Error processing block ${blockNumber}: ${error.message}`);
@@ -228,7 +229,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       usdPerToken,
       tokenAddress,
     } = economics;
-    let message = [
+    const messageParts = [
       `${formatAction(action)} [${
         walletEntity?.alias || walletEntity?.hash
       }](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
@@ -238,7 +239,13 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       `1 ${tokenSymbol} = ${smartRound(ethPerToken)} ETH (${smartRound(
         usdPerToken
       )}$), 1 ETH = ${smartRound(ethPrice)}$`,
-    ].join('\n');
+    ];
+
+    if (action === 'BUY') {
+      messageParts.push(`TARGET BUY PRICE: \`${smartRound(usdPerToken * 0.98)}\`$`);
+    }
+
+    let message = messageParts.join('\n');
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {
