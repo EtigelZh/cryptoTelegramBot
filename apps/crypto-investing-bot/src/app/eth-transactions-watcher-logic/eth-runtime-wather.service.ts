@@ -14,7 +14,6 @@ import { Alchemy, BlockWithTransactions, Network } from 'alchemy-sdk';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EthPriceService } from './eth-price.service';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
-import { inspect } from 'util';
 import { formatAction, handleSwap } from './domain-logic/handle-swap';
 import { Fungible, Log } from './domain-logic/models';
 import { smartRound } from './domain-logic/smart-round';
@@ -107,8 +106,13 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       try {
         const prevBlock = blockNumber;
         Logger.log(`Fetch logs for block ${prevBlock}`);
-        const [block, commonSwaps, erc20Swaps] = await Promise.all([
-          this.alchemy.core.getBlockWithTransactions(blockNumber),
+        const walletHashes = this._targetWalletAddresses.map((wallet) =>
+          wallet.hash?.toLocaleLowerCase()
+        );
+        const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
+        
+        // Паралельно обрабатываем каждый тип свапов
+        await Promise.all([
           this._etherscanApi
             .getLogsByBlockRangeAndTopics<Log>(
               prevBlock,
@@ -117,8 +121,12 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 'Swap(address,uint256,uint256,uint256,uint256,address)'
               ),
               undefined,
-              [12_000, 12_000]
-            )
+              [4_000, 8_000, 12_000]
+            ).then( swaps => this._findDexTransactions(
+              block,
+              swaps,
+              walletHashes
+            ))
             .catch((error) => {
               Logger.error(error);
               return [];
@@ -131,39 +139,17 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 'SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'
               ),
               undefined,
-              [24_000]
-            )
+              [4_000, 8_000, 12_000]
+            ).then( swaps => this._findDexTransactions(
+              block,
+              swaps,
+              walletHashes
+            ))
             .catch((error) => {
               Logger.error(error);
               return [];
             }),
         ]);
-        const blockTransactions = block.transactions;
-        const swaps = [...commonSwaps, ...erc20Swaps];
-
-        Logger.log(
-          `Block ${blockNumber} - Received ${blockTransactions?.length} transactions ${swaps?.length} swap events`
-        );
-
-        const walletHashes = this._targetWalletAddresses.map((wallet) =>
-          wallet.hash?.toLocaleLowerCase()
-        );
-        const dexTransactions = await this._findDexTransactions(
-          block,
-          swaps,
-          walletHashes
-        );
-        Logger.log(
-          `Block ${prevBlock} - Found ${dexTransactions.length} DEX transactions`
-        );
-        Logger.log(
-          `Watching wallets: ${
-            this._targetWalletAddresses.length
-          } ${this._targetWalletAddresses
-            .map(({ hash, alias }) => `${hash}(${alias})`)
-            .join(', ')}`
-        );
-        Logger.log(`${inspect(dexTransactions, false, 6)}`);
       } catch (error) {
         Logger.error(`Error processing block ${blockNumber}: ${error.message}`);
       }
