@@ -1,4 +1,4 @@
-FROM node:22-slim as builder
+FROM node:22 as builder
 # Choose a workdir
 WORKDIR /usr/src/app
 # Copy sources
