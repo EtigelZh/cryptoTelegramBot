@@ -14,9 +14,10 @@ export function fullWideNumber(
 }
 
 /**
- * 0.123123 -> 0.123
- * 0.00012321 -> 0.000123
- * 0.000000000001251231 -> 0.00000000000125
+ * 0.123123 -> 0.1231
+ * 0.00012321 -> 0.0001232
+ * 0.000000000001251231 -> 0.000000000001251
+ * 0.1234 -> 0.1234
  */
 export function smartRoundSmall(integer: string, fraction: string): string {
   // Round fraction to 2 significant digits
@@ -29,17 +30,17 @@ export function smartRoundSmall(integer: string, fraction: string): string {
   // Берем 2 значимых числа
   let valuable = fraction.slice(index);
 
-  if (valuable.length > 3) {
-    valuable = valuable.slice(0, 4);
+  if (valuable.length > 4) {
+    valuable = valuable.slice(0, 5);
   }
 
   const intValuable = parseInt(valuable);
 
-  if (intValuable > 999 && (intValuable) % 10 >= 5) {
+  if (intValuable > 9999 && (intValuable) % 10 >= 5) {
     const lastRoundedDigits = Math.round(intValuable / 10);
     result += lastRoundedDigits;
   } else {
-    result += valuable.slice(0, 3);
+    result += valuable.slice(0, 4);
   }
   return result;
 }
