@@ -101,10 +101,10 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
   private _setupWebSocket() {
     this.alchemy.ws.on('block', async (blockNumber) => {
       Logger.log(`Block ${blockNumber} received`);
-      // Блоки для дебага
+      // Блоки для дебага TODO зарефачить через env
       // blockNumber = 20370183;
       // blockNumber = 20467291;
-      blockNumber = 20468735;
+      // blockNumber = 20468735;
       try {
         Logger.log(`Fetch logs for block ${blockNumber}`);
         const walletHashes = this._targetWalletAddresses.map((wallet) =>
