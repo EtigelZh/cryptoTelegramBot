@@ -8,6 +8,7 @@ export const ERC20_ABI = [
   'event SwapERC20(uint256 indexed nonce, address indexed signerWallet, address signerToken, uint256 signerAmount, uint256 protocolFee, address indexed senderWallet, address senderToken, uint256 senderAmount)',
   'function name() view returns (string)',
   'function symbol() view returns (string)',
+  'function decimals() view returns (uint8)',
 ];
 
 export async function getTokenMetaData(
@@ -22,12 +23,13 @@ export async function getTokenMetaData(
   const contract = new ethers.Contract(contractAddress, ERC20_ABI, provider);
 
   try {
-    const [name, symbol] = await Promise.all([
+    const [name, symbol, decimals] = await Promise.all([
       contract.name(),
       contract.symbol(),
+      contract.decimals(),
     ]);
 
-    const tokenData: Fungible = { name, symbol, contractAddress };
+    const tokenData: Fungible = { name, symbol, contractAddress, decimals };
     tokensMap.set(contractAddress, tokenData);
 
     return tokenData;
@@ -39,6 +41,7 @@ export async function getTokenMetaData(
       name: 'Unknown',
       symbol: 'UNK',
       contractAddress,
+      decimals: 0
     };
     tokensMap.set(contractAddress, tokenData);
     return tokenData;

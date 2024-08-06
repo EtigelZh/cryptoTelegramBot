@@ -61,11 +61,10 @@ export async function handleSwap(
 
   const token0 = await getTokenMetaData(token0Address, provider, tokenCache);
   const token1 = await getTokenMetaData(token1Address, provider, tokenCache);
-
-  const amount0InFormatted = ethers.utils.formatUnits(amount0In, 18);
-  const amount1InFormatted = ethers.utils.formatUnits(amount1In, 18);
-  const amount0OutFormatted = ethers.utils.formatUnits(amount0Out, 18);
-  const amount1OutFormatted = ethers.utils.formatUnits(amount1Out, 18);
+  const amount0InFormatted = ethers.utils.formatUnits(amount0In, token0.decimals);
+  const amount1InFormatted = ethers.utils.formatUnits(amount1In, token1.decimals);
+  const amount0OutFormatted = ethers.utils.formatUnits(amount0Out, token0.decimals);
+  const amount1OutFormatted = ethers.utils.formatUnits(amount1Out, token1.decimals);
 
   let action, amountToken, amountWETH, tokenSymbol, tokenPerEth, ethPerToken, tokenAddress;
 
