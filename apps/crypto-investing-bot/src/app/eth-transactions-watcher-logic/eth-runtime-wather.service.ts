@@ -20,6 +20,7 @@ import { smartRound } from './domain-logic/smart-round';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
 import { calculateTradeProfit } from './domain-logic/calculate-profit';
 import { formatTradeProfitResult } from './domain-logic/format-trade-profit';
+import { humanizeEconomics } from './domain-logic/humanize-economics';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -220,32 +221,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     );
     const {
       action,
-      amountToken,
-      amountWETH,
-      amountUSD,
-      tokenSymbol,
-      ethPrice,
-      ethPerToken,
-      usdPerToken,
       tokenAddress,
     } = economics;
-    const messageParts = [
-      `${formatAction(action)} [${
-        walletEntity?.alias || walletEntity?.hash
-      }](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
-      `${smartRound(amountToken)} ${tokenSymbol} ${
-        action === 'BUY' ? '←' : '→'
-      } ${smartRound(amountWETH)} ETH (${smartRound(amountUSD)}$)`,
-      `1 ${tokenSymbol} = ${smartRound(ethPerToken)} ETH (${smartRound(
-        usdPerToken
-      )}$), 1 ETH = ${smartRound(ethPrice)}$`,
-    ];
-
-    if (action === 'BUY') {
-      messageParts.push(`TARGET BUY PRICE: \`${smartRound(usdPerToken * 0.98)}\`$`);
-    }
-
-    let message = messageParts.join('\n');
+    let message = humanizeEconomics(economics, walletEntity, this._config.getEtherscanTxUrl(log.transactionHash))
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {
