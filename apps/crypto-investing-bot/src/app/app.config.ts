@@ -88,7 +88,8 @@ export class AppConfig {
   longTermProcessingBatchSize: number = +(process.env.LONG_TERM_PROCESSING_BATCH_SIZE || 10);
   thresholdForLongTermProcessing: number = +(process.env.THRESHOLD_FOR_LONG_TERM_PROCESSING || 50);
 
-  minTradesThreshold: number = +(process.env.MIN_TRADES_THRESHOLD || 5);
+  minTradesLastMonthThreshold: number = +(process.env.MIN_TRADES_LAST_MONTH_THRESHOLD || 60);
+  minTradesLastWeekThreshold: number = +(process.env.MIN_TRADES_LAST_WEEK_THRESHOLD || 10);
 
   zerionUpdatingApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_UPDATING_API_KEYS ?? '');
   zerionManualApiKeys = this._parseApiKeyAndLimits(process.env.ZERION_MANUAL_API_KEYS ?? '');

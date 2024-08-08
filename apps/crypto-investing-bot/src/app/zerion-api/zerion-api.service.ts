@@ -142,11 +142,16 @@ export class ZerionApiService {
           if (isTransactionsRequest) {
             if (isFirstChunk && walletEntity) {
               // Тут нужно сходить в базу и понять сколько у нас трейдов за последний месяц
-              const dbTrades = await this._transactionService.getTradesCountLast30Days(walletHash)
+              const [lastMonthTradesDbCount, lastWeekTradesDbCount] = await Promise.all([
+                this._transactionService.getTradesCountLastMonth(walletHash),
+                this._transactionService.getTradesCountLastWeek(walletHash),
+              ]);
               // Прибавляем новые трейды
-              const lastTrades = dbTrades + zerionResponse.data.length;
-              Logger.log(`Wallet ${walletEntity.hash} (${walletEntity.alias}) has total ${lastTrades} trades include db trades ${dbTrades}`);
-              if (lastTrades < this._appConfig.minTradesThreshold && walletEntity) {
+              const lastMonthTradeCount = lastMonthTradesDbCount + zerionResponse.data.length;
+              const sevenDaysAgo = subtractDays(new Date(), 7);
+              const lastWeekTradesCount = lastWeekTradesDbCount + (zerionResponse.data as ZerionTransaction[]).filter((t) => new Date(t.attributes.mined_at) > sevenDaysAgo).length;
+              Logger.log(`Wallet ${walletEntity.hash} (${walletEntity.alias}) has total month: ${lastMonthTradeCount}, week ${lastWeekTradesCount}; trades include db trades, last month: ${lastMonthTradesDbCount}, last week: ${lastWeekTradesDbCount}`);
+              if ((lastMonthTradeCount < this._appConfig.minTradesLastMonthThreshold || lastWeekTradesCount < this._appConfig.minTradesLastWeekThreshold) && walletEntity) {
                 // обновляем wallet entity и скипаем этот кошелек
                 walletEntity.status = WalletStatus.LOW_TRADES;
                 walletEntity.lastCalculatedAt = new Date();
