@@ -1,11 +1,14 @@
-import { Column, Entity, PrimaryColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm";
 import type { Implementation } from "../zerion-api/zerion-api.models";
 import { CurrencySymbol } from "../utils/models";
 import { WithUpdatedAndCreatedAt } from "../utils/base.entity";
 
 @Entity()
 export class FungibleEntity extends WithUpdatedAndCreatedAt {
-    @PrimaryColumn({type: 'text'})
+    @PrimaryGeneratedColumn()
+    id: number;
+
+    @Column({type: 'text', unique: false })
     symbol: CurrencySymbol;
 
     @Column()
@@ -22,6 +25,6 @@ export class FungibleEntity extends WithUpdatedAndCreatedAt {
     marketCapUsd: number;
 
     /** Адрес валюты в сети эфир */
-    @Column({ nullable: true })
+    @Column({ nullable: false, unique: true })
     ethereumAddress?: string;
 }
