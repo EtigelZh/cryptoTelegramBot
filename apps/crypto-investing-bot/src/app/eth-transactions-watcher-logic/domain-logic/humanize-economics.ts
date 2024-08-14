@@ -29,5 +29,5 @@ export function humanizeEconomics(economics: DexTransactionEconomics, walletEnti
       if (action === 'BUY') {
         messageParts.push(`TARGET BUY PRICE: \`${smartRound(usdPerToken * 0.98)}\`$`);
       }
-      return messageParts.join('/n');
+      return messageParts.join('\n');
 }
