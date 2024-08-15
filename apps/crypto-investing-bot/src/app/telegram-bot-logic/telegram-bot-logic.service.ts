@@ -19,6 +19,8 @@ import { TelegramReportingService } from './telegram-reporting.service';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
 import { WalletService } from '../wallet/wallet.service';
+import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-runtime-wather.service';
+import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -38,6 +40,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _walletSearcherService: WalletSearcherService,
     private _telegramReportingService: TelegramReportingService,
     private _walletService: WalletService,
+    private _ethRuntimeWatcherService: EthRuntimeWatcherService
   ) {}
 
   onModuleInit() {
@@ -63,6 +66,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('search_etherscan', this.handleEtherscanSearch.bind(this));
     this._bot.command('report', this.handleReport.bind(this));
     this._bot.command('cleanup', this.handleCleanup.bind(this));
+    this._bot.command('emulate', this.handleEmulateCommand.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
@@ -82,7 +86,19 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._googleDriveJobApiService.cleanup();
 
   }
-
+  private async handleEmulateCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void>{
+    const emulationMessageContext = {}
+    emulationMessageContext[ctx.chat.id] = ctx.message.message_id
+    const parts = ctx.message.text.split(' ');
+    const firstPart = parts[1];
+    const secondPart = parts[2];
+    const arrBlocks = firstPart.split(',')
+    const arr_wallets = []
+    arr_wallets.push(secondPart)
+    for (const block of arrBlocks) {
+      await this._ethRuntimeWatcherService.handleBlock(Number(block), arr_wallets, WathcingTransactionsMode.EMULATION, emulationMessageContext);
+    }
+  }
   private async handleSubscribeCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
     console.log(`ctx.message.text: ${ctx.message.text}`);
     const matchedHash = ctx.message.text.match(walletHashRegex);

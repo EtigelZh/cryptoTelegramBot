@@ -10,6 +10,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 import { ErrorHandlingModule } from '../error-handling/error-handling-module';
 import { WalletSearcherModule } from '../wallets-searcher/wallet-searcher.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { EthTransactionsWatcherLogicModule } from '../eth-transactions-watcher-logic/eth-transactions-watcher-logic.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { WalletModule } from '../wallet/wallet.module';
     AnalyticsModule,
     ErrorHandlingModule,
     WalletSearcherModule,
+    EthTransactionsWatcherLogicModule
   ],
   providers: [TelegramBotLogicService, TelegramReportingService],
   exports: [TelegramBotLogicService],

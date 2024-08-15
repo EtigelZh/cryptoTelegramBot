@@ -15,11 +15,13 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { EthPriceService } from './eth-price.service';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
 import { formatAction, handleSwap } from './domain-logic/handle-swap';
-import { Fungible, Log } from './domain-logic/models';
+import { Fungible, Log, WathcingTransactionsMode } from './domain-logic/models';
 import { smartRound } from './domain-logic/smart-round';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
 import { calculateTradeProfit } from './domain-logic/calculate-profit';
 import { formatTradeProfitResult } from './domain-logic/format-trade-profit';
+import { humanizeEconomics } from './domain-logic/humanize-economics';
+import { looker } from 'googleapis/build/src/apis/looker';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -97,63 +99,60 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       }
     }
   }
+  public async handleBlock(blockNumber: number, walletHashes: string[], mode: WathcingTransactionsMode, emulationMessageContext: WalletEntity["walletSubscriptionMessages"] = {}): Promise<void>{
+    Logger.log(`Block ${blockNumber} received`);
+    
+    // Для дебага, можно убрать или изменить на env
+    // blockNumber = 20487523; 
+    // blockNumber = 20453822; 
+    // blockNumber = 20468735;
+    
+    try {
+      Logger.log(`Fetch logs for block ${blockNumber}`);
+      Logger.log(`Wallets to watch: ${walletHashes.join(', ')}`);
+      
+      const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
+      
+      // Параллельно обрабатываем каждый тип свапов
+      await Promise.all([
+        this._etherscanApi
+          .getLogsByBlockRangeAndTopics<Log>(
+            blockNumber,
+            blockNumber,
+            ethers.utils.id(
+              'Swap(address,uint256,uint256,uint256,uint256,address)'
+            ),
+            undefined,
+            [8_000, 12_000]
+          ).catch((error) => {
+            Logger.error(error);
+            return [];
+          }).then(swaps => this._findDexTransactions(block, swaps, walletHashes, mode, emulationMessageContext)),
+        
+        this._etherscanApi
+          .getLogsByBlockRangeAndTopics<Log>(
+            blockNumber,
+            blockNumber,
+            ethers.utils.id(
+              'SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'
+            ),
+            undefined,
+            [24_000]
+          )
+          .catch((error) => {
+            Logger.error(error);
+            return [];
+          }).then(swaps => this._findDexTransactions(block, swaps, walletHashes, mode, emulationMessageContext)),
+      ]);
+    } catch (error) {
+      Logger.error(`Error processing block ${blockNumber}: ${error.message}`);
+    }
+  }
+
 
   private _setupWebSocket() {
-    this.alchemy.ws.on('block', async (blockNumber) => {
-      Logger.log(`Block ${blockNumber} received`);
-      // Блоки для дебага TODO зарефачить через env
-      // blockNumber = 20370183;
-      // blockNumber = 20467291;
-      // blockNumber = 20468735;
-      try {
-        Logger.log(`Fetch logs for block ${blockNumber}`);
-        const walletHashes = this._targetWalletAddresses.map((wallet) =>
-          wallet.hash?.toLocaleLowerCase()
-        );
-        Logger.log(`Wallets to watch: ${walletHashes.join(', ')}`);
-        const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
-        
-        // Паралельно обрабатываем каждый тип свапов
-        await Promise.all([
-          this._etherscanApi
-            .getLogsByBlockRangeAndTopics<Log>(
-              blockNumber,
-              blockNumber,
-              ethers.utils.id(
-                'Swap(address,uint256,uint256,uint256,uint256,address)'
-              ),
-              undefined,
-              [8_000, 12_000]
-            ).catch((error) => {
-              Logger.error(error);
-              return [];
-            }).then( swaps => this._findDexTransactions(
-              block,
-              swaps,
-              walletHashes
-            )),
-          this._etherscanApi
-            .getLogsByBlockRangeAndTopics<Log>(
-              blockNumber,
-              blockNumber,
-              ethers.utils.id(
-                'SwapERC20(uint256,address,address,uint256,uint256,address,address,uint256)'
-              ),
-              undefined,
-              [24_000]
-            )
-            .catch((error) => {
-              Logger.error(error);
-              return [];
-            }).then( swaps => this._findDexTransactions(
-              block,
-              swaps,
-              walletHashes
-            )),
-        ]);
-      } catch (error) {
-        Logger.error(`Error processing block ${blockNumber}: ${error.message}`);
-      }
+    this.alchemy.ws.on('block', (blockNumber) => {
+      this.handleBlock(blockNumber, this._targetWalletAddresses.map((walletEntity) => walletEntity.hash), WathcingTransactionsMode.PRODUCTION)
     });
 
     this.alchemy.ws.on('open', () => {
@@ -181,7 +180,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
   private async _findDexTransactions(
     block: BlockWithTransactions,
     swaps: Log[],
-    walletHashes: string[]
+    walletHashes: string[],
+    mode: WathcingTransactionsMode,
+    emulationMessageContext: WalletEntity["walletSubscriptionMessages"] = {}
   ) {
     const dexTransactions = block.transactions.filter(
       (tx) =>
@@ -189,8 +190,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         walletHashes.includes(tx.to?.toLocaleLowerCase())
     );
     const results = [];
+    const targetWalletAddresses = mode == WathcingTransactionsMode.PRODUCTION?this._targetWalletAddresses:[{alias: "emulate", hash: walletHashes[0], walletSubscriptionMessages: emulationMessageContext}]
     for (const tx of dexTransactions) {
-      const walletEntity = this._targetWalletAddresses.find(
+      const walletEntity = targetWalletAddresses.find(
         (wallet) =>
           wallet.hash?.toLocaleLowerCase() === tx.from?.toLocaleLowerCase() ||
           wallet.hash?.toLocaleLowerCase() === tx.to?.toLocaleLowerCase()
@@ -210,7 +212,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     return results;
   }
 
-  private async _handleSwap(walletEntity: WalletEntity, log: Log) {
+  private async _handleSwap(walletEntity: Pick<WalletEntity, "alias" | "hash" | "walletSubscriptionMessages">, log: Log) {
     const economics = await handleSwap(
       log,
       this._provider,
@@ -229,23 +231,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       usdPerToken,
       tokenAddress,
     } = economics;
-    const messageParts = [
-      `${formatAction(action)} [${
-        walletEntity?.alias || walletEntity?.hash
-      }](${this._config.getEtherscanTxUrl(log.transactionHash)})`,
-      `${smartRound(amountToken)} ${tokenSymbol} ${
-        action === 'BUY' ? '←' : '→'
-      } ${smartRound(amountWETH)} ETH (${smartRound(amountUSD)}$)`,
-      `1 ${tokenSymbol} = ${smartRound(ethPerToken)} ETH (${smartRound(
-        usdPerToken
-      )}$), 1 ETH = ${smartRound(ethPrice)}$`,
-    ];
-
-    if (action === 'BUY') {
-      messageParts.push(`TARGET BUY PRICE: \`${smartRound(usdPerToken * 0.98)}\`$`);
-    }
-
-    let message = messageParts.join('\n');
+    const etherscanTxUrl = this._config.getEtherscanTxUrl(log.transactionHash)
+    let message = humanizeEconomics(economics, walletEntity, etherscanTxUrl)
     Logger.log(message);
 
     if (walletEntity && walletEntity.walletSubscriptionMessages) {

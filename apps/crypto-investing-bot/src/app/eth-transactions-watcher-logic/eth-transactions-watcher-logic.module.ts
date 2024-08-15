@@ -21,7 +21,7 @@ import { DexTransactionsModule } from "../dex-transactions/dex-transactions.modu
         DexTransactionsModule,
     ],
     providers: [EthRuntimeWatcherService, EthPriceService, EthMissingBlockCheckerService],
-    exports: [EthPriceService],
+    exports: [EthPriceService, EthRuntimeWatcherService],
 })
 export class EthTransactionsWatcherLogicModule {
 }
