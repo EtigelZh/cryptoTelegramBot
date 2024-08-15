@@ -19,7 +19,7 @@ export class TransactionService {
   ) {
   }
 
-  async getTradesCountLast30Days(walletHash: string): Promise<number> {
+  async getTradesCountLastMonth(walletHash: string): Promise<number> {
     const oneMonthAgo = subtractMonths(new Date(), 1);
     return await this._transactionRepository.count({
       where: [
@@ -32,6 +32,26 @@ export class TransactionService {
         {
           to: walletHash,
           date: MoreThan(oneMonthAgo),
+          transactionType: TransactionType.trade,
+          zerionSource: Not(IsNull())
+        }
+      ]
+    });
+  }
+
+  async getTradesCountLastWeek(walletHash: string): Promise<number> {
+    const ago7days = subtractDays(new Date(), 7);
+    return await this._transactionRepository.count({
+      where: [
+        {
+          from: walletHash,
+          date: MoreThan(ago7days),
+          transactionType: TransactionType.trade,
+          zerionSource: Not(IsNull())
+        },
+        {
+          to: walletHash,
+          date: MoreThan(ago7days),
           transactionType: TransactionType.trade,
           zerionSource: Not(IsNull())
         }

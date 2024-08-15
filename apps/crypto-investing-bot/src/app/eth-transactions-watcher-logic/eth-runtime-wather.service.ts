@@ -14,14 +14,12 @@ import { Alchemy, BlockWithTransactions, Network } from 'alchemy-sdk';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EthPriceService } from './eth-price.service';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
-import { formatAction, handleSwap } from './domain-logic/handle-swap';
+import { handleSwap } from './domain-logic/handle-swap';
 import { Fungible, Log, WathcingTransactionsMode } from './domain-logic/models';
-import { smartRound } from './domain-logic/smart-round';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
 import { calculateTradeProfit } from './domain-logic/calculate-profit';
 import { formatTradeProfitResult } from './domain-logic/format-trade-profit';
 import { humanizeEconomics } from './domain-logic/humanize-economics';
-import { looker } from 'googleapis/build/src/apis/looker';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -222,13 +220,6 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     );
     const {
       action,
-      amountToken,
-      amountWETH,
-      amountUSD,
-      tokenSymbol,
-      ethPrice,
-      ethPerToken,
-      usdPerToken,
       tokenAddress,
     } = economics;
     const etherscanTxUrl = this._config.getEtherscanTxUrl(log.transactionHash)
