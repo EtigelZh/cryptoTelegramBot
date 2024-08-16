@@ -293,14 +293,17 @@ export class TelegramBotLogicService implements OnModuleInit {
   }
 
   private async handleGetTokenPriceCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    const messageText = ctx.message.text.split(' ');
+    const tokenHash = messageText[1];
+    console.log(tokenHash)
     const inputParams: SwapTokensArgs = {
-      chainId: 1, // Сеть Ethereum Mainnet
+      chainId: 1,
       walletAddress: '0xED1F35D23d0165429328cb891E84540F62CAe981', // Адрес вашего Ethereum кошелька
       tokenInAddress: '0x0000000000000000000000000000000000000000', // ETH (в качестве tokenIn используется нулевой адрес для ETH)
-      tokenOutAddress: '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e', // Адрес контракта USDC в сети Ethereum Mainnet
-      amountInStr: '1.0', // Количество 1 ETH (1.0 как строка) для обмена
-      alchemyApiToken: 'a9I-V0k0tpsgHSRjvowFLfHAQUL6kvvz', // Ваш API токен Alchemy
-      privateKey: 'c3737fba6408ad5b1112d4557daee497cada6d9c5b5ee91bd4cb9d1b4593e056' // Приватный ключ вашего кошелька
+      tokenOutAddress: tokenHash,
+      amountInStr: '1.0',
+      alchemyApiToken: 'a9I-V0k0tpsgHSRjvowFLfHAQUL6kvvz',
+      privateKey: 'c3737fba6408ad5b1112d4557daee497cada6d9c5b5ee91bd4cb9d1b4593e056'
     };
     
     try {
