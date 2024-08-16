@@ -1,39 +1,23 @@
+import { Token } from "@uniswap/sdk-core";
 import { ethers } from "ethers";
-import QuoterABI from '@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json';
-import { Pool } from '@uniswap/v3-sdk/';
-import { TradeType, Token, CurrencyAmount, Percent } from '@uniswap/sdk-core';
-import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
-import IUniswapV3Pool from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
-import IUniswapV3Factory from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Factory.sol/IUniswapV3Factory.json';
-import { BigNumber } from '@ethersproject/bignumber';
-import ERC20_abi from "./ERC20-abi.json";
-import dotenv from 'dotenv';
-import { resolve } from "path";
+import { SwapTokensArgs } from '../../utils/crypto-core/buy-coins';
 import { Logger } from "@nestjs/common";
+import { Pool } from "@uniswap/v3-sdk";
+import ERC20_abi from "../../utils/crypto-core/ERC20-abi.json";
+import IUniswapV3Factory from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Factory.sol/IUniswapV3Factory.json';
+import IUniswapV3Pool from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
+import QuoterABI from '@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json';
+import { message } from "telegraf/filters";
 
+const UNISWAP_FACTORY_ADDRESS = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
+const UNISWAP_QUOTER_ADDRESS = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
+const V3_SWAP_ROUTER_ADDRESS = '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45';
 const WETH_ADDRESS_NETWORK_MAP = {
     [1]: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
     [42161]: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 };
 
-const defaultEnvPath = resolve(__dirname, '.env');
-dotenv.config({ path: defaultEnvPath });
-
-export type SwapTokensArgs = {
-    chainId: number;
-    walletAddress: string;
-    tokenInAddress: string;
-    tokenOutAddress: string;
-    amountInStr: string;
-    alchemyApiToken: string;
-    privateKey: string;
-};
-
-const UNISWAP_FACTORY_ADDRESS = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
-const UNISWAP_QUOTER_ADDRESS = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
-const V3_SWAP_ROUTER_ADDRESS = '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45';
-
-export async function swapTokens({
+export async function getTokenPrice({
     chainId,
     walletAddress,
     tokenInAddress,
@@ -102,54 +86,7 @@ export async function swapTokens({
         tokenIn.address, tokenOut.address, pool.fee, amountIn, 0);
 
     console.log(`You'll get approximately ${ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}`);
-
-    const inAmount = CurrencyAmount.fromRawAmount(tokenIn, amountIn.toString());
-    const router = new AlphaRouter({ chainId: tokenIn.chainId, provider: provider });
-    const route = await router.route(
-        inAmount, tokenOut, TradeType.EXACT_INPUT,
-        {
-            type: SwapType.SWAP_ROUTER_02,
-            recipient: walletAddress,
-            slippageTolerance: new Percent(5, 100),
-            deadline: Math.floor(Date.now() / 1000 + 1800)
-        },
-        { maxSwapsPerPath: 1 }
-    );
-
-    if (!route || !route.methodParameters) throw "No route loaded";
-
-    if (!isETH(tokenInAddress)) {
-        const approveTxUnsigned = await tokenInContract.populateTransaction.approve(V3_SWAP_ROUTER_ADDRESS, amountIn);
-        approveTxUnsigned.chainId = chainId;
-        approveTxUnsigned.gasLimit = await tokenInContract.estimateGas.approve(V3_SWAP_ROUTER_ADDRESS, amountIn);
-        approveTxUnsigned.gasPrice = await provider.getGasPrice();
-        approveTxUnsigned.nonce = await provider.getTransactionCount(walletAddress);
-
-        const approveTxSigned = await signer.signTransaction(approveTxUnsigned);
-        const submittedTx = await provider.sendTransaction(approveTxSigned);
-        const approveReceipt = await submittedTx.wait();
-        if (approveReceipt.status === 0) throw new Error("Approve transaction failed");
-    }
-
-    const value = isETH(tokenInAddress) ? amountIn : BigNumber.from(route.methodParameters.value);
-    const transaction = {
-        data: route.methodParameters.calldata,
-        to: V3_SWAP_ROUTER_ADDRESS,
-        value: value,
-        from: walletAddress,
-        gasPrice: route.gasPriceWei,
-        gasLimit: BigNumber.from(50_000_000)
-    };
-
-    const tx = await signer.sendTransaction(transaction);
-    const receipt = await tx.wait();
-    if (receipt.status === 0) throw new Error("Swap transaction failed");
-
-    const [newBalanceIn, newBalanceOut] = await Promise.all([
-        isETH(tokenInAddress) ? provider.getBalance(walletAddress) : tokenInContract.balanceOf(walletAddress),
-        isETH(tokenOutAddress) ? provider.getBalance(walletAddress) : tokenOutContract.balanceOf(walletAddress)
-    ]);
-
-    console.log('Swap completed successfully!');
-    console.log(`Updated balances: ${tokenIn.symbol}: ${ethers.utils.formatUnits(newBalanceIn, tokenIn.decimals)}, ${tokenOut.symbol}: ${ethers.utils.formatUnits(newBalanceOut, tokenOut.decimals)}`);
+    const message = `You'll get approximately ${ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}`
+    return message
+    // ТУТ вычисляем из примерного количества токенов какова сейчас цена
 }

@@ -19,7 +19,8 @@ import { TelegramReportingService } from './telegram-reporting.service';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
 import { WalletService } from '../wallet/wallet.service';
-
+import { getTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price'
+import { SwapTokensArgs } from '../utils/crypto-core/buy-coins';
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
   '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
@@ -63,6 +64,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('search_etherscan', this.handleEtherscanSearch.bind(this));
     this._bot.command('report', this.handleReport.bind(this));
     this._bot.command('cleanup', this.handleCleanup.bind(this));
+    this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this))
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
@@ -82,7 +84,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._googleDriveJobApiService.cleanup();
 
   }
-
+  
   private async handleSubscribeCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
     console.log(`ctx.message.text: ${ctx.message.text}`);
     const matchedHash = ctx.message.text.match(walletHashRegex);
@@ -288,6 +290,31 @@ export class TelegramBotLogicService implements OnModuleInit {
       ctx.from.id,
       `[${ctx.from?.id}] Отправь мне команду /transactions <hash_кошелька>, <hash_кошелька> чтобы я отправил аналитику по транзакциям. ${example}`
     );
+  }
+
+  private async handleGetTokenPriceCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    const inputParams: SwapTokensArgs = {
+      chainId: 1, // Сеть Ethereum Mainnet
+      walletAddress: '0xED1F35D23d0165429328cb891E84540F62CAe981', // Адрес вашего Ethereum кошелька
+      tokenInAddress: '0x0000000000000000000000000000000000000000', // ETH (в качестве tokenIn используется нулевой адрес для ETH)
+      tokenOutAddress: '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e', // Адрес контракта USDC в сети Ethereum Mainnet
+      amountInStr: '1.0', // Количество 1 ETH (1.0 как строка) для обмена
+      alchemyApiToken: 'a9I-V0k0tpsgHSRjvowFLfHAQUL6kvvz', // Ваш API токен Alchemy
+      privateKey: 'c3737fba6408ad5b1112d4557daee497cada6d9c5b5ee91bd4cb9d1b4593e056' // Приватный ключ вашего кошелька
+    };
+    
+    try {
+      const result = await getTokenPrice(inputParams); // Передаем объект целиком
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        result
+      );
+      return;
+    } catch (error) {
+      console.error('Ошибка при получении цены токенов:', error);
+    }
+  
+    console.log(`ctx.message.text: ${ctx.message.text}`);
   }
 
   @WithSentryPerformance('Handle transactions command')
