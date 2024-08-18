@@ -293,13 +293,27 @@ export class TelegramBotLogicService implements OnModuleInit {
   }
 
   private async handleGetTokenPriceCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
     const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один адрес токена ${example}`
+      );
+      return;
+    }
     const tokenHash = messageText[1];
     console.log(tokenHash)
     const inputParams: SwapTokensArgs = {
       chainId: 1,
-      walletAddress: '0xED1F35D23d0165429328cb891E84540F62CAe981', // Адрес вашего Ethereum кошелька
-      tokenInAddress: '0x0000000000000000000000000000000000000000', // ETH (в качестве tokenIn используется нулевой адрес для ETH)
+      walletAddress: '0xED1F35D23d0165429328cb891E84540F62CAe981', // Адрес Ethereum кошелька
+      tokenInAddress: '0x0000000000000000000000000000000000000000', // ETH
       tokenOutAddress: tokenHash,
       amountInStr: '1.0',
       alchemyApiToken: 'a9I-V0k0tpsgHSRjvowFLfHAQUL6kvvz',
@@ -314,10 +328,12 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
       return;
     } catch (error) {
-      console.error('Ошибка при получении цены токенов:', error);
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Ошибка при получении цены токена'
+      );
+      return;
     }
-  
-    console.log(`ctx.message.text: ${ctx.message.text}`);
   }
 
   @WithSentryPerformance('Handle transactions command')
