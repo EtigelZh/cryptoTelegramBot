@@ -1,3 +1,4 @@
+import exp from 'constants';
 import type { ethers } from 'ethers';
 
 export type Log = {
@@ -22,3 +23,7 @@ export type BlockCacheEntry = {
   swaps?: Log[];
   transfers?: Log[];
 };
+export enum WathcingTransactionsMode{
+  EMULATION = "EMULATION",
+  PRODUCTION = "PRODUCTION"
+}

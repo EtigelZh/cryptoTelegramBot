@@ -2,7 +2,7 @@ import { DexTransactionEconomics, formatAction } from "./handle-swap";
 import { smartRound } from "./smart-round";
 import { WalletEntity } from "../../wallet/wallet.entity";
 
-export function humanizeEconomics(economics: DexTransactionEconomics, walletEntity: WalletEntity, etherscanTxUrl: string): string{
+export function humanizeEconomics(economics: DexTransactionEconomics, walletEntity: Pick<WalletEntity, "alias" | "hash">, etherscanTxUrl: string): string{
 
     const {
         action,

@@ -19,10 +19,14 @@ import { TelegramReportingService } from './telegram-reporting.service';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
 import { WalletService } from '../wallet/wallet.service';
+import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-runtime-wather.service';
+import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
   '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
+const exampleEmulate =
+  '\n\nПример команды:\n`/emulate 20509610 0xae80a091efd5f808371c723f8ea82bb6560f9b10`\n\n`/emulate 20509610,20489685 0xae80a091efd5f808371c723f8ea82bb6560f9b10`'
 
 @Injectable()
 export class TelegramBotLogicService implements OnModuleInit {
@@ -38,6 +42,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _walletSearcherService: WalletSearcherService,
     private _telegramReportingService: TelegramReportingService,
     private _walletService: WalletService,
+    private _ethRuntimeWatcherService: EthRuntimeWatcherService
   ) {}
 
   onModuleInit() {
@@ -63,6 +68,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('search_etherscan', this.handleEtherscanSearch.bind(this));
     this._bot.command('report', this.handleReport.bind(this));
     this._bot.command('cleanup', this.handleCleanup.bind(this));
+    this._bot.command('emulate', this.handleEmulateCommand.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
@@ -81,6 +87,41 @@ export class TelegramBotLogicService implements OnModuleInit {
     );
     await this._googleDriveJobApiService.cleanup();
 
+  }
+  private async handleEmulateCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void>{
+    const emulationMessageContext = {}
+    emulationMessageContext[ctx.chat.id] = ctx.message.message_id
+    const partsMessage = ctx.message.text.split(' ');
+    const partsBlocks = partsMessage[1];
+    const partHash = partsMessage[2];
+    if (!partsBlocks) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один блок кошелька. ${exampleEmulate}`
+      );
+      return;
+    }
+    if (!partHash) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один hash кошелька. ${exampleEmulate}`
+      );
+      return;
+    }
+    const matchedHash = partHash.match(walletHashRegex);
+    if (!matchedHash?.length) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один hash кошелька. ${exampleEmulate}`
+      );
+      return;
+    }
+    const blockNumbers = partsBlocks.split(',')
+    const walletHashes = []
+    walletHashes.push(partHash)
+    for (const block of blockNumbers) {
+      await this._ethRuntimeWatcherService.handleBlock(Number(block), walletHashes, WathcingTransactionsMode.EMULATION, emulationMessageContext);
+    }
   }
 
   private async handleSubscribeCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {

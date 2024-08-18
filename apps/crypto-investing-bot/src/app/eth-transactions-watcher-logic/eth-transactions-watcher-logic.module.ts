@@ -23,7 +23,7 @@ import { DexOrderModule } from "../dex-order/dex-order.module";
         DexOrderModule,
     ],
     providers: [EthRuntimeWatcherService, EthPriceService, EthMissingBlockCheckerService],
-    exports: [EthPriceService],
+    exports: [EthPriceService, EthRuntimeWatcherService],
 })
 export class EthTransactionsWatcherLogicModule {
 }
