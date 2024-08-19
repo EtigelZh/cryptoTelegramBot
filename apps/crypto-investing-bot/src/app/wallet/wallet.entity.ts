@@ -10,6 +10,8 @@ export enum WalletStatus {
     NEW = 'NEW', // Новый кошелек, еще не ходили в api
     NOT_TRACKABLE = 'NOT_TRACKABLE', // получаем 404 при запросе транзакций
 }
+export type ChatId = string;
+export type MessageId = string;
 
 @Entity()
 export class WalletEntity extends WithUpdatedAndCreatedAt {
@@ -48,5 +50,5 @@ export class WalletEntity extends WithUpdatedAndCreatedAt {
 
     // key - chatId, value - messageId
     @Column({ type: 'jsonb', default: '{}' })
-    walletSubscriptionMessages: Record<string, string>;
+    walletSubscriptionMessages: Record<ChatId, MessageId>;
 }
