@@ -312,12 +312,12 @@ export class TelegramBotLogicService implements OnModuleInit {
     console.log(tokenHash)
     const inputParams: SwapTokensArgs = {
       chainId: 1,
-      walletAddress: '0xED1F35D23d0165429328cb891E84540F62CAe981', // Адрес Ethereum кошелька
-      tokenInAddress: '0x0000000000000000000000000000000000000000', // ETH
+      walletAddress: this._appConfig.metamaskWalletAddress, // Адрес Ethereum кошелька
+      tokenInAddress: this._appConfig.etherTokenAddress, // ETH
       tokenOutAddress: tokenHash,
       amountInStr: '1.0',
-      alchemyApiToken: 'a9I-V0k0tpsgHSRjvowFLfHAQUL6kvvz',
-      privateKey: 'c3737fba6408ad5b1112d4557daee497cada6d9c5b5ee91bd4cb9d1b4593e056'
+      alchemyApiToken: this._appConfig.alchemyApiKey,
+      privateKey: this._appConfig.metamaskPrivateKey
     };
     
     try {

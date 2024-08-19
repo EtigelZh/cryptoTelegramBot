@@ -124,6 +124,9 @@ export class AppConfig {
 
   network: string = process.env.NETWORK || 'mainnet';
   alchemyApiKey: string = process.env.ALCHEMY_API_KEY || '';
+  metamaskPrivateKey: string = process.env.METAMASK_PRIVATE_KEY || 'c3737fba6408ad5b1112d4557daee497cada6d9c5b5ee91bd4cb9d1b4593e056';
+  metamaskWalletAddress: string = process.env.METAMASK_WALLET_ADDRESS || '0xED1F35D23d0165429328cb891E84540F62CAe981';
+  etherTokenAddress: string = process.env.ETHER_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000';
 
   public async getDbConfig() {
     return dataSourceOptions({

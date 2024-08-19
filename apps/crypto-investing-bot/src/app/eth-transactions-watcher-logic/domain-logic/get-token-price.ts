@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { SwapTokensArgs } from '../../utils/crypto-core/buy-coins';
 import { Logger } from "@nestjs/common";
 import { Pool } from "@uniswap/v3-sdk";
+import { smartRound } from "./smart-round";
 import ERC20_abi from "../../utils/crypto-core/ERC20-abi.json";
 import IUniswapV3Factory from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Factory.sol/IUniswapV3Factory.json';
 import IUniswapV3Pool from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
@@ -83,8 +84,11 @@ export async function getTokenPrice({
     const quotedAmountOut = await quoterContract.callStatic.quoteExactInputSingle(
         tokenIn.address, tokenOut.address, pool.fee, amountIn, 0);
 
-    console.log(`You'll get approximately ${ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}`);
-    const message = `You'll get approximately ${ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}`
+    let numberQuotedAmountOut = ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)
+    let priceEthToken = (Number(amountInStr)/Number(numberQuotedAmountOut)).toFixed(30)
+    priceEthToken = smartRound(Number(priceEthToken))
+    numberQuotedAmountOut = smartRound(Number(numberQuotedAmountOut))
+    const message = `You'll get approximately ${numberQuotedAmountOut} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}\n${amountInStr} ${tokenOut.symbol} for ${priceEthToken} ${tokenIn.symbol}`
     return message
     // ТУТ вычисляем из примерного количества токенов какова сейчас цена
 }
