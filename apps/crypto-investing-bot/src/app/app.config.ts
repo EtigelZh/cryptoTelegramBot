@@ -125,6 +125,7 @@ export class AppConfig {
 
   network: string = process.env.NETWORK || 'mainnet';
   alchemyApiKey: string = process.env.ALCHEMY_API_KEY || '';
+  tokenKey: string = '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e'
 
   public async getDbConfig() {
     return dataSourceOptions({
