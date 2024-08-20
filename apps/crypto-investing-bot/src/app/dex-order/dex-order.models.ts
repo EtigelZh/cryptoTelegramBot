@@ -1,6 +1,6 @@
 /** Статус лимитной заявки, отслеживаем только ордеры в статусe 'BUING' и 'SELLING' */
 export enum DexOrderStatus {
-    BUING = 'BUING',
+    BUYING = 'BUYING',
     SELLING = 'SELLING',
     COMPLETED = 'COMPLETED'
 }

@@ -22,6 +22,7 @@ import { WatchingStats1719834487494 } from './1719834487494-watching-stats';
 import { AddDexTransactions1721911710291 } from './1721911710291-add-dex-transactions';
 import { AddDexOrders1723560223623 } from './1723560223623-add-dex-orders';
 import { FixFungiblesPk1723560588527 } from './1723560588527-fix-fungibles-pk';
+import { FixDexOrder1724166873436 } from './1724166873436-fix-dex-order';
 
 export const migrations = [
   Migrations1710903030686,
@@ -48,4 +49,5 @@ export const migrations = [
   AddDexTransactions1721911710291,
   AddDexOrders1723560223623,
   FixFungiblesPk1723560588527,
+  FixDexOrder1724166873436,
 ];
