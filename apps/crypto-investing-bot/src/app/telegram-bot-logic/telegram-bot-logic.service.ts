@@ -349,7 +349,6 @@ export class TelegramBotLogicService implements OnModuleInit {
       return;
     }
     const tokenHash = messageText[1];
-    console.log(tokenHash)
     const inputParams: SwapTokensArgs = {
       chainId: 1,
       walletAddress: this._appConfig.metamaskWalletAddress, // Адрес Ethereum кошелька
