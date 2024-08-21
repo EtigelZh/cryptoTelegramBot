@@ -19,7 +19,7 @@ const WETH_ADDRESS_NETWORK_MAP = {
 const defaultEnvPath = resolve(__dirname, '.env');
 dotenv.config({ path: defaultEnvPath });
 
-type SwapTokensArgs = {
+export type SwapTokensArgs = {
     chainId: number;
     walletAddress: string;
     tokenInAddress: string;

@@ -21,7 +21,8 @@ import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.ser
 import { WalletService } from '../wallet/wallet.service';
 import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-runtime-wather.service';
 import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
-
+import { getTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price';
+import { TokenPriceHistoryEntity } from '../token-price-history/token-price-history.entity';
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
   '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
@@ -444,6 +445,31 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
     }
   }
+
+  async handleCron() {
+    const monitoredCoin = this._appConfig.tokenKey;
+    
+    // Здесь можно сделать запрос к API или любому другому источнику, чтобы получить текущую цену монеты
+    const priceEth = getTokenPrice(monitoredCoin);
+    const priceToken = 1 / priceEth;
+
+    // Сохранение данных в базу
+    const tokenPriceHistory = new TokenPriceHistoryEntity();
+    tokenPriceHistory.token = monitoredCoin;
+    tokenPriceHistory.priceEth = priceEth;
+    tokenPriceHistory.priceToken = priceToken;
+
+    await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
+
+    this.logger.debug(`Saved price of ${monitoredCoin}: ETH: ${priceEth}, Token: ${priceToken}`);
+  }
+
+  getPriceOfCoin(coin: string): number {
+    // Здесь можно реализовать логику получения цены
+    // Пока что возвращаем случайное значение для тестирования
+    return Math.random() * 1000;  // Примерная цена
+  }
+
 
   private handleBotError(error: Error, ctx): void {
     ErrorHandlingService.handleError({ error, message: `Telegraf bot error Context: ${ctx}` });
