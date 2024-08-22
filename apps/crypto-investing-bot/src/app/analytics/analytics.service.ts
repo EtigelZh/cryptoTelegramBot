@@ -201,11 +201,6 @@ export class AnalyticsService {
       FROM transactions t
       UNION
       SELECT
-        COUNT(tr.*),
-        'Скачано ERC-20 трансферов'
-      FROM transfers tr
-      UNION
-      SELECT
         COUNT(w.*),
         'Кошельков в базе'
       FROM wallets w
