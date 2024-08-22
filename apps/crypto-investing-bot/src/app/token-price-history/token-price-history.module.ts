@@ -2,9 +2,11 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { TokenPriceHistoryEntity } from "./token-price-history.entity";
 import { TokenPriceHistoryService } from "./token-price-history.service";
+import { AppConfig, AppConfigModule } from "../app.config";
+import { ScheduleModule } from "@nestjs/schedule";
 
 @Module({
-    imports: [TypeOrmModule.forFeature([TokenPriceHistoryEntity])],
+    imports: [TypeOrmModule.forFeature([TokenPriceHistoryEntity]), AppConfigModule, ScheduleModule],
     providers: [TokenPriceHistoryService],
     exports: [TokenPriceHistoryService],
 })

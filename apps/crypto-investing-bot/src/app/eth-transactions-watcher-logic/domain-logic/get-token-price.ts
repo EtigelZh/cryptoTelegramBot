@@ -89,6 +89,10 @@ export async function getTokenPrice({
     priceEthToken = smartRound(Number(priceEthToken))
     numberQuotedAmountOut = smartRound(Number(numberQuotedAmountOut))
     const message = `You'll get approximately ${numberQuotedAmountOut} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}\n${amountInStr} ${tokenOut.symbol} for ${priceEthToken} ${tokenIn.symbol}`
-    return message
+    return {
+        message,
+        numberQuotedAmountOut,
+        priceEthToken
+    }
     // ТУТ вычисляем из примерного количества токенов какова сейчас цена
 }
