@@ -6,6 +6,7 @@ import { AppConfig } from "../app.config";
 import { Cron } from "@nestjs/schedule";
 import { SwapTokensArgs } from "../utils/crypto-core/buy-coins";
 import { getTokenPrice, messageTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
+import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
 
 @Injectable()
 export class TokenPriceHistoryService {
@@ -42,6 +43,21 @@ export class TokenPriceHistoryService {
           take: 15, // Ограничиваем выборку последними 15 записями
         });
     }
+    async messageTokenPriceHistory(history: any[]) {
+        if (history.length === 0) {
+          return 'Токена с таким адресом не найдено';
+        }
+      
+        let response = 'Последние 15 записей о цене токена:\n\n';
+      
+        history.forEach((record) => {
+          response += `Токен: ${record.tokenAddress}\n`;
+          response += `Цена в ETH за 1 токен: ${smartRound(record.priceInEthPerToken)}\n`;
+          response += `Цена 1 токена в ETH: ${smartRound(record.priceInTokensPerEth)}\n`;
+          response += `Записано в: ${record.recordedAt.toLocaleString()}\n\n`;
+        });
+        return response;
+      }
 
 
     @Cron('*/15 * * * * *')
@@ -80,14 +96,6 @@ export class TokenPriceHistoryService {
 
             // Сохраняем новую запись в базе данных
             await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
-            
-            Logger.log(`New price record saved for ${monitoredCoin}: ${result.numberQuotedAmountOut} tokens per ETH, ${result.priceEthToken} ETH per token.`);
-        } else {
-            Logger.log(`Price for ${monitoredCoin} has not changed. No new record saved.`);
         }
-
-        // Получаем историю цен для отладки или дальнейшего использования
-        const historyPrice = await this.getTokenPriceHistory(monitoredCoin);
-        console.log(historyPrice);
-        }
+    }
 }

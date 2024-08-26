@@ -364,14 +364,7 @@ export class TelegramBotLogicService implements OnModuleInit {
         );
         return;
       }
-      let response = 'Последние 15 записей о цене токена:\n\n';
-
-      history.forEach((record) => {
-        response += `Токен: ${record.tokenAddress}\n`;
-        response += `Цена в ETH за 1 токен: ${record.priceInEthPerToken}\n`;
-        response += `Цена 1 токена в ETH: ${record.priceInTokensPerEth}\n`;
-        response += `Записано в: ${record.recordedAt.toLocaleString()}\n\n`;
-      });
+      const response = await this._tokenPriceHistoryService.messageTokenPriceHistory(history)
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
         response
