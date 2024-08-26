@@ -17,6 +17,7 @@ export class DexTransactionService {
     walletHash: string,
     economics: DexTransactionEconomics,
     messageText: string,
+    isMockTransaction = false,
   ): Promise<DexTransactionEntity> {
     const computedHash = `${blockNumber}-${txHash}-${walletHash}-${economics.action}-${economics.tokenAddress}-${economics.amountToken}-${economics.amountWETH}`;
     const newDexTransaction = this.dexTransactionRepository.create({
@@ -28,6 +29,7 @@ export class DexTransactionService {
       tokenAddress: economics.tokenAddress,
       economics,
       message: { text: messageText },
+      isMockTransaction,
     });
     return this.dexTransactionRepository.save(newDexTransaction);
   }
@@ -42,6 +44,7 @@ export class DexTransactionService {
         wallet: { hash: walletHash },
         tokenAddress,
         blockNumber: LessThan(blockNumber),
+        isMockTransaction: false,
       },
       order: { blockNumber: 'DESC', id: 'DESC' },
     });
