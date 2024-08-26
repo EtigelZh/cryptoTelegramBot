@@ -84,15 +84,17 @@ export async function getTokenPrice({
     const quotedAmountOut = await quoterContract.callStatic.quoteExactInputSingle(
         tokenIn.address, tokenOut.address, pool.fee, amountIn, 0);
 
-    let numberQuotedAmountOut = ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)
-    let priceEthToken = (Number(amountInStr)/Number(numberQuotedAmountOut)).toFixed(30)
-    priceEthToken = smartRound(Number(priceEthToken))
-    numberQuotedAmountOut = smartRound(Number(numberQuotedAmountOut))
-    const message = `You'll get approximately ${numberQuotedAmountOut} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}\n${amountInStr} ${tokenOut.symbol} for ${priceEthToken} ${tokenIn.symbol}`
+    let numberQuotedAmountOut = Number(ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals))
+    let priceEthToken = (Number(amountInStr)/Number(numberQuotedAmountOut))
+    // priceEthToken = smartRound(Number(priceEthToken))
+    // numberQuotedAmountOut = smartRound(Number(numberQuotedAmountOut))
+    const message = `You'll get approximately ${ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}\n${amountInStr} ${tokenOut.symbol} for ${priceEthToken} ${tokenIn.symbol}`
     return {
         message,
         numberQuotedAmountOut,
-        priceEthToken
+        priceEthToken,
+        tokenOutSymbol: tokenOut.symbol,  // Исправлено: добавлен ключ `tokenOutSymbol`
+        tokenInSymbol: tokenIn.symbol
     }
     // ТУТ вычисляем из примерного количества токенов какова сейчас цена
 }

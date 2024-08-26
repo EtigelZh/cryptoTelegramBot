@@ -21,6 +21,7 @@ import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.ser
 import { WalletService } from '../wallet/wallet.service';
 import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-runtime-wather.service';
 import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
+import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -43,6 +44,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _telegramReportingService: TelegramReportingService,
     private _walletService: WalletService,
     private _ethRuntimeWatcherService: EthRuntimeWatcherService,
+    private _tokenPriceHistoryService: TokenPriceHistoryService
   ) {}
 
   onModuleInit() {
@@ -69,6 +71,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('report', this.handleReport.bind(this));
     this._bot.command('cleanup', this.handleCleanup.bind(this));
     this._bot.command('emulate', this.handleEmulateCommand.bind(this));
+    this._bot.command('get_price_history', this.handleTokenPriceHistoryCommand.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
@@ -329,6 +332,51 @@ export class TelegramBotLogicService implements OnModuleInit {
       ctx.from.id,
       `[${ctx.from?.id}] Отправь мне команду /transactions <hash_кошелька>, <hash_кошелька> чтобы я отправил аналитику по транзакциям. ${example}`
     );
+  }
+
+  private async handleTokenPriceHistoryCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ')
+    const tokenHash = messageText[1]
+    if (!tokenHash) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один hash токена. ${example}`
+      );
+      return;
+    }
+    try {
+      const history = await this._tokenPriceHistoryService.getLast15TokenPrices(tokenHash);
+      console.log(history)
+      if (history.length === 0) {
+        await this._telegramJobApiService.sendMessage(
+          ctx.from.id,
+          `Токена с таким адресом не найдено`
+        );
+        return;
+      }
+      let response = 'Последние 15 записей о цене токена:\n\n';
+
+      history.forEach((record) => {
+        response += `Токен: ${record.tokenAddress}\n`;
+        response += `Цена в ETH за 1 токен: ${record.priceInEthPerToken}\n`;
+        response += `Цена 1 токена в ETH: ${record.priceInTokensPerEth}\n`;
+        response += `Записано в: ${record.recordedAt.toISOString()}\n\n`;
+      });
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        response
+      );
+    } catch (error) {
+      ctx.reply('Произошла ошибка при получении данных.');
+      console.error(error);
+    }
   }
 
   @WithSentryPerformance('Handle transactions command')

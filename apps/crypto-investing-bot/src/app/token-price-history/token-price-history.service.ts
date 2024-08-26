@@ -35,6 +35,13 @@ export class TokenPriceHistoryService {
             order: { recordedAt: 'ASC' }
         });
     }
+    async getLast15TokenPrices(tokenAddress: string): Promise<TokenPriceHistoryEntity[]> {
+        return this.tokenPriceHistoryRepository.find({
+          where: { tokenAddress },
+          order: { recordedAt: 'DESC' },
+          take: 15, // Ограничиваем выборку последними 15 записями
+        });
+    }
 
 
     @Cron('*/15 * * * * *')
@@ -51,15 +58,13 @@ export class TokenPriceHistoryService {
           alchemyApiToken: this._appConfig.alchemyApiKey,
           privateKey: this._appConfig.metamaskPrivateKey
         }
-        const result = getTokenPrice(inputParams)
-        // Сохранение данных в базу
-        // const tokenPriceHistory = new TokenPriceHistoryEntity();
-        // tokenPriceHistory.tokenAddress = monitoredCoin;
-        // tokenPriceHistory.priceEth = priceEth;
-        // tokenPriceHistory.priceToken = priceToken;
-    
-        // await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
-    
-        // this.logger.debug(`Saved price of ${monitoredCoin}: ETH: ${priceEth}, Token: ${priceToken}`);
+        const result = await getTokenPrice(inputParams)
+        const tokenPriceHistory = new TokenPriceHistoryEntity();
+        tokenPriceHistory.tokenAddress = monitoredCoin;
+        tokenPriceHistory.priceInTokensPerEth = result.numberQuotedAmountOut;
+        tokenPriceHistory.priceInEthPerToken = result.priceEthToken;
+        await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
+        const historyPrice = await this.getTokenPriceHistory(monitoredCoin)
+        console.log(historyPrice)
       }
 }
