@@ -125,7 +125,7 @@ export class AppConfig {
 
   network: string = process.env.NETWORK || 'mainnet';
   alchemyApiKey: string = process.env.ALCHEMY_API_KEY || '';
-  tokenKey: string = '0x6982508145454Ce325dDbE47a25d4ec3d2311933'
+  exampleTokenKey: string = '0x6982508145454Ce325dDbE47a25d4ec3d2311933'
   metamaskPrivateKey: string = process.env.METAMASK_PRIVATE_KEY!;
   metamaskWalletAddress: string = process.env.METAMASK_WALLET_ADDRESS || '0xED1F35D23d0165429328cb891E84540F62CAe981';
   etherTokenAddress: string = process.env.ETHER_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000';

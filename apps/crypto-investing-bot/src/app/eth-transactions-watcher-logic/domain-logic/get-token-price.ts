@@ -98,3 +98,24 @@ export async function getTokenPrice({
     }
     // ТУТ вычисляем из примерного количества токенов какова сейчас цена
 }
+export async function messageTokenPrice({
+    chainId,
+    walletAddress,
+    tokenInAddress,
+    tokenOutAddress,
+    amountInStr,
+    alchemyApiToken,
+    privateKey
+}: SwapTokensArgs) {
+    const result = await getTokenPrice({
+        chainId,
+        walletAddress,
+        tokenInAddress,
+        tokenOutAddress,
+        amountInStr,
+        alchemyApiToken,
+        privateKey
+    })
+    const message = `You'll get approximately ${smartRound(result.numberQuotedAmountOut)} ${result.tokenOutSymbol} for ${amountInStr} ${result.tokenInSymbol}\n${amountInStr} ${result.tokenOutSymbol} for ${smartRound(result.priceEthToken)} ${result.tokenInSymbol}`
+    return message
+}

@@ -5,7 +5,7 @@ import { TokenPriceHistoryEntity } from "./token-price-history.entity";
 import { AppConfig } from "../app.config";
 import { Cron } from "@nestjs/schedule";
 import { SwapTokensArgs } from "../utils/crypto-core/buy-coins";
-import { getTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
+import { getTokenPrice, messageTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
 
 @Injectable()
 export class TokenPriceHistoryService {
@@ -46,7 +46,7 @@ export class TokenPriceHistoryService {
 
     @Cron('*/15 * * * * *')
     async handleCron() {
-        const monitoredCoin = this._appConfig.tokenKey;
+        const monitoredCoin = this._appConfig.exampleTokenKey;
         
         // Здесь можно сделать запрос к API или любому другому источнику, чтобы получить текущую цену монеты
         const inputParams: SwapTokensArgs = {
@@ -59,12 +59,35 @@ export class TokenPriceHistoryService {
           privateKey: this._appConfig.metamaskPrivateKey
         }
         const result = await getTokenPrice(inputParams)
-        const tokenPriceHistory = new TokenPriceHistoryEntity();
-        tokenPriceHistory.tokenAddress = monitoredCoin;
-        tokenPriceHistory.priceInTokensPerEth = result.numberQuotedAmountOut;
-        tokenPriceHistory.priceInEthPerToken = result.priceEthToken;
-        await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
-        const historyPrice = await this.getTokenPriceHistory(monitoredCoin)
-        console.log(historyPrice)
-      }
+        console.log(await messageTokenPrice(inputParams))
+    // Получаем последнюю запись для данного токена из базы данных
+        const lastPriceRecord = await this.tokenPriceHistoryRepository.findOne({
+            where: { tokenAddress: monitoredCoin },
+            order: { recordedAt: 'DESC' }
+        });
+
+        // Проверяем, отличается ли новая цена от последней сохраненной цены
+        console.log(lastPriceRecord.id)
+        if (!lastPriceRecord || 
+            lastPriceRecord.priceInTokensPerEth != result.numberQuotedAmountOut || 
+            lastPriceRecord.priceInEthPerToken != result.priceEthToken) {
+            console.log(lastPriceRecord.priceInTokensPerEth, result.numberQuotedAmountOut)
+            // Если цена отличается или записи вообще нет, то создаем новую запись
+            const tokenPriceHistory = new TokenPriceHistoryEntity();
+            tokenPriceHistory.tokenAddress = monitoredCoin;
+            tokenPriceHistory.priceInTokensPerEth = result.numberQuotedAmountOut;
+            tokenPriceHistory.priceInEthPerToken = result.priceEthToken;
+
+            // Сохраняем новую запись в базе данных
+            await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
+            
+            Logger.log(`New price record saved for ${monitoredCoin}: ${result.numberQuotedAmountOut} tokens per ETH, ${result.priceEthToken} ETH per token.`);
+        } else {
+            Logger.log(`Price for ${monitoredCoin} has not changed. No new record saved.`);
+        }
+
+        // Получаем историю цен для отладки или дальнейшего использования
+        const historyPrice = await this.getTokenPriceHistory(monitoredCoin);
+        console.log(historyPrice);
+        }
 }

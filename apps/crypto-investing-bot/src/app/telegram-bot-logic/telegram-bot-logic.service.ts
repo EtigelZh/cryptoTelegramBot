@@ -367,7 +367,7 @@ export class TelegramBotLogicService implements OnModuleInit {
         response += `Токен: ${record.tokenAddress}\n`;
         response += `Цена в ETH за 1 токен: ${record.priceInEthPerToken}\n`;
         response += `Цена 1 токена в ETH: ${record.priceInTokensPerEth}\n`;
-        response += `Записано в: ${record.recordedAt.toISOString()}\n\n`;
+        response += `Записано в: ${record.recordedAt.toLocaleString()}\n\n`;
       });
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
