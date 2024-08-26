@@ -23,7 +23,7 @@ import { AddDexTransactions1721911710291 } from './1721911710291-add-dex-transac
 import { AddDexOrders1723560223623 } from './1723560223623-add-dex-orders';
 import { FixFungiblesPk1723560588527 } from './1723560588527-fix-fungibles-pk';
 import { AddTokenPriceHistory1724141636734 } from './1724141636734-add-token-price-history';
-
+import { FixDexOrder1724166873436 } from './1724166873436-fix-dex-order';
 
 export const migrations = [
   Migrations1710903030686,
@@ -50,5 +50,6 @@ export const migrations = [
   AddDexTransactions1721911710291,
   AddDexOrders1723560223623,
   FixFungiblesPk1723560588527,
-  AddTokenPriceHistory1724141636734
+  AddTokenPriceHistory1724141636734,
+  FixDexOrder1724166873436,
 ];

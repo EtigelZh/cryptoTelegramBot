@@ -44,4 +44,7 @@ export class DexTransactionEntity {
 
     @CreateDateColumn()
     createdAt: Date;
+
+    @Column({ default: false })
+    isMockTransaction?: boolean;
 }

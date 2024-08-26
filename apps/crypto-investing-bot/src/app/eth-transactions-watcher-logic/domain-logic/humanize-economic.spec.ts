@@ -6,7 +6,7 @@ describe('humanizeEconomics', () => {
   it('correct output of BUY transaction', () => {
     const economics: DexTransactionEconomics = {
         action: DexTransactionType.BUY,
-        amountToken: 5099019996.868061144328661559,
+        amountToken: 5099019996.8680611,
         amountUSD: 4860.78,
         amountWETH: 2.0,
         calculatedAt: new Date('2024-08-08T13:23:27+08:00'),
@@ -17,6 +17,7 @@ describe('humanizeEconomics', () => {
         tokenPerUsd: 1049012.7092499684,
         tokenSymbol: 'Mog',
         usdPerToken: 9.532772970071908e-7,
+        calculatedAtBlockNumber: 12345,
       };
     const mockWallet: WalletEntity = {
         alias: 'вкусный сирень',
@@ -36,7 +37,6 @@ describe('humanizeEconomics', () => {
     const etherscanTxUrl = 'https://etherscan.io/tx/0x2aa8e698e478069756b04c9d596e64a7ab3477dd8fdcf19ab79a4fbd3d380b05';
 
     const result = humanizeEconomics(economics, mockWallet, etherscanTxUrl);
-    console.log(result)
     expect(result).toContain('BUY [вкусный сирень](https://etherscan.io/tx/0x2aa8e698e478069756b04c9d596e64a7ab3477dd8fdcf19ab79a4fbd3d380b05)');
     expect(result).toContain('5.1B Mog ← 2 ETH (4.86K$)');
     expect(result).toContain('1 Mog = 0.0000000003922 ETH (0.0000009533$), 1 ETH = 2.43K$');
@@ -48,7 +48,7 @@ describe('humanizeEconomics', () => {
         action: DexTransactionType.BUY,
         amountToken: 18222.97549601,
         amountUSD: 255.95888569944225,
-        amountWETH: 0.105230242808225008,
+        amountWETH: 0.10523024280822500,
         calculatedAt: new Date('2024-08-08T14:37:03+08:00'),
         ethPerToken: 0.00000577459168681128,
         ethPrice: 2432.37,
@@ -57,6 +57,7 @@ describe('humanizeEconomics', () => {
         tokenPerUsd: 71.19493213221826,
         tokenSymbol: 'GRV',
         usdPerToken: 0.014045943581249153,
+        calculatedAtBlockNumber: 12345,
     };
 
     const mockWallet: WalletEntity = {
@@ -86,7 +87,7 @@ describe('humanizeEconomics', () => {
   it('correct output of BUY transaction without alias', () => {
     const economics: DexTransactionEconomics = {
       action: DexTransactionType.BUY,
-      amountToken: 186250.21724378078475923,
+      amountToken: 186250.2172437807,
       amountUSD: 2437.16,
       amountWETH: 1.0,
       calculatedAt: new Date('2024-08-08T18:32:45+08:00'),
@@ -97,6 +98,7 @@ describe('humanizeEconomics', () => {
       tokenPerUsd: 76.42100528639105,
       tokenSymbol: 'ANIMAL',
       usdPerToken: 0.013085407555847459,
+      calculatedAtBlockNumber: 12345,
   };
 
     const mockWallet: WalletEntity = {
@@ -128,7 +130,7 @@ describe('humanizeEconomics', () => {
       action: DexTransactionType.SELL,
       amountToken: 4500.0,
       amountUSD: 4442.534914956169,
-      amountWETH: 1.66873947395440978,
+      amountWETH: 1.6687394739544097,
       calculatedAt: new Date('2024-08-09T17:48:38+08:00'),
       ethPerToken: 0.000370830994212091,
       ethPrice: 2662.21,
@@ -137,6 +139,7 @@ describe('humanizeEconomics', () => {
       tokenPerUsd: 1.012935201668392,
       tokenSymbol: 'USDC',
       usdPerToken: 0.9872299811013708,
+      calculatedAtBlockNumber: 12345,
   };
 
     const mockWallet: WalletEntity = {

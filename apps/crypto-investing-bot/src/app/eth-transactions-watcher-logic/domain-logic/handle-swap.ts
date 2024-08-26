@@ -13,11 +13,7 @@ export enum DexTransactionType {
   SELL = 'SELL',
 }
 
-export type DexTransactionEconomics = {
-  action: DexTransactionType;
-  amountToken: number;
-  amountWETH: number;
-  amountUSD: number;
+export type TokenEconomics = {
   tokenSymbol: string;
   tokenPerEth: number;
   tokenPerUsd: number;
@@ -26,6 +22,14 @@ export type DexTransactionEconomics = {
   usdPerToken: number;
   tokenAddress: string;
   calculatedAt: Date;
+  calculatedAtBlockNumber: number;
+}
+
+export type DexTransactionEconomics = TokenEconomics & {
+  action: DexTransactionType;
+  amountToken: number;
+  amountWETH: number;
+  amountUSD: number;
 };
 
 export async function handleSwap(
@@ -140,5 +144,6 @@ export async function handleSwap(
     usdPerToken,
     tokenAddress,
     calculatedAt: new Date(),
+    calculatedAtBlockNumber: swapLog.blockNumber
   };
 }

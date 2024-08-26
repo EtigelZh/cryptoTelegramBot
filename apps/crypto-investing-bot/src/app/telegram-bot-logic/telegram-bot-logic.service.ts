@@ -19,6 +19,8 @@ import { TelegramReportingService } from './telegram-reporting.service';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
 import { WalletService } from '../wallet/wallet.service';
+import { messageTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price'
+import { SwapTokensArgs } from '../utils/crypto-core/buy-coins';
 import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-runtime-wather.service';
 import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
 import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
@@ -72,6 +74,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('cleanup', this.handleCleanup.bind(this));
     this._bot.command('emulate', this.handleEmulateCommand.bind(this));
     this._bot.command('get_price_history', this.handleTokenPriceHistoryCommand.bind(this));
+    this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this))
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
   }
@@ -378,6 +381,50 @@ export class TelegramBotLogicService implements OnModuleInit {
       console.error(error);
     }
   }
+
+  private async handleGetTokenPriceCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один адрес токена ${example}`
+      );
+      return;
+    }
+    const tokenHash = messageText[1];
+    const inputParams: SwapTokensArgs = {
+      chainId: 1,
+      walletAddress: this._appConfig.metamaskWalletAddress, // Адрес Ethereum кошелька
+      tokenInAddress: this._appConfig.etherTokenAddress, // ETH
+      tokenOutAddress: tokenHash,
+      amountInStr: '1.0',
+      alchemyApiToken: this._appConfig.alchemyApiKey,
+      privateKey: this._appConfig.metamaskPrivateKey
+    };
+    
+    try {
+      const result = await messageTokenPrice(inputParams); // Передаем объект целиком
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        result
+      );
+      return;
+    } catch (error) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Ошибка при получении цены токена'
+      );
+      return;
+    }
+  }
+
 
   @WithSentryPerformance('Handle transactions command')
   private async handleTransactionsCommand(
