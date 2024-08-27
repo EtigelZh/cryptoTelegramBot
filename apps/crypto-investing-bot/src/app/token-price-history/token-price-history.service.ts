@@ -60,10 +60,10 @@ export class TokenPriceHistoryService {
       }
 
 
-    @Cron('*/15 * * * * *')
+    @Cron(AppConfig.tokenPriceHistoryCron)
     async handleCron() {
-
-        const tokenAddresses = this._appConfig.exampleTokenKey.split(' ');
+        
+        const tokenAddresses = this._appConfig.exampleTokenKeys.split(' ');
         for (const monitoredCoin of tokenAddresses) {
             const inputParams: SwapTokensArgs = {
             chainId: this._appConfig.countChainId,
