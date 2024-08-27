@@ -20,6 +20,8 @@ import { DexTransactionService } from '../dex-transactions/dex-transactions.serv
 import { calculateTradeProfit } from './domain-logic/calculate-profit';
 import { formatTradeProfitResult } from './domain-logic/format-trade-profit';
 import { humanizeEconomics } from './domain-logic/humanize-economics';
+import { DexOrderService } from '../dex-order/dex-order.service';
+import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -49,7 +51,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _telegramJobApiService: TelegramJobApiService,
     private readonly _ethPriceService: EthPriceService,
     private readonly _etherscanApi: EtherscanClientJobApiService,
-    private readonly _dexTransactionService: DexTransactionService
+    private readonly _dexTransactionService: DexTransactionService,
+    private readonly _dexOrderService: DexOrderService
   ) {
     this._provider = new ethers.providers.AlchemyProvider(
       this._config.network,
@@ -188,7 +191,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         walletHashes.includes(tx.to?.toLocaleLowerCase())
     );
     const results = [];
-    const targetWalletAddresses = mode == WathcingTransactionsMode.PRODUCTION?this._targetWalletAddresses:[{alias: "emulate", hash: walletHashes[0], walletSubscriptionMessages: emulationMessageContext}]
+    const targetWalletAddresses = mode == WathcingTransactionsMode.PRODUCTION ? this._targetWalletAddresses : [{alias: "emulate", hash: walletHashes[0], walletSubscriptionMessages: emulationMessageContext}]
     for (const tx of dexTransactions) {
       const walletEntity = targetWalletAddresses.find(
         (wallet) =>
@@ -245,13 +248,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       }
 
       const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-      Promise.allSettled([
-        ...entries.map(([chatId, messageId]) =>
-          this._telegramJobApiService.sendMessage(+chatId, message, {
-            parse_mode: 'Markdown',
-            disable_web_page_preview: true,
-          })
-        ),
+      const [dexTransaction] = await Promise.allSettled([
         this._dexTransactionService.saveDexTransaction(
           log.blockNumber,
           log.transactionHash,
@@ -259,7 +256,20 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           economics,
           message
         ),
+        ...entries.map(([chatId, messageId]) =>
+          this._telegramJobApiService.sendMessage(+chatId, message, {
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
+          })
+        ),
       ]);
+      if (dexTransaction.status === 'fulfilled') {
+        Logger.log(`Dex transaction saved: ${log.transactionHash}`);
+        const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
+        // TODO create order
+        // await this._dexOrderService.createOrder()
+      }
+      
     }
   }
 
