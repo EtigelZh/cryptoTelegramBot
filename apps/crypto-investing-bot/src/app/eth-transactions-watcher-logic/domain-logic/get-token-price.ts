@@ -88,17 +88,14 @@ export async function getTokenPrice({
 
     let numberQuotedAmountOut = Number(ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals))
     let priceEthToken = (Number(amountInStr)/Number(numberQuotedAmountOut))
-    // priceEthToken = smartRound(Number(priceEthToken))
-    // numberQuotedAmountOut = smartRound(Number(numberQuotedAmountOut))
     const message = `You'll get approximately ${ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}\n${amountInStr} ${tokenOut.symbol} for ${priceEthToken} ${tokenIn.symbol}`
     return {
         message,
         numberQuotedAmountOut,
         priceEthToken,
-        tokenOutSymbol: tokenOut.symbol,  // Исправлено: добавлен ключ `tokenOutSymbol`
+        tokenOutSymbol: tokenOut.symbol,
         tokenInSymbol: tokenIn.symbol
     }
-    // ТУТ вычисляем из примерного количества токенов какова сейчас цена
 }
 export async function messageTokenPrice({
     chainId,

@@ -40,7 +40,7 @@ export class TokenPriceHistoryService {
         return this.tokenPriceHistoryRepository.find({
           where: { tokenAddress },
           order: { recordedAt: 'DESC' },
-          take: 15, // Ограничиваем выборку последними 15 записями
+          take: 15,
         });
     }
     async messageTokenPriceHistory(history: any[]) {
@@ -62,40 +62,36 @@ export class TokenPriceHistoryService {
 
     @Cron('*/15 * * * * *')
     async handleCron() {
-        const monitoredCoin = this._appConfig.exampleTokenKey;
-        
-        // Здесь можно сделать запрос к API или любому другому источнику, чтобы получить текущую цену монеты
-        const inputParams: SwapTokensArgs = {
-          chainId: 1,
-          walletAddress: this._appConfig.metamaskWalletAddress, // Адрес Ethereum кошелька
-          tokenInAddress: this._appConfig.etherTokenAddress, // ETH
-          tokenOutAddress: monitoredCoin,
-          amountInStr: '1.0',
-          alchemyApiToken: this._appConfig.alchemyApiKey,
-          privateKey: this._appConfig.metamaskPrivateKey
-        }
-        const result = await getTokenPrice(inputParams)
-        console.log(await messageTokenPrice(inputParams))
-    // Получаем последнюю запись для данного токена из базы данных
-        const lastPriceRecord = await this.tokenPriceHistoryRepository.findOne({
-            where: { tokenAddress: monitoredCoin },
-            order: { recordedAt: 'DESC' }
-        });
 
-        // Проверяем, отличается ли новая цена от последней сохраненной цены
-        console.log(lastPriceRecord.id)
-        if (!lastPriceRecord || 
-            lastPriceRecord.priceInTokensPerEth != result.numberQuotedAmountOut || 
-            lastPriceRecord.priceInEthPerToken != result.priceEthToken) {
-            console.log(lastPriceRecord.priceInTokensPerEth, result.numberQuotedAmountOut)
-            // Если цена отличается или записи вообще нет, то создаем новую запись
-            const tokenPriceHistory = new TokenPriceHistoryEntity();
-            tokenPriceHistory.tokenAddress = monitoredCoin;
-            tokenPriceHistory.priceInTokensPerEth = result.numberQuotedAmountOut;
-            tokenPriceHistory.priceInEthPerToken = result.priceEthToken;
+        const tokenAddresses = this._appConfig.exampleTokenKey.split(' ');
+        for (const monitoredCoin of tokenAddresses) {
+            const inputParams: SwapTokensArgs = {
+            chainId: this._appConfig.countChainId,
+            walletAddress: this._appConfig.metamaskWalletAddress,
+            tokenInAddress: this._appConfig.etherTokenAddress,
+            tokenOutAddress: monitoredCoin,
+            amountInStr: '1.0',
+            alchemyApiToken: this._appConfig.alchemyApiKey,
+            privateKey: this._appConfig.metamaskPrivateKey
+            }
+            const result = await getTokenPrice(inputParams)
+            const lastPriceRecord = await this.tokenPriceHistoryRepository.findOne({
+                where: { tokenAddress: monitoredCoin },
+                order: { recordedAt: 'DESC' }
+            });
 
-            // Сохраняем новую запись в базе данных
-            await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
+            if (!lastPriceRecord || 
+                lastPriceRecord.priceInTokensPerEth != result.numberQuotedAmountOut || 
+                lastPriceRecord.priceInEthPerToken != result.priceEthToken) {
+
+                const tokenPriceHistory = new TokenPriceHistoryEntity();
+                tokenPriceHistory.tokenAddress = monitoredCoin;
+                tokenPriceHistory.priceInTokensPerEth = result.numberQuotedAmountOut;
+                tokenPriceHistory.priceInEthPerToken = result.priceEthToken;
+
+                await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
+            
+            }
         }
     }
 }

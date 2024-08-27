@@ -356,7 +356,6 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
     try {
       const history = await this._tokenPriceHistoryService.getLast15TokenPrices(tokenHash);
-      console.log(history)
       if (history.length === 0) {
         await this._telegramJobApiService.sendMessage(
           ctx.from.id,
@@ -393,9 +392,9 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
     const tokenHash = messageText[1];
     const inputParams: SwapTokensArgs = {
-      chainId: 1,
-      walletAddress: this._appConfig.metamaskWalletAddress, // Адрес Ethereum кошелька
-      tokenInAddress: this._appConfig.etherTokenAddress, // ETH
+      chainId: this._appConfig.countChainId,
+      walletAddress: this._appConfig.metamaskWalletAddress,
+      tokenInAddress: this._appConfig.etherTokenAddress,
       tokenOutAddress: tokenHash,
       amountInStr: '1.0',
       alchemyApiToken: this._appConfig.alchemyApiKey,
@@ -403,7 +402,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     };
     
     try {
-      const result = await messageTokenPrice(inputParams); // Передаем объект целиком
+      const result = await messageTokenPrice(inputParams);
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
         result
