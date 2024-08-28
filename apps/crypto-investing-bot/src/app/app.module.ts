@@ -12,10 +12,12 @@ import { ScheduleModule } from '@nestjs/schedule';
 import type { RedisClientOptions } from 'redis';
 import { WalletSearcherModule } from './wallets-searcher/wallet-searcher.module';
 import { EthTransactionsWatcherLogicModule } from './eth-transactions-watcher-logic/eth-transactions-watcher-logic.module';
+import { TokenPriceHistoryModule } from './token-price-history/token-price-history.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    TokenPriceHistoryModule,
     TypeOrmModule.forRootAsync({
       imports: [AppConfigModule],
       useFactory: (appConfig: AppConfig) => appConfig.getDbConfig(),

@@ -1,0 +1,97 @@
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { TokenPriceHistoryEntity } from "./token-price-history.entity";
+import { AppConfig } from "../app.config";
+import { Cron } from "@nestjs/schedule";
+import { SwapTokensArgs } from "../utils/crypto-core/buy-coins";
+import { getTokenPrice, messageTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
+import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
+
+@Injectable()
+export class TokenPriceHistoryService {
+    constructor(
+        @InjectRepository(TokenPriceHistoryEntity)
+        private readonly tokenPriceHistoryRepository: Repository<TokenPriceHistoryEntity>,
+        private _appConfig: AppConfig,
+    ) {
+    }
+
+    async saveTokenPrice(
+        tokenAddress: string, 
+        priceInEthPerToken: number, 
+        priceInTokensPerEth: number
+    ): Promise<TokenPriceHistoryEntity> {
+        const priceRecord = this.tokenPriceHistoryRepository.create({
+            tokenAddress,
+            priceInEthPerToken,
+            priceInTokensPerEth,
+        });
+        return await this.tokenPriceHistoryRepository.save(priceRecord);
+    }
+
+    async getTokenPriceHistory(tokenAddress: string): Promise<TokenPriceHistoryEntity[]> {
+        return await this.tokenPriceHistoryRepository.find({
+            where: { tokenAddress },
+            order: { recordedAt: 'ASC' }
+        });
+    }
+    async getLast15TokenPrices(tokenAddress: string): Promise<TokenPriceHistoryEntity[]> {
+        return this.tokenPriceHistoryRepository.find({
+          where: { tokenAddress },
+          order: { recordedAt: 'DESC' },
+          take: 15,
+        });
+    }
+    async messageTokenPriceHistory(history: any[]) {
+        if (history.length === 0) {
+          return 'Токена с таким адресом не найдено';
+        }
+      
+        let response = 'Последние 15 записей о цене токена:\n\n';
+      
+        history.forEach((record) => {
+          response += `Токен: ${record.tokenAddress}\n`;
+          response += `Цена в ETH за 1 токен: ${smartRound(record.priceInEthPerToken)}\n`;
+          response += `Цена 1 токена в ETH: ${smartRound(record.priceInTokensPerEth)}\n`;
+          response += `Записано в: ${record.recordedAt.toLocaleString()}\n\n`;
+        });
+        return response;
+      }
+
+
+    @Cron(AppConfig.tokenPriceHistoryCron)
+    async handleCron() {
+        
+        const tokenAddresses = this._appConfig.exampleTokenKeys.split(' ');
+        for (const monitoredCoin of tokenAddresses) {
+            const inputParams: SwapTokensArgs = {
+            chainId: this._appConfig.countChainId,
+            walletAddress: this._appConfig.metamaskWalletAddress,
+            tokenInAddress: this._appConfig.etherTokenAddress,
+            tokenOutAddress: monitoredCoin,
+            amountInStr: '1.0',
+            alchemyApiToken: this._appConfig.alchemyApiKey,
+            privateKey: this._appConfig.metamaskPrivateKey
+            }
+            const result = await getTokenPrice(inputParams)
+            const lastPriceRecord = await this.tokenPriceHistoryRepository.findOne({
+                where: { tokenAddress: monitoredCoin },
+                order: { recordedAt: 'DESC' }
+            });
+
+            if (!lastPriceRecord || 
+                lastPriceRecord.priceInTokensPerEth != result.numberQuotedAmountOut || 
+                lastPriceRecord.priceInEthPerToken != result.priceEthToken) {
+
+                const tokenPriceHistory = new TokenPriceHistoryEntity();
+                tokenPriceHistory.tokenAddress = monitoredCoin;
+                tokenPriceHistory.priceInTokensPerEth = result.numberQuotedAmountOut;
+                tokenPriceHistory.priceInEthPerToken = result.priceEthToken;
+
+                await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
+            
+            }
+        }
+    }
+}

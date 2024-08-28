@@ -7,6 +7,7 @@ import { EthTransferEntity } from "./eth-transfer/eth-transfer.entity";
 import { EthInternalTransactionEntity } from "./eth-transfer/eth-internal-transaction.entity";
 import { DexTransactionEntity } from "./dex-transactions/dex-transaction.entity";
 import { DexOrderEntity } from "./dex-order/dex-order.entity";
+import { TokenPriceHistoryEntity } from "./token-price-history/token-price-history.entity";
 
 export const entities = [
     FinanceDataEntity,
@@ -18,4 +19,5 @@ export const entities = [
     EthInternalTransactionEntity,
     DexTransactionEntity,
     DexOrderEntity,
+    TokenPriceHistoryEntity
 ];

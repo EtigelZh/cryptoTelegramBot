@@ -75,6 +75,7 @@ export class AppConfig {
   static readonly newMessageTelegramReportingCron = process.env.NEW_MESSAGE_TELEGRAM_REPORTING_CRON || '0 * * * *';
   static readonly zerionSearcherCron = process.env.ZERION_SEARCHER_CRON || '*/20 * * * *';
   static readonly etherscanSearcherCron = process.env.ETHERSCAN_SEARCHER_CRON || '0 0 * * *';
+  static readonly tokenPriceHistoryCron = process.env.TOKEN_PRICE_HISTORY_CRON || '*/15 * * * * *';
   static readonly checkMissingBlockCron = process.env.CHECK_MISSING_BLOCK_CRON || CronExpression.EVERY_HOUR;
 
   minioEndpoint: string = process.env.MINIO_ENDPOINT || '';
@@ -125,9 +126,12 @@ export class AppConfig {
 
   network: string = process.env.NETWORK || 'mainnet';
   alchemyApiKey: string = process.env.ALCHEMY_API_KEY || '';
+  exampleTokenKeys: string = process.env.EXPAMPLE_TOKEN_KEYS || '' // example: '0x6982508145454Ce325dDbE47a25d4ec3d2311933 0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e 0x6B175474E89094C44Da98b954EedeAC495271d0F'
   metamaskPrivateKey: string = process.env.METAMASK_PRIVATE_KEY!;
-  metamaskWalletAddress: string = process.env.METAMASK_WALLET_ADDRESS!;
-  etherTokenAddress: string = process.env.ETHER_TOKEN_ADDRESS!;
+  metamaskWalletAddress: string = process.env.METAMASK_WALLET_ADDRESS || '0xED1F35D23d0165429328cb891E84540F62CAe981';
+  etherTokenAddress: string = process.env.ETHER_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000';
+  maxPoolFee: number = +(process.env.MAX_POOL_FEE || 3000);
+  countChainId: number = +(process.env.COUNT_CHAIN_ID || 1)
 
   public async getDbConfig() {
     return dataSourceOptions({

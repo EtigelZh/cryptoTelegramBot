@@ -8,6 +8,7 @@ import ERC20_abi from "../../utils/crypto-core/ERC20-abi.json";
 import IUniswapV3Factory from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Factory.sol/IUniswapV3Factory.json';
 import IUniswapV3Pool from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterABI from '@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json';
+import { AppConfig } from "../../app.config";
 
 const UNISWAP_FACTORY_ADDRESS = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
 const UNISWAP_QUOTER_ADDRESS = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
@@ -15,7 +16,7 @@ const WETH_ADDRESS_NETWORK_MAP = {
     [1]: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
     [42161]: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 };
-
+const _appConfig = new AppConfig();
 export async function getTokenPrice({
     chainId,
     walletAddress,
@@ -25,6 +26,7 @@ export async function getTokenPrice({
     alchemyApiToken,
     privateKey
 }: SwapTokensArgs) {
+    
     const provider = new ethers.providers.AlchemyProvider(chainId, alchemyApiToken);
     const signer = new ethers.Wallet(privateKey, provider);
 
@@ -72,23 +74,47 @@ export async function getTokenPrice({
     }
 
     const factoryContract = new ethers.Contract(UNISWAP_FACTORY_ADDRESS, IUniswapV3Factory.abi, provider);
-    const poolAddress = await factoryContract.getPool(tokenIn.address, tokenOut.address, 3000);
+    const poolAddress = await factoryContract.getPool(tokenIn.address, tokenOut.address, _appConfig.maxPoolFee);
     if (Number(poolAddress).toString() === "0") throw `Error: No pool ${tokenIn.symbol}-${tokenOut.symbol}`;
 
     const poolContract = new ethers.Contract(poolAddress, IUniswapV3Pool.abi, provider);
     const [liquidity, slot] = await Promise.all([poolContract.liquidity(), poolContract.slot0()]);
-    const pool = new Pool(tokenIn, tokenOut, 3000, slot[0].toString(), liquidity.toString(), slot[1]);
+    const pool = new Pool(tokenIn, tokenOut, _appConfig.maxPoolFee, slot[0].toString(), liquidity.toString(), slot[1]);
 
     const amountIn = ethers.utils.parseUnits(amountInStr, tokenIn.decimals);
     const quoterContract = new ethers.Contract(UNISWAP_QUOTER_ADDRESS, QuoterABI.abi, provider);
     const quotedAmountOut = await quoterContract.callStatic.quoteExactInputSingle(
         tokenIn.address, tokenOut.address, pool.fee, amountIn, 0);
 
-    let numberQuotedAmountOut = ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)
-    let priceEthToken = (Number(amountInStr)/Number(numberQuotedAmountOut)).toFixed(30)
-    priceEthToken = smartRound(Number(priceEthToken))
-    numberQuotedAmountOut = smartRound(Number(numberQuotedAmountOut))
-    const message = `You'll get approximately ${numberQuotedAmountOut} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}\n${amountInStr} ${tokenOut.symbol} for ${priceEthToken} ${tokenIn.symbol}`
+    let numberQuotedAmountOut = Number(ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals))
+    let priceEthToken = (Number(amountInStr)/Number(numberQuotedAmountOut))
+    const message = `You'll get approximately ${ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals)} ${tokenOut.symbol} for ${amountInStr} ${tokenIn.symbol}\n${amountInStr} ${tokenOut.symbol} for ${priceEthToken} ${tokenIn.symbol}`
+    return {
+        message,
+        numberQuotedAmountOut,
+        priceEthToken,
+        tokenOutSymbol: tokenOut.symbol,
+        tokenInSymbol: tokenIn.symbol
+    }
+}
+export async function messageTokenPrice({
+    chainId,
+    walletAddress,
+    tokenInAddress,
+    tokenOutAddress,
+    amountInStr,
+    alchemyApiToken,
+    privateKey
+}: SwapTokensArgs) {
+    const result = await getTokenPrice({
+        chainId,
+        walletAddress,
+        tokenInAddress,
+        tokenOutAddress,
+        amountInStr,
+        alchemyApiToken,
+        privateKey
+    })
+    const message = `You'll get approximately ${smartRound(result.numberQuotedAmountOut)} ${result.tokenOutSymbol} for ${amountInStr} ${result.tokenInSymbol}\n${amountInStr} ${result.tokenOutSymbol} for ${smartRound(result.priceEthToken)} ${result.tokenInSymbol}`
     return message
-    // ТУТ вычисляем из примерного количества токенов какова сейчас цена
 }

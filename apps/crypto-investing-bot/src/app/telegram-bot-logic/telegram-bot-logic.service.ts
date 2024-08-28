@@ -19,10 +19,12 @@ import { TelegramReportingService } from './telegram-reporting.service';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
 import { WalletService } from '../wallet/wallet.service';
-import { getTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price'
+import { messageTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price'
 import { SwapTokensArgs } from '../utils/crypto-core/buy-coins';
 import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-runtime-wather.service';
 import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
+import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
+
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
   '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
@@ -43,7 +45,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _walletSearcherService: WalletSearcherService,
     private _telegramReportingService: TelegramReportingService,
     private _walletService: WalletService,
-    private _ethRuntimeWatcherService: EthRuntimeWatcherService
+    private _ethRuntimeWatcherService: EthRuntimeWatcherService,
+    private _tokenPriceHistoryService: TokenPriceHistoryService
   ) {}
 
   onModuleInit() {
@@ -69,6 +72,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('search_etherscan', this.handleEtherscanSearch.bind(this));
     this._bot.command('report', this.handleReport.bind(this));
     this._bot.command('cleanup', this.handleCleanup.bind(this));
+    this._bot.command('emulate', this.handleEmulateCommand.bind(this));
+    this._bot.command('get_price_history', this.handleTokenPriceHistoryCommand.bind(this));
     this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this))
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
@@ -332,6 +337,43 @@ export class TelegramBotLogicService implements OnModuleInit {
     );
   }
 
+  private async handleTokenPriceHistoryCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ')
+    const tokenHash = messageText[1]
+    if (!tokenHash) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один hash токена. ${example}`
+      );
+      return;
+    }
+    try {
+      const history = await this._tokenPriceHistoryService.getLast15TokenPrices(tokenHash);
+      if (history.length === 0) {
+        await this._telegramJobApiService.sendMessage(
+          ctx.from.id,
+          `Токена с таким адресом не найдено`
+        );
+        return;
+      }
+      const response = await this._tokenPriceHistoryService.messageTokenPriceHistory(history)
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        response
+      );
+    } catch (error) {
+      ctx.reply('Произошла ошибка при получении данных.');
+      console.error(error);
+    }
+  }
+
   private async handleGetTokenPriceCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
@@ -350,9 +392,9 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
     const tokenHash = messageText[1];
     const inputParams: SwapTokensArgs = {
-      chainId: 1,
-      walletAddress: this._appConfig.metamaskWalletAddress, // Адрес Ethereum кошелька
-      tokenInAddress: this._appConfig.etherTokenAddress, // ETH
+      chainId: this._appConfig.countChainId,
+      walletAddress: this._appConfig.metamaskWalletAddress,
+      tokenInAddress: this._appConfig.etherTokenAddress,
       tokenOutAddress: tokenHash,
       amountInStr: '1.0',
       alchemyApiToken: this._appConfig.alchemyApiKey,
@@ -360,7 +402,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     };
     
     try {
-      const result = await getTokenPrice(inputParams); // Передаем объект целиком
+      const result = await messageTokenPrice(inputParams);
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
         result
@@ -374,6 +416,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       return;
     }
   }
+
 
   @WithSentryPerformance('Handle transactions command')
   private async handleTransactionsCommand(

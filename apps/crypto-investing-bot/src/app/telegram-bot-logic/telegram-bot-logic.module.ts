@@ -11,6 +11,7 @@ import { ErrorHandlingModule } from '../error-handling/error-handling-module';
 import { WalletSearcherModule } from '../wallets-searcher/wallet-searcher.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { EthTransactionsWatcherLogicModule } from '../eth-transactions-watcher-logic/eth-transactions-watcher-logic.module';
+import { TokenPriceHistoryModule } from '../token-price-history/token-price-history.module';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { EthTransactionsWatcherLogicModule } from '../eth-transactions-watcher-l
     AnalyticsModule,
     ErrorHandlingModule,
     WalletSearcherModule,
-    EthTransactionsWatcherLogicModule
+    EthTransactionsWatcherLogicModule,
+    TokenPriceHistoryModule
   ],
   providers: [TelegramBotLogicService, TelegramReportingService],
   exports: [TelegramBotLogicService],
