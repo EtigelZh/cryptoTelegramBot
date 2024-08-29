@@ -22,6 +22,8 @@ import { formatTradeProfitResult } from './domain-logic/format-trade-profit';
 import { humanizeEconomics } from './domain-logic/humanize-economics';
 import { DexOrderService } from '../dex-order/dex-order.service';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
+import { DexOrderEntity } from '../dex-order/dex-order.entity';
+import { DexOrderStatus } from '../dex-order/dex-order.models';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -266,8 +268,29 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       if (dexTransaction.status === 'fulfilled') {
         Logger.log(`Dex transaction saved: ${log.transactionHash}`);
         const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
+        //console.log('-------------------------------------------------------------------', followingDexTransaction)
+        const newDexOrder = new DexOrderEntity();
+        newDexOrder.copyTradingWallet = followingDexTransaction.wallet 
+        newDexOrder.wallet = {hash: this._config.metamaskWalletAddress}
+        newDexOrder.status = DexOrderStatus.BUYING
+        newDexOrder.completedReason = null
+        newDexOrder.tokenAddress = followingDexTransaction.tokenAddress
+        newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash
+        newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber
+        newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt
+        newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPrice
+        newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken
+        newDexOrder.sourceBuyingTransactions = []
+        newDexOrder.sourceSellingTransactions = []
+        newDexOrder.targetBuyingPrice = this._config.copyTradingTargetBuyingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice
+        newDexOrder.targetBuyingAmountEth = this._config.copyTradingTargetBuyingAmountEth
+        newDexOrder.targetSellingPrice = this._config.copyTradingTargetSellingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice
+        newDexOrder.targetSellingAmountTokenPercent = 1
+        newDexOrder.buyingTransactions = []
+        newDexOrder.sellingTransactions = []
         // TODO create order
-        // await this._dexOrderService.createOrder()
+        await this._dexOrderService.createOrder(newDexOrder)
+        
       }
       
     }

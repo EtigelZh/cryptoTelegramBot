@@ -11,15 +11,15 @@ export class DexOrderEntity {
     id: number;
     /** Кошелек за которым следовали */
     @ManyToOne(() => WalletEntity)
-    copyTradingWallet: WalletEntity;
+    copyTradingWallet: Partial<WalletEntity>;
     /** Кошелек с которого торгуем */
     @ManyToOne(() => WalletEntity)
-    wallet: WalletEntity;
+    wallet: Partial<WalletEntity>;
     
     @Column({ type: 'enum', enum: DexOrderStatus })
     status: DexOrderStatus;
     
-    @Column({ type: 'enum', enum: DexOrderCompletedReason })
+    @Column({ type: 'enum', enum: DexOrderCompletedReason, nullable: true })
     completedReason: DexOrderCompletedReason;
   
     /** Адрес контракта монеты */
@@ -33,14 +33,15 @@ export class DexOrderEntity {
     sourceBuyingTransactionBlockNumber: number;
     @Column()
     sourceBuyingTransactionDate: Date;
+    /** Цена в Эфирах */
     @Column({ type: 'numeric'})
     sourceBuyingTransactionPrice: number;
     @Column({ type: 'numeric'})
     sourceBuyingTransactionAmount: number;
   
-    @ManyToMany(() => DexTransactionEntity, { eager: true })
+    @ManyToMany(() => DexTransactionEntity, { eager: false })
     sourceBuyingTransactions: DexTransactionEntity[];
-    @ManyToMany(() => DexTransactionEntity, { eager: true })
+    @ManyToMany(() => DexTransactionEntity, { eager: false })
     sourceSellingTransactions: DexTransactionEntity[];
   
     @Column({ type: 'numeric' })
@@ -54,9 +55,9 @@ export class DexOrderEntity {
     targetSellingAmountTokenPercent: number;
     
     /** Количество и цены купленного считаем автоматом */
-    @ManyToMany(() => DexTransactionEntity, { eager: true })
+    @ManyToMany(() => DexTransactionEntity, { eager: false })
     buyingTransactions: DexTransactionEntity[];
-    @ManyToMany(() => DexTransactionEntity, { eager: true })
+    @ManyToMany(() => DexTransactionEntity, { eager: false })
     sellingTransactions: DexTransactionEntity[];
 
     @Column({ type: 'jsonb', default: {} })
