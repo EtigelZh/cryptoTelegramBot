@@ -102,4 +102,17 @@ export class DexOrderService {
       isMockTransaction,
     );
   }
+  async getAllTokenAddresses(): Promise<string[]> {
+    try {
+      const orders = await this._dexOrderRepository.find({
+        select: ['tokenAddress'],
+      });
+
+      const tokenAddresses = orders.map(order => order.tokenAddress);
+      return tokenAddresses;
+    } catch (error) {
+      Logger.error(`Failed to get all token addresses: ${error.message}`);
+      throw error;
+    }
+  }
 }

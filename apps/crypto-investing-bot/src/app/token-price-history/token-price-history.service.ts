@@ -5,8 +5,9 @@ import { TokenPriceHistoryEntity } from "./token-price-history.entity";
 import { AppConfig } from "../app.config";
 import { Cron } from "@nestjs/schedule";
 import { SwapTokensArgs } from "../utils/crypto-core/buy-coins";
-import { getTokenPrice, messageTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
+import { getTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
 import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
+import { DexOrderService } from "../dex-order/dex-order.service";
 
 @Injectable()
 export class TokenPriceHistoryService {
@@ -14,6 +15,7 @@ export class TokenPriceHistoryService {
         @InjectRepository(TokenPriceHistoryEntity)
         private readonly tokenPriceHistoryRepository: Repository<TokenPriceHistoryEntity>,
         private _appConfig: AppConfig,
+        private _dexOrderService: DexOrderService
     ) {
     }
 
@@ -62,9 +64,11 @@ export class TokenPriceHistoryService {
 
     @Cron(AppConfig.tokenPriceHistoryCron)
     async handleCron() {
-        
+        const allTokenAddress = await this._dexOrderService.getAllTokenAddresses()
+        console.log(allTokenAddress)
         const tokenAddresses = this._appConfig.exampleTokenKeys.split(' ');
-        for (const monitoredCoin of tokenAddresses) {
+        for (const monitoredCoin of allTokenAddress) {
+            console.log(monitoredCoin,'---------------------------------------------')
             const inputParams: SwapTokensArgs = {
             chainId: this._appConfig.countChainId,
             walletAddress: this._appConfig.metamaskWalletAddress,
@@ -75,6 +79,7 @@ export class TokenPriceHistoryService {
             privateKey: this._appConfig.metamaskPrivateKey
             }
             const result = await getTokenPrice(inputParams)
+            console.log(result)
             const lastPriceRecord = await this.tokenPriceHistoryRepository.findOne({
                 where: { tokenAddress: monitoredCoin },
                 order: { recordedAt: 'DESC' }

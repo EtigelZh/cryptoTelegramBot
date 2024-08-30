@@ -268,7 +268,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       if (dexTransaction.status === 'fulfilled') {
         Logger.log(`Dex transaction saved: ${log.transactionHash}`);
         const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
-        //console.log('-------------------------------------------------------------------', followingDexTransaction)
+
         const newDexOrder = new DexOrderEntity();
         newDexOrder.copyTradingWallet = followingDexTransaction.wallet 
         newDexOrder.wallet = {hash: this._config.metamaskWalletAddress}
