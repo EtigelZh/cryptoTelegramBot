@@ -8,6 +8,7 @@ import { SwapTokensArgs } from "../utils/crypto-core/buy-coins";
 import { getTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
 import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
 import { DexOrderService } from "../dex-order/dex-order.service";
+import { TokenEconomics } from "../eth-transactions-watcher-logic/domain-logic/handle-swap";
 
 @Injectable()
 export class TokenPriceHistoryService {
@@ -65,21 +66,17 @@ export class TokenPriceHistoryService {
     @Cron(AppConfig.tokenPriceHistoryCron)
     async handleCron() {
         const allTokenAddress = await this._dexOrderService.getAllTokenAddresses()
-        console.log(allTokenAddress)
-        const tokenAddresses = this._appConfig.exampleTokenKeys.split(' ');
         for (const monitoredCoin of allTokenAddress) {
-            console.log(monitoredCoin,'---------------------------------------------')
             const inputParams: SwapTokensArgs = {
             chainId: this._appConfig.countChainId,
             walletAddress: this._appConfig.metamaskWalletAddress,
             tokenInAddress: this._appConfig.etherTokenAddress,
             tokenOutAddress: monitoredCoin,
-            amountInStr: '1.0',
+            amountInStr: `${this._appConfig.copyTradingTargetBuyingAmountEth}`,
             alchemyApiToken: this._appConfig.alchemyApiKey,
             privateKey: this._appConfig.metamaskPrivateKey
             }
             const result = await getTokenPrice(inputParams)
-            console.log(result)
             const lastPriceRecord = await this.tokenPriceHistoryRepository.findOne({
                 where: { tokenAddress: monitoredCoin },
                 order: { recordedAt: 'DESC' }
@@ -98,5 +95,17 @@ export class TokenPriceHistoryService {
             
             }
         }
+        const exampleToken: TokenEconomics = {
+            tokenSymbol: "NEIRO", // Предположительное название токена
+            tokenPerEth: 1080, // Количество токенов за 1 ETH
+            tokenPerUsd: 0.125, // Количество токенов за 1 USD
+            ethPrice: 1600, // Цена 1 ETH в USD
+            ethPerToken: 2000, // Цена одного токена в ETH
+            usdPerToken: 8, // Цена одного токена в USD
+            tokenAddress: "0xEE2a03Aa6Dacf51C18679C516ad5283d8E7C2637", // Адрес токена
+            calculatedAt: new Date(), // Дата и время получения данных
+            calculatedAtBlockNumber: 20662060 // Примерный номер блока
+        }
+        await this._dexOrderService.handleTokenPriceChange(exampleToken)
     }
 }

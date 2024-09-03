@@ -55,9 +55,9 @@ export class DexOrderEntity {
     targetSellingAmountTokenPercent: number;
     
     /** Количество и цены купленного считаем автоматом */
-    @ManyToMany(() => DexTransactionEntity, { eager: false })
+    @Column({ type: 'jsonb', default: [] })
     buyingTransactions: DexTransactionEntity[];
-    @ManyToMany(() => DexTransactionEntity, { eager: false })
+    @Column({ type: 'jsonb', default: [] })
     sellingTransactions: DexTransactionEntity[];
 
     @Column({ type: 'jsonb', default: {} })
