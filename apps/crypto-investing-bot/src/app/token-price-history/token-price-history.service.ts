@@ -94,18 +94,20 @@ export class TokenPriceHistoryService {
                 await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
             
             }
+            const exampleToken: TokenEconomics = {
+                tokenSymbol: result.tokenOutSymbol, // Предположительное название токена
+                tokenPerEth: result.numberQuotedAmountOut, // Количество токенов за 1 ETH
+                tokenPerUsd: 0.125, // Количество токенов за 1 USD
+                ethPrice: 1600, // Цена 1 ETH в USD
+                ethPerToken: result.priceEthToken, // Цена одного токена в ETH
+                usdPerToken: 8, // Цена одного токена в USD
+                tokenAddress: monitoredCoin, // Адрес токена
+                calculatedAt: new Date(), // Дата и время получения данных
+                calculatedAtBlockNumber: result.currentBlockNumber // Примерный номер блока
+            }
+            console.log(exampleToken)
+            // await this._dexOrderService.handleTokenPriceChange(exampleToken)
         }
-        const exampleToken: TokenEconomics = {
-            tokenSymbol: "NEIRO", // Предположительное название токена
-            tokenPerEth: 1080, // Количество токенов за 1 ETH
-            tokenPerUsd: 0.125, // Количество токенов за 1 USD
-            ethPrice: 1600, // Цена 1 ETH в USD
-            ethPerToken: 2000, // Цена одного токена в ETH
-            usdPerToken: 8, // Цена одного токена в USD
-            tokenAddress: "0xEE2a03Aa6Dacf51C18679C516ad5283d8E7C2637", // Адрес токена
-            calculatedAt: new Date(), // Дата и время получения данных
-            calculatedAtBlockNumber: 20662060 // Примерный номер блока
-        }
-        await this._dexOrderService.handleTokenPriceChange(exampleToken)
+
     }
 }
