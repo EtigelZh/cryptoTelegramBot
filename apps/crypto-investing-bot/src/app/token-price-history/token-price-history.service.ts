@@ -9,12 +9,14 @@ import { getTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/ge
 import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
 import { DexOrderService } from "../dex-order/dex-order.service";
 import { TokenEconomics } from "../eth-transactions-watcher-logic/domain-logic/handle-swap";
+import { EthPriceService } from "../eth-transactions-watcher-logic/eth-price.service";
 
 @Injectable()
 export class TokenPriceHistoryService {
     constructor(
         @InjectRepository(TokenPriceHistoryEntity)
         private readonly tokenPriceHistoryRepository: Repository<TokenPriceHistoryEntity>,
+        private readonly _ethPriceService: EthPriceService,
         private _appConfig: AppConfig,
         private _dexOrderService: DexOrderService
     ) {
@@ -97,16 +99,16 @@ export class TokenPriceHistoryService {
             const exampleToken: TokenEconomics = {
                 tokenSymbol: result.tokenOutSymbol, // Предположительное название токена
                 tokenPerEth: result.numberQuotedAmountOut, // Количество токенов за 1 ETH
-                tokenPerUsd: 0.125, // Количество токенов за 1 USD
-                ethPrice: 1600, // Цена 1 ETH в USD
+                tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price, // Количество токенов за 1 USD
+                ethPrice: this._ethPriceService.price, // цена 1 эфира в долларах
                 ethPerToken: result.priceEthToken, // Цена одного токена в ETH
-                usdPerToken: 8, // Цена одного токена в USD
+                usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut, // Цена одного токена в USD
                 tokenAddress: monitoredCoin, // Адрес токена
                 calculatedAt: new Date(), // Дата и время получения данных
                 calculatedAtBlockNumber: result.currentBlockNumber // Примерный номер блока
             }
             console.log(exampleToken)
-            // await this._dexOrderService.handleTokenPriceChange(exampleToken)
+            await this._dexOrderService.handleTokenPriceChange(exampleToken)
         }
 
     }

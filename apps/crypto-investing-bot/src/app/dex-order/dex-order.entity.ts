@@ -36,6 +36,7 @@ export class DexOrderEntity {
     /** Цена в Эфирах */
     @Column({ type: 'numeric'})
     sourceBuyingTransactionPrice: number;
+    /** Сколько было куплено токенов */
     @Column({ type: 'numeric'})
     sourceBuyingTransactionAmount: number;
   

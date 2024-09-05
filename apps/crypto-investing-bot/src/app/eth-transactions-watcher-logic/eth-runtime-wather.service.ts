@@ -278,7 +278,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash
         newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber
         newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt
-        newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPrice
+        newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPerToken
         newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken
         newDexOrder.sourceBuyingTransactions = []
         newDexOrder.sourceSellingTransactions = []
