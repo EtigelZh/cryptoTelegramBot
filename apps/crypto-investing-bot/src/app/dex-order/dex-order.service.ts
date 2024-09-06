@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DexOrderEntity } from './dex-order.entity';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { DexOrderStatus } from './dex-order.models';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
@@ -77,6 +77,61 @@ export class DexOrderService {
           'mock buy transaction'
         );
         order.status = DexOrderStatus.SELLING;
+        order.buyingTransactions = [mockBuyingTransaction];
+        const savedOrder = await this._dexOrderRepository.save(order);
+        return savedOrder;
+      })
+    );
+    Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
+  }
+
+  async handleTokenPriceChangeSell(
+    tokenEconomics: TokenEconomics,
+  ) {
+    await Promise.allSettled([
+      this.handleTokenPriceChangeSellOrders(
+        tokenEconomics
+      ),
+      // TODO add handling for selling orders
+    ]);
+  }
+
+  async handleTokenPriceChangeSellOrders(
+    tokenEconomics: TokenEconomics,
+  ) {
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        tokenAddress: tokenEconomics.tokenAddress,
+        status: DexOrderStatus.SELLING,
+        targetSellingPrice: LessThanOrEqual(tokenEconomics.ethPerToken),
+      },
+      relations: ['wallet'],
+    });
+
+    const results = await Promise.allSettled(
+      orders.map(async (order) => {
+        const mockBuyingTransaction = await this.createMockDexBuyingTransaction(
+          tokenEconomics.calculatedAtBlockNumber,
+          `mock-buy-${order.id}`,
+          order.wallet.hash,
+          {
+            action: DexTransactionType.SELL,
+            tokenAddress: tokenEconomics.tokenAddress,
+            amountToken: order.targetBuyingAmountEth / tokenEconomics.ethPerToken,
+            amountUSD: order.targetBuyingAmountEth * tokenEconomics.ethPrice,
+            amountWETH: order.targetBuyingAmountEth,
+            tokenSymbol: tokenEconomics.tokenSymbol,
+            tokenPerEth: tokenEconomics.tokenPerEth,
+            tokenPerUsd: tokenEconomics.tokenPerUsd,
+            ethPrice: tokenEconomics.ethPrice,
+            ethPerToken: tokenEconomics.ethPerToken,
+            usdPerToken: tokenEconomics.usdPerToken,
+            calculatedAt: tokenEconomics.calculatedAt,
+            calculatedAtBlockNumber: tokenEconomics.calculatedAtBlockNumber,
+          },
+          'mock buy transaction'
+        );
+        order.status = DexOrderStatus.COMPLETED;
         order.buyingTransactions = [mockBuyingTransaction];
         const savedOrder = await this._dexOrderRepository.save(order);
         return savedOrder;
