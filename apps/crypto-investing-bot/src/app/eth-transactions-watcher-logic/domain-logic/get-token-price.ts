@@ -29,6 +29,7 @@ export async function getTokenPrice({
     
     const provider = new ethers.providers.AlchemyProvider(chainId, alchemyApiToken);
     const signer = new ethers.Wallet(privateKey, provider);
+    const currentBlockNumber = await provider.getBlockNumber();
 
     const getTokenAndBalance = async (contract) => {
         const [dec, symbol, name, balance] = await Promise.all([
@@ -94,7 +95,8 @@ export async function getTokenPrice({
         numberQuotedAmountOut,
         priceEthToken,
         tokenOutSymbol: tokenOut.symbol,
-        tokenInSymbol: tokenIn.symbol
+        tokenInSymbol: tokenIn.symbol,
+        currentBlockNumber
     }
 }
 export async function messageTokenPrice({

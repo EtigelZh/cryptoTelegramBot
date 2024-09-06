@@ -5,15 +5,20 @@ import { TokenPriceHistoryEntity } from "./token-price-history.entity";
 import { AppConfig } from "../app.config";
 import { Cron } from "@nestjs/schedule";
 import { SwapTokensArgs } from "../utils/crypto-core/buy-coins";
-import { getTokenPrice, messageTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
+import { getTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
 import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
+import { DexOrderService } from "../dex-order/dex-order.service";
+import { TokenEconomics } from "../eth-transactions-watcher-logic/domain-logic/handle-swap";
+import { EthPriceService } from "../eth-transactions-watcher-logic/eth-price.service";
 
 @Injectable()
 export class TokenPriceHistoryService {
     constructor(
         @InjectRepository(TokenPriceHistoryEntity)
         private readonly tokenPriceHistoryRepository: Repository<TokenPriceHistoryEntity>,
+        private readonly _ethPriceService: EthPriceService,
         private _appConfig: AppConfig,
+        private _dexOrderService: DexOrderService
     ) {
     }
 
@@ -62,15 +67,14 @@ export class TokenPriceHistoryService {
 
     @Cron(AppConfig.tokenPriceHistoryCron)
     async handleCron() {
-        
-        const tokenAddresses = this._appConfig.exampleTokenKeys.split(' ');
-        for (const monitoredCoin of tokenAddresses) {
+        const allTokenAddress = await this._dexOrderService.getAllTokenAddresses()
+        for (const monitoredCoin of allTokenAddress) {
             const inputParams: SwapTokensArgs = {
             chainId: this._appConfig.countChainId,
             walletAddress: this._appConfig.metamaskWalletAddress,
             tokenInAddress: this._appConfig.etherTokenAddress,
             tokenOutAddress: monitoredCoin,
-            amountInStr: '1.0',
+            amountInStr: `${this._appConfig.copyTradingTargetBuyingAmountEth}`,
             alchemyApiToken: this._appConfig.alchemyApiKey,
             privateKey: this._appConfig.metamaskPrivateKey
             }
@@ -92,6 +96,20 @@ export class TokenPriceHistoryService {
                 await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
             
             }
+            const exampleToken: TokenEconomics = {
+                tokenSymbol: result.tokenOutSymbol, // Предположительное название токена
+                tokenPerEth: result.numberQuotedAmountOut, // Количество токенов за 1 ETH
+                tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price, // Количество токенов за 1 USD
+                ethPrice: this._ethPriceService.price, // цена 1 эфира в долларах
+                ethPerToken: result.priceEthToken, // Цена одного токена в ETH
+                usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut, // Цена одного токена в USD
+                tokenAddress: monitoredCoin, // Адрес токена
+                calculatedAt: new Date(), // Дата и время получения данных
+                calculatedAtBlockNumber: result.currentBlockNumber // Примерный номер блока
+            }
+            console.log(exampleToken)
+            await this._dexOrderService.handleTokenPriceChange(exampleToken)
         }
+
     }
 }
