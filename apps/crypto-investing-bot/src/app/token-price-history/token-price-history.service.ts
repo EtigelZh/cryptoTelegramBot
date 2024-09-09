@@ -96,19 +96,18 @@ export class TokenPriceHistoryService {
                 await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
             
             }
-            const exampleToken: TokenEconomics = {
+            const tokenDexOrder: TokenEconomics = {
                 tokenSymbol: result.tokenOutSymbol,
                 tokenPerEth: result.numberQuotedAmountOut,
                 tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price,
                 ethPrice: this._ethPriceService.price,
-                ethPerToken: 0.000016,
+                ethPerToken: result.priceEthToken,
                 usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut,
                 tokenAddress: monitoredCoin,
                 calculatedAt: new Date(),
                 calculatedAtBlockNumber: result.currentBlockNumber
             }
-            await this._dexOrderService.handleTokenPriceChange(exampleToken)
-            await this._dexOrderService.handleTokenPriceChangeSell(exampleToken)
+            await this._dexOrderService.handleTokenPriceChange(tokenDexOrder)
         }
 
     }

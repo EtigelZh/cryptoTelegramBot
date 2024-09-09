@@ -37,7 +37,9 @@ export class DexOrderService {
       this.handleTokenPriceChangeBuyOrders(
         tokenEconomics
       ),
-      // TODO add handling for selling orders
+      this.handleTokenPriceChangeSellOrders(
+        tokenEconomics
+      )
     ]);
   }
 
@@ -83,17 +85,6 @@ export class DexOrderService {
       })
     );
     Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
-  }
-
-  async handleTokenPriceChangeSell(
-    tokenEconomics: TokenEconomics,
-  ) {
-    await Promise.allSettled([
-      this.handleTokenPriceChangeSellOrders(
-        tokenEconomics
-      ),
-      // TODO add handling for selling orders
-    ]);
   }
 
   async handleTokenPriceChangeSellOrders(
