@@ -2,7 +2,7 @@ import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DexOrderEntity } from './dex-order.entity';
 import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
-import { DexOrderStatus } from './dex-order.models';
+import { DexOrderCompletedReason, DexOrderStatus } from './dex-order.models';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
 import { DexTransactionEconomics, DexTransactionType, TokenEconomics } from '../eth-transactions-watcher-logic/domain-logic/handle-swap';
@@ -124,6 +124,7 @@ export class DexOrderService {
         );
         order.status = DexOrderStatus.COMPLETED;
         order.buyingTransactions = [mockBuyingTransaction];
+        order.completedReason = DexOrderCompletedReason.TRADING_PROFIT
         const savedOrder = await this._dexOrderRepository.save(order);
         return savedOrder;
       })
