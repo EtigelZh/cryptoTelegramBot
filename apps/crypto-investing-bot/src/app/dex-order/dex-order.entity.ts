@@ -22,6 +22,8 @@ export class DexOrderEntity {
     @Column({ type: 'enum', enum: DexOrderCompletedReason, nullable: true })
     completedReason: DexOrderCompletedReason;
   
+    @Column({nullable: true})
+    messageTransaction: string;
     /** Адрес контракта монеты */
     @Column()
     @Index()

@@ -162,4 +162,22 @@ export class DexOrderService {
       throw error;
     }
   }
+
+  async dexOrderStop(dexOrderId: number) {
+    const order = await this._dexOrderRepository.findOne({
+        where: {
+            id: dexOrderId
+        },
+        relations: ['wallet'],
+    });
+
+    if (!order) {
+        throw new Error(`Order with ID ${dexOrderId} not found.`);
+    }
+
+    order.status = DexOrderStatus.COMPLETED;
+    order.completedReason = DexOrderCompletedReason.MANUAL;
+
+    await this._dexOrderRepository.save(order);
+  }
 }

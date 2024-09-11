@@ -24,6 +24,7 @@ import { DexOrderService } from '../dex-order/dex-order.service';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexOrderEntity } from '../dex-order/dex-order.entity';
 import { DexOrderStatus } from '../dex-order/dex-order.models';
+import { Markup } from 'telegraf';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -270,27 +271,42 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
 
         const newDexOrder = new DexOrderEntity();
-        newDexOrder.copyTradingWallet = followingDexTransaction.wallet 
-        newDexOrder.wallet = {hash: this._config.metamaskWalletAddress}
-        newDexOrder.status = DexOrderStatus.BUYING
-        newDexOrder.completedReason = null
-        newDexOrder.tokenAddress = followingDexTransaction.tokenAddress
-        newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash
-        newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber
-        newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt
-        newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPerToken
-        newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken
-        newDexOrder.sourceBuyingTransactions = []
-        newDexOrder.sourceSellingTransactions = []
-        newDexOrder.targetBuyingPrice = this._config.copyTradingTargetBuyingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice
-        newDexOrder.targetBuyingAmountEth = this._config.copyTradingTargetBuyingAmountEth
-        newDexOrder.targetSellingPrice = this._config.copyTradingTargetSellingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice
-        newDexOrder.targetSellingAmountTokenPercent = 1
-        newDexOrder.buyingTransactions = []
-        newDexOrder.sellingTransactions = []
+        newDexOrder.copyTradingWallet = followingDexTransaction.wallet;
+        newDexOrder.wallet = {hash: this._config.metamaskWalletAddress};
+        newDexOrder.status = DexOrderStatus.BUYING;
+        newDexOrder.completedReason = null;
+        newDexOrder.tokenAddress = followingDexTransaction.tokenAddress;
+        newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash;
+        newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber;
+        newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt;
+        newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPerToken;
+        newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken;
+        newDexOrder.sourceBuyingTransactions = [];
+        newDexOrder.sourceSellingTransactions = [];
+        newDexOrder.targetBuyingPrice = this._config.copyTradingTargetBuyingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
+        newDexOrder.targetBuyingAmountEth = this._config.copyTradingTargetBuyingAmountEth;
+        newDexOrder.targetSellingPrice = this._config.copyTradingTargetSellingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
+        newDexOrder.targetSellingAmountTokenPercent = 1;
+        newDexOrder.buyingTransactions = [];
+        newDexOrder.sellingTransactions = [];
+        newDexOrder.messageTransaction = null;
         // TODO create order
-        await this._dexOrderService.createOrder(newDexOrder)
+        const savedDexOrder = await this._dexOrderService.createOrder(newDexOrder);
         
+        const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+        entries.map(([chatId, messageId]) =>
+          this._telegramJobApiService.sendMessage(chatId, 'Выберите действие:', {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
+                  { text: 'Change the limit selling price', callback_data: 'btn_2' }
+                ]
+              ],
+            },
+          })
+        )
+
       }
       
     }
