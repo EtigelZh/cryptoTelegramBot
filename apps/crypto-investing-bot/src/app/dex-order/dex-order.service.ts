@@ -19,6 +19,18 @@ export class DexOrderService {
     // TODO implement order creation
     return this._dexOrderRepository.save(order);
   }
+  async updateOrderMessageChatId(dexOrderId: number, messageId: number, chatId: number) {
+    const order = await this._dexOrderRepository.findOne({
+      where: {
+        id: dexOrderId
+      },
+      relations: ['wallet'],
+    })
+    order.messageDexOrderId = messageId;
+    order.chatDexOrderId = chatId;
+    const savedOrder = await this._dexOrderRepository.save(order);
+    return savedOrder;
+  }
 
   async handleManualCancelOrder(orderId: number) {
     // Кейс с тем что пользователь отменил ордер вручную

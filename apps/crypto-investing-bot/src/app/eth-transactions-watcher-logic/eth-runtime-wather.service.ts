@@ -289,12 +289,14 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         newDexOrder.targetSellingAmountTokenPercent = 1;
         newDexOrder.buyingTransactions = [];
         newDexOrder.sellingTransactions = [];
-        newDexOrder.messageTransaction = null;
+        // newDexOrder.messageTransaction = null;
         // TODO create order
         const savedDexOrder = await this._dexOrderService.createOrder(newDexOrder);
         
         const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-        entries.map(([chatId, messageId]) =>
+        entries.map(async ([chatId, messageId]) =>(
+          newDexOrder.messageDexOrderId = Number(messageId),
+          newDexOrder.chatDexOrderId = Number(chatId),
           this._telegramJobApiService.sendMessage(chatId, 'Выберите действие:', {
             reply_markup: {
               inline_keyboard: [
@@ -306,6 +308,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             },
           })
         )
+      )
+      await this._dexOrderService.updateOrderMessageChatId(savedDexOrder.id, newDexOrder.messageDexOrderId, newDexOrder.chatDexOrderId)
 
       }
       

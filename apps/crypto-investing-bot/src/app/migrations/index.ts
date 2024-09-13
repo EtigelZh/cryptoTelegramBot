@@ -26,7 +26,7 @@ import { AddTokenPriceHistory1724141636734 } from './1724141636734-add-token-pri
 import { FixDexOrder1724166873436 } from './1724166873436-fix-dex-order';
 import { FixDexOrder1724933944698 } from './1724933944698-fix-dex-order';
 import { FixDexOrderTransactionRelation1725348823129 } from './1725348823129-fix-dex-order-transaction-relation';
-import { FixDexOrderTransactionRelation1726056645371 } from './1726056645371-fix-dex-order-transaction-relation';
+import { AddIdMessageDexOrder1726083802740 } from './1726083802740-add-id-message-dex-order';
 
 export const migrations = [
   Migrations1710903030686,
@@ -57,5 +57,5 @@ export const migrations = [
   FixDexOrder1724166873436,
   FixDexOrder1724933944698,
   FixDexOrderTransactionRelation1725348823129,
-  FixDexOrderTransactionRelation1726056645371
+  AddIdMessageDexOrder1726083802740
 ];

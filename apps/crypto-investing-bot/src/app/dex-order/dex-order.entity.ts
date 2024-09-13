@@ -23,7 +23,10 @@ export class DexOrderEntity {
     completedReason: DexOrderCompletedReason;
   
     @Column({nullable: true})
-    messageTransaction: string;
+    messageDexOrderId: number;
+
+    @Column({nullable: true})
+    chatDexOrderId: number;
     /** Адрес контракта монеты */
     @Column()
     @Index()
