@@ -289,19 +289,17 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         newDexOrder.targetSellingAmountTokenPercent = 1;
         newDexOrder.buyingTransactions = [];
         newDexOrder.sellingTransactions = [];
-        // newDexOrder.messageTransaction = null;
+        
         // TODO create order
         const savedDexOrder = await this._dexOrderService.createOrder(newDexOrder);
         const entries = Object.entries(walletEntity.walletSubscriptionMessages);
 
-        // Используем Promise.allSettled для выполнения всех асинхронных операций
         const results = await Promise.allSettled(
           entries.map(async ([chatId, messageId]) => {
             newDexOrder.chatDexOrderId = Number(chatId);
-            
-            // Отправляем сообщение с кнопками и получаем ID сообщения
-            const ID = await this._telegramJobApiService.sendMessage(chatId, 'Загрузка...');
-            await this._telegramJobApiService.pinChatMessage(chatId, ID.message_id);
+
+            const resultMessageId = await this._telegramJobApiService.sendMessage(chatId, 'Загрузка...');
+            await this._telegramJobApiService.pinChatMessage(chatId, resultMessageId.message_id);
             const result = await this._telegramJobApiService.sendMessage(chatId, `Выберите действие`, {
               reply_markup: {
                 inline_keyboard: [
@@ -312,9 +310,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 ],
               },
             });
-        
-            // Присваиваем ID отправленного сообщения
-            newDexOrder.messageDexOrderId = Number(ID.message_id);
+
+            newDexOrder.messageDexOrderId = Number(resultMessageId.message_id);
           })
         );
       console.log(results)
