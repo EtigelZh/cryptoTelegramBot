@@ -292,23 +292,32 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         // newDexOrder.messageTransaction = null;
         // TODO create order
         const savedDexOrder = await this._dexOrderService.createOrder(newDexOrder);
-        
         const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-        entries.map(async ([chatId, messageId]) =>(
-          newDexOrder.messageDexOrderId = Number(messageId),
-          newDexOrder.chatDexOrderId = Number(chatId),
-          this._telegramJobApiService.sendMessage(chatId, 'Выберите действие:', {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
-                  { text: 'Change the limit selling price', callback_data: 'btn_2' }
-                ]
-              ],
-            },
+
+        // Используем Promise.allSettled для выполнения всех асинхронных операций
+        const results = await Promise.allSettled(
+          entries.map(async ([chatId, messageId]) => {
+            newDexOrder.chatDexOrderId = Number(chatId);
+            
+            // Отправляем сообщение с кнопками и получаем ID сообщения
+            const ID = await this._telegramJobApiService.sendMessage(chatId, 'Загрузка...');
+            await this._telegramJobApiService.pinChatMessage(chatId, ID.message_id);
+            const result = await this._telegramJobApiService.sendMessage(chatId, `Выберите действие`, {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
+                    { text: 'Change the limit selling price', callback_data: 'btn_2' }
+                  ]
+                ],
+              },
+            });
+        
+            // Присваиваем ID отправленного сообщения
+            newDexOrder.messageDexOrderId = Number(ID.message_id);
           })
-        )
-      )
+        );
+      console.log(results)
       await this._dexOrderService.updateOrderMessageChatId(savedDexOrder.id, newDexOrder.messageDexOrderId, newDexOrder.chatDexOrderId)
 
       }

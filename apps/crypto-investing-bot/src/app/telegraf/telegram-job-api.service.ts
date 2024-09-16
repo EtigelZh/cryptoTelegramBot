@@ -125,6 +125,34 @@ export class TelegramJobApiService {
     }
   }
 
+  async pinChatMessage(
+    chatId: string | number,
+    messageId: number
+  ): Promise<void> {
+    try {
+      await this.telegramQueue.add(
+        'pinChatMessage',
+        {
+          chatId,
+          messageId,
+        },
+        {
+          removeOnComplete: true,
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          }
+        }
+      );
+    } catch (error) {
+      if (error.response && error.response.statusCode === 429) {
+        await this.handleRateLimit(error.response.message);
+      }
+      throw error;
+    }
+  }
+
   private async handleRateLimit(message: string) {
     Logger.warn('Hit rate limit, pausing queue');
     await this.telegramQueue.pause();

@@ -108,6 +108,7 @@ export class TokenPriceHistoryService {
                 calculatedAtBlockNumber: result.currentBlockNumber
             }
             await this._dexOrderService.handleTokenPriceChange(tokenDexOrder)
+            await this._dexOrderService.handleTokenPriceChangeMessage(tokenDexOrder)
         }
 
     }
