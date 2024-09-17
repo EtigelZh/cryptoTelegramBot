@@ -159,7 +159,12 @@ export class DexOrderService {
 
     const results = await Promise.allSettled(
       orders.map(async (order) => {
-        const messageText = `$${tokenEconomics.tokenSymbol}🚀 \n Initial: ${order.sourceBuyingTransactionPrice * order.sourceBuyingTransactionAmount} ETH\n Worth: ${tokenEconomics.ethPerToken * order.sourceBuyingTransactionAmount} ETH\n Time elapsed: ${await this.getElapsedTime(order.createdAt)}`
+        const initialValue = order.sourceBuyingTransactionPrice * order.sourceBuyingTransactionAmount; // начальная стоимость в ETH
+        const currentValue = tokenEconomics.ethPerToken * order.sourceBuyingTransactionAmount; // текущая стоимость в ETH
+  
+        // Вычисляем разницу в процентах
+        const percentChange = ((currentValue - initialValue) / initialValue) * 100;
+        const messageText = `$${tokenEconomics.tokenSymbol} 🚀 ${percentChange}%\n Initial: ${initialValue} ETH\n Worth: ${currentValue} ETH\n Time elapsed: ${await this.getElapsedTime(order.createdAt)}\n 💵 Price: ${tokenEconomics.usdPerToken} $`
         await this._telegramJobApiService.createOrUpdateLastMessage(order.messageDexOrderId, messageText, order.chatDexOrderId)
         return messageText;
       })

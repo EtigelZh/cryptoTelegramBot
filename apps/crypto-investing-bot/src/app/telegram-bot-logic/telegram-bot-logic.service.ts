@@ -409,7 +409,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       walletAddress: this._appConfig.metamaskWalletAddress,
       tokenInAddress: this._appConfig.etherTokenAddress,
       tokenOutAddress: tokenHash,
-      amountInStr: '1.0',
+      amountInStr: '1',
       alchemyApiToken: this._appConfig.alchemyApiKey,
       privateKey: this._appConfig.metamaskPrivateKey
     };
