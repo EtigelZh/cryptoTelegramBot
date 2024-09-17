@@ -299,7 +299,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             newDexOrder.chatDexOrderId = Number(chatId);
 
             const resultMessageId = await this._telegramJobApiService.sendMessage(chatId, 'Загрузка...');
-            await this._telegramJobApiService.pinChatMessage(chatId, resultMessageId.message_id);
+            await this._telegramJobApiService.pinMessage(chatId, resultMessageId.message_id);
             const result = await this._telegramJobApiService.sendMessage(chatId, `Выберите действие`, {
               reply_markup: {
                 inline_keyboard: [
@@ -314,7 +314,6 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
             newDexOrder.messageDexOrderId = Number(resultMessageId.message_id);
           })
         );
-      console.log(results)
       await this._dexOrderService.updateOrderMessageChatId(savedDexOrder.id, newDexOrder.messageDexOrderId, newDexOrder.chatDexOrderId)
 
       }

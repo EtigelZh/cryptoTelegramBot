@@ -7,6 +7,7 @@ import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
 import { DexTransactionEconomics, DexTransactionType, TokenEconomics } from '../eth-transactions-watcher-logic/domain-logic/handle-swap';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
+import { messageDexOrder } from '../eth-transactions-watcher-logic/domain-logic/message-dex-order';
 
 @Injectable()
 export class DexOrderService {
@@ -152,42 +153,20 @@ export class DexOrderService {
     const orders = await this._dexOrderRepository.find({
       where: {
         tokenAddress: tokenEconomics.tokenAddress,
-        status: DexOrderStatus.BUYING || DexOrderStatus.SELLING,
+        status: DexOrderStatus.BUYING,
       },
       relations: ['wallet'],
     });
 
     const results = await Promise.allSettled(
       orders.map(async (order) => {
-        const initialValue = order.sourceBuyingTransactionPrice * order.sourceBuyingTransactionAmount; // начальная стоимость в ETH
-        const currentValue = tokenEconomics.ethPerToken * order.sourceBuyingTransactionAmount; // текущая стоимость в ETH
-  
-        // Вычисляем разницу в процентах
-        const percentChange = ((currentValue - initialValue) / initialValue) * 100;
-        const messageText = `$${tokenEconomics.tokenSymbol} 🚀 ${percentChange}%\n Initial: ${initialValue} ETH\n Worth: ${currentValue} ETH\n Time elapsed: ${await this.getElapsedTime(order.createdAt)}\n 💵 Price: ${tokenEconomics.usdPerToken} $`
+        const messageText = await messageDexOrder(tokenEconomics, order)
         await this._telegramJobApiService.createOrUpdateLastMessage(order.messageDexOrderId, messageText, order.chatDexOrderId)
         return messageText;
       })
     );
   }
 
-  async getElapsedTime(calculatedAt: Date): Promise<string> {
-    const now = new Date();
-    const elapsedMilliseconds = now.getTime() - calculatedAt.getTime();
-  
-    // Конвертируем миллисекунды в более удобные единицы
-    const millisecondsPerSecond = 1000;
-    const millisecondsPerMinute = millisecondsPerSecond * 60;
-    const millisecondsPerHour = millisecondsPerMinute * 60;
-    const millisecondsPerDay = millisecondsPerHour * 24;
-  
-    const days = Math.floor(elapsedMilliseconds / millisecondsPerDay);
-    const hours = Math.floor((elapsedMilliseconds % millisecondsPerDay) / millisecondsPerHour);
-    const minutes = Math.floor((elapsedMilliseconds % millisecondsPerHour) / millisecondsPerMinute);
-    const seconds = Math.floor((elapsedMilliseconds % millisecondsPerMinute) / millisecondsPerSecond);
-  
-    return `${days} days, ${hours} hours, ${minutes} minutes, and ${seconds} seconds ago`;
-  }
   async createMockDexBuyingTransaction(
     blockNumber: number,
     txHash: string,

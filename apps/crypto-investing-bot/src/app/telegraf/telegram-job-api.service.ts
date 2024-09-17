@@ -1,13 +1,16 @@
 import { InjectQueue } from '@nestjs/bull';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { telegramQueueName } from './queues';
 import { Queue } from 'bull';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
+import { Telegraf } from 'telegraf';
+import { TELEGRAF } from './telegraf.token';
 
 @Injectable()
 export class TelegramJobApiService {
   constructor(
     @InjectQueue(telegramQueueName) private telegramQueue: Queue,
+    @Inject(TELEGRAF) private readonly _bot: Telegraf,
   ) {
     this.telegramQueue.isPaused().then((paused) => {
       if (paused) {
@@ -125,11 +128,12 @@ export class TelegramJobApiService {
     }
   }
 
-  async pinChatMessage(
+  async pinMessage(
     chatId: string | number,
     messageId: number
   ): Promise<void> {
     try {
+      await this._bot.telegram.pinChatMessage(chatId, messageId);
       await this.telegramQueue.add(
         'pinChatMessage',
         {
@@ -149,6 +153,7 @@ export class TelegramJobApiService {
       if (error.response && error.response.statusCode === 429) {
         await this.handleRateLimit(error.response.message);
       }
+      ErrorHandlingService.handleError({ error, message: `Error pinning message` });
       throw error;
     }
   }
