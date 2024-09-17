@@ -116,7 +116,7 @@ export class DexOrderService {
 
     const results = await Promise.allSettled(
       orders.map(async (order) => {
-        const mockBuyingTransaction = await this.createMockDexBuyingTransaction(
+        const mockSellingTransaction = await this.createMockDexBuyingTransaction(
           tokenEconomics.calculatedAtBlockNumber,
           `mock-buy-${order.id}`,
           order.wallet.hash,
@@ -138,7 +138,7 @@ export class DexOrderService {
           'mock buy transaction'
         );
         order.status = DexOrderStatus.COMPLETED;
-        order.buyingTransactions = [mockBuyingTransaction];
+        order.sellingTransactions = [mockSellingTransaction];
         order.completedReason = DexOrderCompletedReason.TRADING_PROFIT
         const savedOrder = await this._dexOrderRepository.save(order);
         return savedOrder;
