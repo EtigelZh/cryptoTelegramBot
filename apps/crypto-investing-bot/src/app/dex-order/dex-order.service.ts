@@ -85,6 +85,27 @@ export class DexOrderService {
     Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
   }
 
+  async handleTokenPriceChangeSellEarly(
+    tokenEconomics: DexTransactionEntity,
+  ) {
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        tokenAddress: tokenEconomics.tokenAddress,
+        status: DexOrderStatus.SELLING,
+      },
+      relations: ['wallet'],
+    });
+
+    const results = await Promise.allSettled(
+      orders.map(async (order) => {
+        order.targetSellingPrice = tokenEconomics.economics.ethPerToken
+        const savedOrder = await this._dexOrderRepository.save(order);
+        return savedOrder;
+      })
+    );
+    // Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
+  }
+
   async createMockDexBuyingTransaction(
     blockNumber: number,
     txHash: string,
