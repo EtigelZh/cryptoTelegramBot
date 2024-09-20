@@ -1,23 +1,38 @@
 import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DexOrderEntity } from './dex-order.entity';
-import { MoreThanOrEqual, Repository } from 'typeorm';
-import { DexOrderStatus } from './dex-order.models';
+import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { DexOrderCompletedReason, DexOrderStatus } from './dex-order.models';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
 import { DexTransactionEconomics, DexTransactionType, TokenEconomics } from '../eth-transactions-watcher-logic/domain-logic/handle-swap';
+import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
+import { messageDexOrder } from '../eth-transactions-watcher-logic/domain-logic/message-dex-order';
 
 @Injectable()
 export class DexOrderService {
   constructor(
     @InjectRepository(DexOrderEntity)
     private readonly _dexOrderRepository: Repository<DexOrderEntity>,
-    private readonly _dexTransactionService: DexTransactionService
+    private readonly _dexTransactionService: DexTransactionService,
+    private readonly _telegramJobApiService: TelegramJobApiService,
   ) {}
 
   async createOrder(order: DexOrderEntity) {
     // TODO implement order creation
     return this._dexOrderRepository.save(order);
+  }
+  async updateOrderMessageChatId(dexOrderId: number, messageId: number, chatId: number) {
+    const order = await this._dexOrderRepository.findOne({
+      where: {
+        id: dexOrderId
+      },
+      relations: ['wallet'],
+    })
+    order.messageDexOrderId = messageId;
+    order.chatDexOrderId = chatId;
+    const savedOrder = await this._dexOrderRepository.save(order);
+    return savedOrder;
   }
 
   async handleManualCancelOrder(orderId: number) {
@@ -37,7 +52,9 @@ export class DexOrderService {
       this.handleTokenPriceChangeBuyOrders(
         tokenEconomics
       ),
-      // TODO add handling for selling orders
+      this.handleTokenPriceChangeSellOrders(
+        tokenEconomics
+      )
     ]);
   }
 
@@ -85,6 +102,71 @@ export class DexOrderService {
     Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
   }
 
+  async handleTokenPriceChangeSellOrders(
+    tokenEconomics: TokenEconomics,
+  ) {
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        tokenAddress: tokenEconomics.tokenAddress,
+        status: DexOrderStatus.SELLING,
+        targetSellingPrice: LessThanOrEqual(tokenEconomics.ethPerToken),
+      },
+      relations: ['wallet'],
+    });
+
+    const results = await Promise.allSettled(
+      orders.map(async (order) => {
+        const mockSellingTransaction = await this.createMockDexBuyingTransaction(
+          tokenEconomics.calculatedAtBlockNumber,
+          `mock-buy-${order.id}`,
+          order.wallet.hash,
+          {
+            action: DexTransactionType.SELL,
+            tokenAddress: tokenEconomics.tokenAddress,
+            amountToken: order.targetBuyingAmountEth / tokenEconomics.ethPerToken,
+            amountUSD: order.targetBuyingAmountEth * tokenEconomics.ethPrice,
+            amountWETH: order.targetBuyingAmountEth,
+            tokenSymbol: tokenEconomics.tokenSymbol,
+            tokenPerEth: tokenEconomics.tokenPerEth,
+            tokenPerUsd: tokenEconomics.tokenPerUsd,
+            ethPrice: tokenEconomics.ethPrice,
+            ethPerToken: tokenEconomics.ethPerToken,
+            usdPerToken: tokenEconomics.usdPerToken,
+            calculatedAt: tokenEconomics.calculatedAt,
+            calculatedAtBlockNumber: tokenEconomics.calculatedAtBlockNumber,
+          },
+          'mock buy transaction'
+        );
+        order.status = DexOrderStatus.COMPLETED;
+        order.sellingTransactions = [mockSellingTransaction];
+        order.completedReason = DexOrderCompletedReason.TRADING_PROFIT
+        const savedOrder = await this._dexOrderRepository.save(order);
+        return savedOrder;
+      })
+    );
+    Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
+  }
+
+  async handleTokenPriceChangeMessage(
+    tokenEconomics: TokenEconomics,
+  ) {
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        tokenAddress: tokenEconomics.tokenAddress,
+        status: DexOrderStatus.BUYING,
+      },
+      relations: ['wallet'],
+    });
+
+    const results = await Promise.allSettled(
+      orders.map(async (order) => {
+        const messageText = await messageDexOrder(tokenEconomics, order)
+        await this._telegramJobApiService.createOrUpdateLastMessage(order.messageDexOrderId, messageText, order.chatDexOrderId)
+        return messageText;
+      })
+    );
+  }
+
   async createMockDexBuyingTransaction(
     blockNumber: number,
     txHash: string,
@@ -114,5 +196,23 @@ export class DexOrderService {
       Logger.error(`Failed to get all token addresses: ${error.message}`);
       throw error;
     }
+  }
+
+  async dexOrderStop(dexOrderId: number) {
+    const order = await this._dexOrderRepository.findOne({
+        where: {
+            id: dexOrderId
+        },
+        relations: ['wallet'],
+    });
+
+    if (!order) {
+        throw new Error(`Order with ID ${dexOrderId} not found.`);
+    }
+
+    order.status = DexOrderStatus.COMPLETED;
+    order.completedReason = DexOrderCompletedReason.MANUAL;
+
+    await this._dexOrderRepository.save(order);
   }
 }

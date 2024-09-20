@@ -24,6 +24,7 @@ import { SwapTokensArgs } from '../utils/crypto-core/buy-coins';
 import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-runtime-wather.service';
 import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
 import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
+import { DexOrderService } from '../dex-order/dex-order.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -46,7 +47,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _telegramReportingService: TelegramReportingService,
     private _walletService: WalletService,
     private _ethRuntimeWatcherService: EthRuntimeWatcherService,
-    private _tokenPriceHistoryService: TokenPriceHistoryService
+    private _tokenPriceHistoryService: TokenPriceHistoryService,
+    private _dexOrderService: DexOrderService
   ) {}
 
   onModuleInit() {
@@ -77,6 +79,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this))
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
+    this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
+    // this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
   }
 
   private async handleCleanup(ctx: Context<MountMap['text']>) {
@@ -337,6 +341,15 @@ export class TelegramBotLogicService implements OnModuleInit {
     );
   }
 
+  private async handleStop(ctx): Promise<void>{
+    this._dexOrderService.dexOrderStop(ctx.match[1])
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      `Лимитная заявка остановлена`
+    );
+    return;
+  }
+
   private async handleTokenPriceHistoryCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
@@ -396,7 +409,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       walletAddress: this._appConfig.metamaskWalletAddress,
       tokenInAddress: this._appConfig.etherTokenAddress,
       tokenOutAddress: tokenHash,
-      amountInStr: '1.0',
+      amountInStr: '1',
       alchemyApiToken: this._appConfig.alchemyApiKey,
       privateKey: this._appConfig.metamaskPrivateKey
     };

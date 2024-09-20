@@ -3,11 +3,13 @@ import { DexOrderService } from "./dex-order.service";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { DexOrderEntity } from "./dex-order.entity";
 import { DexTransactionsModule } from "../dex-transactions/dex-transactions.module";
+import { TelegrafModule } from "../telegraf/telegraf.module";
 
 @Module({
     imports: [
         DexTransactionsModule,
         TypeOrmModule.forFeature([DexOrderEntity]),
+        TelegrafModule
     ],
     controllers: [],
     providers: [DexOrderService],
