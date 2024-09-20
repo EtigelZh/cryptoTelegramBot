@@ -298,9 +298,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           entries.map(async ([chatId, messageId]) => {
             newDexOrder.chatDexOrderId = Number(chatId);
 
-            const resultMessageId = await this._telegramJobApiService.sendMessage(chatId, 'Загрузка...');
-            await this._telegramJobApiService.pinMessage(chatId, resultMessageId.message_id);
-            const result = await this._telegramJobApiService.sendMessage(chatId, `Выберите действие`, {
+            const result = await this._telegramJobApiService.sendMessage(chatId, `Загрузка...`, {
               reply_markup: {
                 inline_keyboard: [
                   [
@@ -310,8 +308,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                 ],
               },
             });
-
-            newDexOrder.messageDexOrderId = Number(resultMessageId.message_id);
+            await this._telegramJobApiService.pinMessage(chatId, result.message_id);
+            newDexOrder.messageDexOrderId = Number(result.message_id);
           })
         );
       await this._dexOrderService.updateOrderMessageChatId(savedDexOrder.id, newDexOrder.messageDexOrderId, newDexOrder.chatDexOrderId)

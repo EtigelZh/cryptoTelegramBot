@@ -29,6 +29,7 @@ async function messageEconmics(tokenEconomics: TokenEconomics, order: DexOrderEn
 
     return {
         tokenEconmicsSymbol: tokenEconomics.tokenSymbol,
+        statusDexOrder: order.status,
         percentChange,
         initialValue,
         currentValue,
@@ -39,6 +40,7 @@ async function messageEconmics(tokenEconomics: TokenEconomics, order: DexOrderEn
 
 export async function messageDexOrder(tokenEconomics: TokenEconomics, orderPromise: DexOrderEntity) {
     const result = await messageEconmics(tokenEconomics, orderPromise)
-    const messageText = `$${tokenEconomics.tokenSymbol} 🚀 ${smartRound(result.percentChange)}%\n Initial: ${smartRound(result.initialValue)} ETH\n Worth: ${smartRound(result.currentValue)} ETH\n Time elapsed: ${result.timeElapsed}\n 💵 Price: ${smartRound(tokenEconomics.usdPerToken)} $`;
+    const dextoolsLink = `https://www.dextools.io/app/ru/ether/pair-explorer/${tokenEconomics.tokenAddress}`;
+    const messageText = `[${tokenEconomics.tokenSymbol}](${dextoolsLink}) 🚀 ${smartRound(result.percentChange)}% status: ${result.statusDexOrder}\n Initial: ${smartRound(result.initialValue)} ETH\n Worth: ${smartRound(result.currentValue)} ETH\n Time elapsed: ${result.timeElapsed}\n 💵 Price: ${smartRound(tokenEconomics.usdPerToken)} $`;
     return messageText
 }

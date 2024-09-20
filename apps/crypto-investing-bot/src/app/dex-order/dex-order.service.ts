@@ -161,7 +161,18 @@ export class DexOrderService {
     const results = await Promise.allSettled(
       orders.map(async (order) => {
         const messageText = await messageDexOrder(tokenEconomics, order)
-        await this._telegramJobApiService.createOrUpdateLastMessage(order.messageDexOrderId, messageText, order.chatDexOrderId)
+        await this._telegramJobApiService.editMessageText(order.chatDexOrderId, messageText, order.messageDexOrderId, undefined, {
+              parse_mode: 'Markdown',
+              disable_web_page_preview: true,
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` },
+                    { text: 'Change the limit selling price', callback_data: 'btn_2' }
+                  ]
+                ],
+              },
+            });
         return messageText;
       })
     );
