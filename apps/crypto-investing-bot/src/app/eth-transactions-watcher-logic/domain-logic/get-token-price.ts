@@ -77,14 +77,13 @@ export async function getTokenPrice({
         Logger.error(`Error while logging balances: ${error}`);
     }
 
-    // Попробуем получить цену через Uniswap V3
+
     let numberQuotedAmountOut, priceEthToken, message;
 
     try {
         const factoryContractV3 = new ethers.Contract(UNISWAP_FACTORY_ADDRESS_V3, IUniswapV3Factory.abi, provider);
 
-        // Попробуем найти пул с разными комиссиями
-        const fees = [100, 500, 3000, 10000]; // Возможные комиссии: 0.05%, 0.3%, 1%
+        const fees = [100, 500, 3000, 10000];
         let poolAddressV3;
         let fee;
         for (let f of fees) {
@@ -115,9 +114,9 @@ export async function getTokenPrice({
 
     } catch (error) {
         Logger.warn(`Uniswap V3 failed: ${error.message}`);
-        // Попробуем через Uniswap V2
+
         try {
-            // Создаем объекты токенов для Uniswap V2
+
             const tokenInV2 = new TokenV2(chainId, tokenIn.address, tokenIn.decimals, tokenIn.symbol, tokenIn.name);
             const tokenOutV2 = new TokenV2(chainId, tokenOut.address, tokenOut.decimals, tokenOut.symbol, tokenOut.name);
 
