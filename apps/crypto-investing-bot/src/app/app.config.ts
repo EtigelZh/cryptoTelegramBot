@@ -133,7 +133,7 @@ export class AppConfig {
   maxPoolFee: number = +(process.env.MAX_POOL_FEE || 3000);
   countChainId: number = +(process.env.COUNT_CHAIN_ID || 1);
   copyTradingTargetBuyingPriceMultiply = +(process.env.COPY_TRADING_TARGET_BUYING_PRICE_MULTIPLY || 0.98)
-  copyTradingTargetBuyingAmountEth = +(process.env.COPY_TRADING_TARGET_BUYING_AMOUNT_ETH || 0.5)
+  copyTradingTargetBuyingAmountEth = +(process.env.COPY_TRADING_TARGET_BUYING_AMOUNT_ETH || 1)
   copyTradingTargetSellingPriceMultiply = +(process.env.COPY_TRADING_TARGET_SELLING_PRICE_MULTIPLY || 1.15)
 
   public async getDbConfig() {

@@ -12,6 +12,7 @@ import { WalletSearcherModule } from '../wallets-searcher/wallet-searcher.module
 import { WalletModule } from '../wallet/wallet.module';
 import { EthTransactionsWatcherLogicModule } from '../eth-transactions-watcher-logic/eth-transactions-watcher-logic.module';
 import { TokenPriceHistoryModule } from '../token-price-history/token-price-history.module';
+import { DexOrderModule } from '../dex-order/dex-order.module';
 
 @Module({
   imports: [
@@ -25,7 +26,8 @@ import { TokenPriceHistoryModule } from '../token-price-history/token-price-hist
     ErrorHandlingModule,
     WalletSearcherModule,
     EthTransactionsWatcherLogicModule,
-    TokenPriceHistoryModule
+    TokenPriceHistoryModule,
+    DexOrderModule
   ],
   providers: [TelegramBotLogicService, TelegramReportingService],
   exports: [TelegramBotLogicService],

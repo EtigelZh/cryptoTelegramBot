@@ -96,19 +96,19 @@ export class TokenPriceHistoryService {
                 await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
             
             }
-            const exampleToken: TokenEconomics = {
-                tokenSymbol: result.tokenOutSymbol, // Предположительное название токена
-                tokenPerEth: result.numberQuotedAmountOut, // Количество токенов за 1 ETH
-                tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price, // Количество токенов за 1 USD
-                ethPrice: this._ethPriceService.price, // цена 1 эфира в долларах
-                ethPerToken: result.priceEthToken, // Цена одного токена в ETH
-                usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut, // Цена одного токена в USD
-                tokenAddress: monitoredCoin, // Адрес токена
-                calculatedAt: new Date(), // Дата и время получения данных
-                calculatedAtBlockNumber: result.currentBlockNumber // Примерный номер блока
+            const tokenDexOrder: TokenEconomics = {
+                tokenSymbol: result.tokenOutSymbol,
+                tokenPerEth: result.numberQuotedAmountOut,
+                tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price,
+                ethPrice: this._ethPriceService.price,
+                ethPerToken: result.priceEthToken,
+                usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut,
+                tokenAddress: monitoredCoin,
+                calculatedAt: new Date(),
+                calculatedAtBlockNumber: result.currentBlockNumber
             }
-            console.log(exampleToken)
-            await this._dexOrderService.handleTokenPriceChange(exampleToken)
+            await this._dexOrderService.handleTokenPriceChangeMessage(tokenDexOrder)
+            await this._dexOrderService.handleTokenPriceChange(tokenDexOrder)
         }
 
     }

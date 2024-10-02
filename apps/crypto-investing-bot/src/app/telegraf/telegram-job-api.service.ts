@@ -1,13 +1,16 @@
 import { InjectQueue } from '@nestjs/bull';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { telegramQueueName } from './queues';
 import { Queue } from 'bull';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
+import { Telegraf } from 'telegraf';
+import { TELEGRAF } from './telegraf.token';
 
 @Injectable()
 export class TelegramJobApiService {
   constructor(
     @InjectQueue(telegramQueueName) private telegramQueue: Queue,
+    @Inject(TELEGRAF) private readonly _bot: Telegraf,
   ) {
     this.telegramQueue.isPaused().then((paused) => {
       if (paused) {
@@ -23,19 +26,23 @@ export class TelegramJobApiService {
   async createOrUpdateLastMessage(
     lastMessageId: number | null,
     messageText: string,
-    chatId: number
+    chatId: number,
+    extra?: unknown
   ): Promise<number> {
     if (lastMessageId) {
       await this.editMessageText(
         chatId,
         messageText,
-        lastMessageId
+        lastMessageId,
+        undefined,
+        extra
       );
     } else {
       try {
         const sentMessage = await this.sendMessage(
           chatId,
-          messageText
+          messageText,
+          extra
         );
         lastMessageId = sentMessage.message_id;
       } catch (error) {
@@ -84,7 +91,8 @@ export class TelegramJobApiService {
     chatId: number,
     message: string,
     messageId: number,
-    inlineMessageId?: string
+    inlineMessageId?: string,
+    extra?: unknown
   ) {
     const jobId = `${chatId}-${messageId}`;
     try {
@@ -104,6 +112,7 @@ export class TelegramJobApiService {
           message,
           messageId,
           inlineMessageId,
+          extra
         },
         {
           removeOnComplete: true,
@@ -121,6 +130,36 @@ export class TelegramJobApiService {
         await this.handleRateLimit(error.response.message);
       }
       ErrorHandlingService.handleError({ error, message: `Error editing message` });
+      throw error;
+    }
+  }
+
+  async pinMessage(
+    chatId: string | number,
+    messageId: number
+  ): Promise<void> {
+    try {
+      await this._bot.telegram.pinChatMessage(chatId, messageId);
+      await this.telegramQueue.add(
+        'pinChatMessage',
+        {
+          chatId,
+          messageId,
+        },
+        {
+          removeOnComplete: true,
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          }
+        }
+      );
+    } catch (error) {
+      if (error.response && error.response.statusCode === 429) {
+        await this.handleRateLimit(error.response.message);
+      }
+      ErrorHandlingService.handleError({ error, message: `Error pinning message` });
       throw error;
     }
   }
