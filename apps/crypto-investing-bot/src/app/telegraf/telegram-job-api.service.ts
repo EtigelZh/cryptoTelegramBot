@@ -26,19 +26,23 @@ export class TelegramJobApiService {
   async createOrUpdateLastMessage(
     lastMessageId: number | null,
     messageText: string,
-    chatId: number
+    chatId: number,
+    extra?: unknown
   ): Promise<number> {
     if (lastMessageId) {
       await this.editMessageText(
         chatId,
         messageText,
-        lastMessageId
+        lastMessageId,
+        undefined,
+        extra
       );
     } else {
       try {
         const sentMessage = await this.sendMessage(
           chatId,
-          messageText
+          messageText,
+          extra
         );
         lastMessageId = sentMessage.message_id;
       } catch (error) {
@@ -87,7 +91,8 @@ export class TelegramJobApiService {
     chatId: number,
     message: string,
     messageId: number,
-    inlineMessageId?: string
+    inlineMessageId?: string,
+    extra?: unknown
   ) {
     const jobId = `${chatId}-${messageId}`;
     try {
@@ -107,6 +112,7 @@ export class TelegramJobApiService {
           message,
           messageId,
           inlineMessageId,
+          extra
         },
         {
           removeOnComplete: true,

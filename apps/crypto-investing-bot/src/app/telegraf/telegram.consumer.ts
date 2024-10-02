@@ -39,8 +39,9 @@ export class TelegramConsumer {
             message: string;
             messageId: number;
             inlineMessageId?: string;
+            extra?: unknown
         }>
     ) {
-        return await this.bot.telegram.editMessageText(job.data.chatId, job.data.messageId, job.data.inlineMessageId || null, job.data.message);
+        return await this.bot.telegram.editMessageText(job.data.chatId, job.data.messageId, job.data.inlineMessageId || null, job.data.message, job.data.extra);
     }
 }
