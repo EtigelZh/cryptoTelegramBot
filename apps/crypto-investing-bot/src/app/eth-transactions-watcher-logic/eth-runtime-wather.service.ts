@@ -269,51 +269,55 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       if (dexTransaction.status === 'fulfilled') {
         Logger.log(`Dex transaction saved: ${log.transactionHash}`);
         const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
-
-        const newDexOrder = new DexOrderEntity();
-        newDexOrder.copyTradingWallet = followingDexTransaction.wallet;
-        newDexOrder.wallet = {hash: this._config.metamaskWalletAddress};
-        newDexOrder.status = DexOrderStatus.BUYING;
-        newDexOrder.completedReason = null;
-        newDexOrder.tokenAddress = followingDexTransaction.tokenAddress;
-        newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash;
-        newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber;
-        newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt;
-        newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPerToken;
-        newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken;
-        newDexOrder.sourceBuyingTransactions = [];
-        newDexOrder.sourceSellingTransactions = [];
-        newDexOrder.targetBuyingPrice = this._config.copyTradingTargetBuyingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
-        newDexOrder.targetBuyingAmountEth = this._config.copyTradingTargetBuyingAmountEth;
-        newDexOrder.targetSellingPrice = this._config.copyTradingTargetSellingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
-        newDexOrder.targetSellingAmountTokenPercent = 1;
-        newDexOrder.buyingTransactions = [];
-        newDexOrder.sellingTransactions = [];
         
-        // TODO create order
-        const savedDexOrder = await this._dexOrderService.createOrder(newDexOrder);
-        const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-
-        const results = await Promise.allSettled(
-          entries.map(async ([chatId, messageId]) => {
-            newDexOrder.chatDexOrderId = Number(chatId);
-
-            const result = await this._telegramJobApiService.sendMessage(chatId, `Загрузка...`, {
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
-                    { text: 'Change the limit selling price', callback_data: 'btn_2' }
-                  ]
-                ],
-              },
-            });
-            await this._telegramJobApiService.pinMessage(chatId, result.message_id);
-            newDexOrder.messageDexOrderId = Number(result.message_id);
-          })
-        );
-      await this._dexOrderService.updateOrderMessageChatId(savedDexOrder.id, newDexOrder.messageDexOrderId, newDexOrder.chatDexOrderId)
-
+        if (followingDexTransaction.action == DexTransactionType.SELL) {
+          await this._dexOrderService.handleTokenPriceChangeSellEarly(followingDexTransaction)
+        }
+        if (followingDexTransaction.action == DexTransactionType.BUY) {
+          const newDexOrder = new DexOrderEntity();
+          newDexOrder.copyTradingWallet = followingDexTransaction.wallet;
+          newDexOrder.wallet = {hash: this._config.metamaskWalletAddress};
+          newDexOrder.status = DexOrderStatus.BUYING;
+          newDexOrder.completedReason = null;
+          newDexOrder.tokenAddress = followingDexTransaction.tokenAddress;
+          newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash;
+          newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber;
+          newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt;
+          newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPerToken;
+          newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken;
+          newDexOrder.sourceBuyingTransactions = [];
+          newDexOrder.sourceSellingTransactions = [];
+          newDexOrder.targetBuyingPrice = this._config.copyTradingTargetBuyingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
+          newDexOrder.targetBuyingAmountEth = this._config.copyTradingTargetBuyingAmountEth;
+          newDexOrder.targetSellingPrice = this._config.copyTradingTargetSellingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
+          newDexOrder.targetSellingAmountTokenPercent = 1;
+          newDexOrder.buyingTransactions = [];
+          newDexOrder.sellingTransactions = [];
+          
+          // TODO create order
+          const savedDexOrder = await this._dexOrderService.createOrder(newDexOrder);
+          const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+  
+          const results = await Promise.allSettled(
+            entries.map(async ([chatId, messageId]) => {
+              newDexOrder.chatDexOrderId = Number(chatId);
+  
+              const result = await this._telegramJobApiService.sendMessage(chatId, `Загрузка...`, {
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
+                      { text: 'Change the limit selling price', callback_data: 'btn_2' }
+                    ]
+                  ],
+                },
+              });
+              await this._telegramJobApiService.pinMessage(chatId, result.message_id);
+              newDexOrder.messageDexOrderId = Number(result.message_id);
+            })
+          );
+          await this._dexOrderService.updateOrderMessageChatId(savedDexOrder.id, newDexOrder.messageDexOrderId, newDexOrder.chatDexOrderId)
+        }
       }
       
     }

@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DexOrderEntity } from './dex-order.entity';
-import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { DexOrderCompletedReason, DexOrderStatus } from './dex-order.models';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
@@ -153,7 +153,7 @@ export class DexOrderService {
     const orders = await this._dexOrderRepository.find({
       where: {
         tokenAddress: tokenEconomics.tokenAddress,
-        status: DexOrderStatus.BUYING,
+        status: In([DexOrderStatus.BUYING, DexOrderStatus.SELLING]),
       },
       relations: ['wallet'],
     });
