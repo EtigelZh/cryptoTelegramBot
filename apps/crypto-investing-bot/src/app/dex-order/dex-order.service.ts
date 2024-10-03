@@ -168,7 +168,8 @@ export class DexOrderService {
                 inline_keyboard: [
                   [
                     { text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` },
-                    { text: 'Change the limit selling price', callback_data: 'btn_2' }
+                    { text: '-1 %', callback_data: `dexOrderTargetPriceChangeLess_${order.id}` },
+                    { text: '+1 %', callback_data: `dexOrderTargetPriceChangeMore_${order.id}` },
                   ]
                 ],
               },
@@ -247,6 +248,42 @@ export class DexOrderService {
     order.status = DexOrderStatus.COMPLETED;
     order.completedReason = DexOrderCompletedReason.MANUAL;
 
+    await this._dexOrderRepository.save(order);
+  }
+
+  async dexOrderRaisePrice(dexOrderId: number) {
+    const order = await this._dexOrderRepository.findOne({
+        where: {
+            id: dexOrderId
+        },
+        relations: ['wallet'],
+    });
+
+    if (!order) {
+        throw new Error(`Order with ID ${dexOrderId} not found.`);
+    }
+    if(order.status == DexOrderStatus.BUYING)
+      order.targetBuyingPrice = order.targetBuyingPrice * 1.01;
+    if(order.status == DexOrderStatus.SELLING)
+      order.targetSellingPrice = order.targetSellingPrice * 1.01;
+    await this._dexOrderRepository.save(order);
+  }
+
+  async dexOrderReductionPrice(dexOrderId: number) {
+    const order = await this._dexOrderRepository.findOne({
+        where: {
+            id: dexOrderId
+        },
+        relations: ['wallet'],
+    });
+
+    if (!order) {
+        throw new Error(`Order with ID ${dexOrderId} not found.`);
+    }
+    if(order.status == DexOrderStatus.BUYING)
+      order.targetBuyingPrice = order.targetBuyingPrice * 0.99;
+    if(order.status == DexOrderStatus.SELLING)
+      order.targetSellingPrice = order.targetSellingPrice * 0.99;
     await this._dexOrderRepository.save(order);
   }
 }

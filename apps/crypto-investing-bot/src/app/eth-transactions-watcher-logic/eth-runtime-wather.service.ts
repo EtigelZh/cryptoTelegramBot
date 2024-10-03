@@ -307,7 +307,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                   inline_keyboard: [
                     [
                       { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
-                      { text: 'Change the limit selling price', callback_data: 'btn_2' }
+                      { text: '-1 %', callback_data: `dexOrderTargetPriceChangeLess_${savedDexOrder.id}` },
+                      { text: '+1 %', callback_data: `dexOrderTargetPriceChangeMore_${savedDexOrder.id}` },
                     ]
                   ],
                 },

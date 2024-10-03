@@ -80,6 +80,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
+    this._bot.action(/dexOrderTargetPriceChangeLess_(\d+)/, (ctx) => this.handleReductionPrice(ctx));
+    this._bot.action(/dexOrderTargetPriceChangeMore_(\d+)/, (ctx) => this.handleRaisePrice(ctx));
     // this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
   }
 
@@ -346,6 +348,24 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._telegramJobApiService.sendMessage(
       ctx.from.id,
       `Лимитная заявка остановлена`
+    );
+    return;
+  }
+
+  private async handleReductionPrice(ctx): Promise<void>{
+    await this._dexOrderService.dexOrderReductionPrice(ctx.match[1])
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      `Цена уменьшена`
+    );
+    return;
+  }
+
+  private async handleRaisePrice(ctx): Promise<void>{
+    await this._dexOrderService.dexOrderRaisePrice(ctx.match[1])
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      `Цена увеличена`
     );
     return;
   }
