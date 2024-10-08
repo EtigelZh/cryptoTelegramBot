@@ -309,6 +309,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
                       { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
                       { text: '-1 %', callback_data: `dexOrderTargetPriceChangeLess_${savedDexOrder.id}` },
                       { text: '+1 %', callback_data: `dexOrderTargetPriceChangeMore_${savedDexOrder.id}` },
+                      { text: 'change price', callback_data: `dexOrderChagePrice_${savedDexOrder.id}` },
                     ]
                   ],
                 },
