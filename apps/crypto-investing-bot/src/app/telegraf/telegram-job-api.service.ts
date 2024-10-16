@@ -164,6 +164,37 @@ export class TelegramJobApiService {
     }
   }
 
+  async unpinMessage(
+    chatId: string | number,
+    messageId?: number
+  ): Promise<void> {
+    try {
+      await this._bot.telegram.unpinChatMessage(chatId, messageId);
+      await this.telegramQueue.add(
+        'unpinChatMessage',
+        {
+          chatId,
+          messageId,
+        },
+        {
+          removeOnComplete: true,
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          }
+        }
+      );
+    } catch (error) {
+      if (error.response && error.response.statusCode === 429) {
+        await this.handleRateLimit(error.response.message);
+      }
+      ErrorHandlingService.handleError({ error, message: `Ошибка при откреплении сообщения` });
+      throw error;
+    }
+  }
+  
+
   private async handleRateLimit(message: string) {
     Logger.warn('Hit rate limit, pausing queue');
     await this.telegramQueue.pause();

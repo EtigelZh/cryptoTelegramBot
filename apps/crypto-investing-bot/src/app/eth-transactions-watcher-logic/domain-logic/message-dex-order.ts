@@ -25,6 +25,7 @@ async function messageEconmics(tokenEconomics: TokenEconomics, order: DexOrderEn
     const initialValue = order.sourceBuyingTransactionPrice * order.sourceBuyingTransactionAmount;
     const currentValue = tokenEconomics.ethPerToken * order.sourceBuyingTransactionAmount;
     const percentChange = ((currentValue - initialValue) / initialValue) * 100;
+    const dexOrderPercent = order.targetSellingPrice / order.sourceBuyingTransactionPrice * 100 - 100
     const timeElapsed = await getElapsedTime(order.createdAt)
 
     return {
@@ -34,13 +35,25 @@ async function messageEconmics(tokenEconomics: TokenEconomics, order: DexOrderEn
         initialValue,
         currentValue,
         timeElapsed,
-        price: tokenEconomics.usdPerToken
+        price: tokenEconomics.usdPerToken,
+        targetBuyingPrice: order.targetBuyingPrice,
+        dexOrderPercent
     };
   }
 
 export async function messageDexOrder(tokenEconomics: TokenEconomics, orderPromise: DexOrderEntity) {
     const result = await messageEconmics(tokenEconomics, orderPromise)
     const dextoolsLink = `https://www.dextools.io/app/ru/ether/pair-explorer/${tokenEconomics.tokenAddress}`;
-    const messageText = `[${tokenEconomics.tokenSymbol}](${dextoolsLink}) 🚀 ${smartRound(result.percentChange)}% status: ${result.statusDexOrder}\n Initial: ${smartRound(result.initialValue)} ETH\n Worth: ${smartRound(result.currentValue)} ETH\n Time elapsed: ${result.timeElapsed}\n 💵 Price: ${smartRound(tokenEconomics.usdPerToken)} $`;
+    const messageText =
+    `[${tokenEconomics.tokenSymbol}](${dextoolsLink}) 🚀 ${smartRound(
+      result.percentChange
+    )}% status: ${result.statusDexOrder}\n` +
+    `Initial: ${smartRound(result.initialValue)} ETH\n` +
+    `Worth: ${smartRound(result.currentValue)} ETH\n` +
+    `Time elapsed: ${result.timeElapsed}\n` +
+    `💵 Price: ${smartRound(tokenEconomics.usdPerToken)}\n` +
+    (result.statusDexOrder === "SELLING"
+      ? `DEX ORDER PERCENT: ${smartRound(result.dexOrderPercent)}%`
+      : `TARGET BUY PRICE: ${smartRound(result.targetBuyingPrice)} ETH`);
     return messageText
 }

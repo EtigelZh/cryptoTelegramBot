@@ -34,6 +34,7 @@ const exampleEmulate =
 
 @Injectable()
 export class TelegramBotLogicService implements OnModuleInit {
+  private userStates = new Map<number, { state: string; idDexOrder: number }>();
   constructor(
     private _appConfig: AppConfig,
     private _processingWalletsJobApiService: ProcessingWalletsJobApiService,
@@ -80,6 +81,10 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
+    this._bot.action(/dexOrderTargetPriceChangeLess_(\d+)/, (ctx) => this.handleReductionPrice(ctx));
+    this._bot.action(/dexOrderTargetPriceChangeMore_(\d+)/, (ctx) => this.handleRaisePrice(ctx));
+    this._bot.action(/dexOrderChangePrice_(\d+)/, (ctx) => this.handleChangePriceButton(ctx));
+    this._bot.action(/dexOrderChangePercent_(\d+)/, (ctx) => this.handleChangePercentButton(ctx));
     // this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
   }
 
@@ -313,8 +318,59 @@ export class TelegramBotLogicService implements OnModuleInit {
     if (this._isBotMessage(ctx)) {
       return;
     }
+    const userId = ctx.from?.id;
     const messageText = ctx.message.text;
 
+    // Проверяем, ожидает ли пользователь ввода новой цены
+    const userState = this.userStates.get(userId);
+    if (userState && userState.state === 'awaiting_new_price') {
+      const newPriceText = messageText.trim().replace(',', '.');
+      const newPrice = parseFloat(newPriceText);
+      if (isNaN(newPrice) || newPrice <= 0) {
+        await ctx.reply('Пожалуйста, введите корректное число для цены.');
+        return;
+      }
+
+      const idDexOrder = userState.idDexOrder; // Получаем idDexOrder
+
+      // Обновляем цену в базе данных
+      try {
+        await this._dexOrderService.dexOrderChangePrice(idDexOrder, newPrice);
+        await ctx.reply(`Цена для ордера ${idDexOrder} обновлена на ${newPrice}.`);
+      } catch (error) {
+        await ctx.reply('Произошла ошибка при обновлении цены.');
+        console.error(error);
+      }
+
+      // Удаляем состояние пользователя
+      this.userStates.delete(userId);
+      return;
+    }
+
+    if (userState && userState.state === 'awaiting_new_percent') {
+      const newPercentText = messageText.trim().replace(',', '.');
+      const newPercent = parseFloat(newPercentText);
+      if (isNaN(newPercent) || newPercent <= 0) {
+        await ctx.reply('Пожалуйста, введите корректное число для процента');
+        return;
+      }
+
+      const idDexOrder = userState.idDexOrder; // Получаем idDexOrder
+
+      // Обновляем цену в базе данных
+      try {
+        await this._dexOrderService.dexOrderChangePrice(idDexOrder, newPercent);
+        await ctx.reply(`Процент для ордера ${idDexOrder} обновлена на ${newPercent}.`);
+      } catch (error) {
+        await ctx.reply('Произошла ошибка при обновлении процента');
+        console.error(error);
+      }
+
+      // Удаляем состояние пользователя
+      this.userStates.delete(userId);
+      return;
+    }
+    
     // Check if the message looks like a wallet hash
     if (messageText.startsWith('0x')) {
       // Call your handler for wallet hash here
@@ -346,6 +402,24 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._telegramJobApiService.sendMessage(
       ctx.from.id,
       `Лимитная заявка остановлена`
+    );
+    return;
+  }
+
+  private async handleReductionPrice(ctx): Promise<void>{
+    await this._dexOrderService.dexOrderReductionPrice(ctx.match[1])
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      `Цена уменьшена`
+    );
+    return;
+  }
+
+  private async handleRaisePrice(ctx): Promise<void>{
+    await this._dexOrderService.dexOrderRaisePrice(ctx.match[1])
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      `Цена увеличена`
     );
     return;
   }
@@ -428,6 +502,44 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
       return;
     }
+  }
+
+  private async handleChangePriceButton(ctx): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!this.isAdminUser(userId)) {
+      await this._telegramJobApiService.sendMessage(
+        userId,
+        'Работа бота доступна только для избранных.',
+      );
+      return;
+    }
+
+    // Устанавливаем состояние пользователя на 'awaiting_new_price'
+    const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
+    this.userStates.set(userId, { state: 'awaiting_new_price', idDexOrder });
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      'Пожалуйста, введите новую цену:'
+    );
+  }
+
+  private async handleChangePercentButton(ctx): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!this.isAdminUser(userId)) {
+      await this._telegramJobApiService.sendMessage(
+        userId,
+        'Работа бота доступна только для избранных.',
+      );
+      return;
+    }
+
+    // Устанавливаем состояние пользователя на 'awaiting_new_price'
+    const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
+    this.userStates.set(userId, { state: 'awaiting_new_percent', idDexOrder });
+    await this._telegramJobApiService.sendMessage(
+      ctx.from.id,
+      'Пожалуйста, введите новый процент:'
+    );
   }
 
 
