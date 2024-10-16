@@ -263,7 +263,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           this._telegramJobApiService.sendMessage(+chatId, message, {
             parse_mode: 'Markdown',
             disable_web_page_preview: true,
-          })
+          }).catch((error) => {
+            Logger.log(`Error sending message: ${error.message}`);
+          }),
         ),
       ]);
       if (dexTransaction.status === 'fulfilled') {
