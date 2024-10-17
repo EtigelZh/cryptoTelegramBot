@@ -62,6 +62,28 @@ export class DexWalletsService {
     // Возвращаем обновленную сущность
     return walletEntity;
   }
+
+  async toggleAutoSell(walletAddress: string): Promise<DexWalletsEntity> {
+    // Ищем запись по адресу кошелька
+    let walletEntity = await this._dexWalletsRepository.findOne({
+      where: { walletAddress: walletAddress },
+    });
+
+    if (!walletEntity) {
+      // Если запись не найдена, можно создать новую или выбросить ошибку
+      // Здесь выбрасываем ошибку
+      throw new Error(`Кошелек с адресом ${walletAddress} не найден.`);
+    }
+
+    // Переключаем значение isAutoBuyEnabled на противоположное
+    walletEntity.isAutoSellEnabled = !walletEntity.isAutoSellEnabled;
+
+    // Сохраняем обновленную запись в базе данных
+    await this._dexWalletsRepository.save(walletEntity);
+
+    // Возвращаем обновленную сущность
+    return walletEntity;
+  }
   
   async getIsAutoBuyEnabled(walletAddress: string): Promise<boolean> {
     // Ищем запись по адресу кошелька
@@ -76,5 +98,19 @@ export class DexWalletsService {
 
     // Возвращаем значение isAutoBuyEnabled
     return walletEntity.isAutoBuyEnabled;
+  }
+  async getIsAutoSellEnabled(walletAddress: string): Promise<boolean> {
+    // Ищем запись по адресу кошелька
+    const walletEntity = await this._dexWalletsRepository.findOne({
+      where: { walletAddress: walletAddress },
+    });
+
+    if (!walletEntity) {
+      // Если запись не найдена, можно вернуть значение по умолчанию или выбросить ошибку
+      throw new Error(`Кошелек с адресом ${walletAddress} не найден.`);
+    }
+
+    // Возвращаем значение isAutoBuyEnabled
+    return walletEntity.isAutoSellEnabled;
   }
 }

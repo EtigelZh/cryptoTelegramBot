@@ -14,7 +14,7 @@ import { Alchemy, BlockWithTransactions, Network } from 'alchemy-sdk';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EthPriceService } from './eth-price.service';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
-import { handleSwap } from './domain-logic/handle-swap';
+import { DexTransactionType, handleSwap } from './domain-logic/handle-swap';
 import { Fungible, Log, WathcingTransactionsMode } from './domain-logic/models';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
 import { calculateTradeProfit } from './domain-logic/calculate-profit';
@@ -265,14 +265,20 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           this._telegramJobApiService.sendMessage(+chatId, message, {
             parse_mode: 'Markdown',
             disable_web_page_preview: true,
-          })
+          }).catch((error) => {
+            Logger.log(`Error sending message: ${error.message}`);
+          }),
         ),
       ]);
       if (dexTransaction.status === 'fulfilled') {
         Logger.log(`Dex transaction saved: ${log.transactionHash}`);
         const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
+        const sellEnabled = await this._dexWalletsSevice.getIsAutoSellEnabled(followingDexTransaction.wallet.hash)
+        if (followingDexTransaction.action == DexTransactionType.SELL && sellEnabled) {
+          await this._dexOrderService.handleTokenPriceChangeSellEarly(followingDexTransaction)
+        }
         const buyEnabled = await this._dexWalletsSevice.getIsAutoBuyEnabled(followingDexTransaction.wallet.hash);
-        if (buyEnabled) {
+        if (followingDexTransaction.action == DexTransactionType.BUY && buyEnabled) {
           const newDexOrder = new DexOrderEntity();
           newDexOrder.copyTradingWallet = followingDexTransaction.wallet;
           newDexOrder.wallet = {hash: this._config.metamaskWalletAddress};
@@ -296,28 +302,34 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           // TODO create order
           const savedDexOrder = await this._dexOrderService.createOrder(newDexOrder);
           const entries = Object.entries(walletEntity.walletSubscriptionMessages);
-  
+          
           const results = await Promise.allSettled(
             entries.map(async ([chatId, messageId]) => {
               newDexOrder.chatDexOrderId = Number(chatId);
-  
+              const buttons = [
+                { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
+                { text: '-1 %', callback_data: `dexOrderTargetPriceChangeLess_${savedDexOrder.id}` },
+                { text: '+1 %', callback_data: `dexOrderTargetPriceChangeMore_${savedDexOrder.id}` },
+              ];
+        
+              // Добавляем кнопку в зависимости от статуса ордера
+              if (savedDexOrder.status === DexOrderStatus.SELLING) {
+                buttons.push({ text: 'change percent', callback_data: `dexOrderChangePercent_${savedDexOrder.id}` });
+              } 
+              if (savedDexOrder.status === DexOrderStatus.BUYING) {
+                buttons.push({ text: 'change price', callback_data: `dexOrderChangePrice_${savedDexOrder.id}` });
+              }
               const result = await this._telegramJobApiService.sendMessage(chatId, `Загрузка...`, {
                 reply_markup: {
-                  inline_keyboard: [
-                    [
-                      { text: 'Stop', callback_data: `dexOrderManualStop_${savedDexOrder.id}` },
-                      { text: 'Change the limit selling price', callback_data: 'btn_2' }
-                    ]
-                  ],
+                  inline_keyboard: [buttons],
                 },
               });
               await this._telegramJobApiService.pinMessage(chatId, result.message_id);
               newDexOrder.messageDexOrderId = Number(result.message_id);
             })
           );
-        await this._dexOrderService.updateOrderMessageChatId(savedDexOrder.id, newDexOrder.messageDexOrderId, newDexOrder.chatDexOrderId)
+          await this._dexOrderService.updateOrderMessageChatId(savedDexOrder.id, newDexOrder.messageDexOrderId, newDexOrder.chatDexOrderId)
         }
-
       }
       
     }
