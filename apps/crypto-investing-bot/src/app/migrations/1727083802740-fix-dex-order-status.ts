@@ -14,13 +14,6 @@ export class FixDexOrdersStatusEnumTypo1727083802740 implements MigrationInterfa
         `);
 
         if (checkExists.length > 0) {
-            // Обновляем существующие записи со статусом 'BUING' на 'BUYING'
-            await queryRunner.query(`
-                UPDATE "dex_orders"
-                SET "status" = 'BUYING'
-                WHERE "status" = 'BUING';
-            `);
-
             // Переименовываем 'BUING' в 'BUYING'
             await queryRunner.query(`
                 ALTER TYPE "public"."dex_orders_status_enum" RENAME VALUE 'BUING' TO 'BUYING';
@@ -42,13 +35,6 @@ export class FixDexOrdersStatusEnumTypo1727083802740 implements MigrationInterfa
         `);
 
         if (checkExists.length > 0) {
-            // Обновляем существующие записи со статусом 'BUYING' обратно на 'BUING'
-            await queryRunner.query(`
-                UPDATE "dex_orders"
-                SET "status" = 'BUING'
-                WHERE "status" = 'BUYING';
-            `);
-
             // Переименовываем 'BUYING' обратно в 'BUING'
             await queryRunner.query(`
                 ALTER TYPE "public"."dex_orders_status_enum" RENAME VALUE 'BUYING' TO 'BUING';
