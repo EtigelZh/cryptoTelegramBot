@@ -8,6 +8,7 @@ import { DexTransactionService } from '../dex-transactions/dex-transactions.serv
 import { DexTransactionEconomics, DexTransactionType, TokenEconomics } from '../eth-transactions-watcher-logic/domain-logic/handle-swap';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { messageDexOrder } from '../eth-transactions-watcher-logic/domain-logic/message-dex-order';
+import { inspect } from 'util';
 
 @Injectable()
 export class DexOrderService {
@@ -199,7 +200,6 @@ export class DexOrderService {
   );
   }
 
-  
   async handleTokenPriceChangeSellEarly(
     tokenEconomics: DexTransactionEntity,
   ) {
@@ -218,7 +218,7 @@ export class DexOrderService {
         return savedOrder;
       })
     );
-    // Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
+    Logger.log(`Handled ${results.length} buy orders for token ${inspect(tokenEconomics)}`);
   }
 
 

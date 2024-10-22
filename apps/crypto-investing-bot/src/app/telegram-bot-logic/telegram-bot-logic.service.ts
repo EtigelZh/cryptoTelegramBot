@@ -80,10 +80,10 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('emulate', this.handleEmulateCommand.bind(this));
     this._bot.command('get_price_history', this.handleTokenPriceHistoryCommand.bind(this));
     this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this))
-    this._bot.command('stopAutoBuy', this.handleToggleAutoBuyCommand.bind(this))
-    this._bot.command('startAutoBuy', this.handleToggleAutoBuyCommand.bind(this))
-    this._bot.command('stopAutoSell', this.handleToggleAutoSellCommand.bind(this))
-    this._bot.command('startAutoSell', this.handleToggleAutoSellCommand.bind(this))
+    this._bot.command('stopAutoBuy', this.handleStopAutoBuyCommand.bind(this))
+    this._bot.command('startAutoBuy', this.handleStartAutoBuyCommand.bind(this))
+    this._bot.command('stopAutoSell', this.handleStopAutoSellCommand.bind(this))
+    this._bot.command('startAutoSell', this.handleStartAutoSellCommand.bind(this))
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
@@ -510,7 +510,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
   }
 
-  private async handleToggleAutoBuyCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleStopAutoBuyCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -527,7 +527,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       return;
     }
     try {
-      await this._dexWalletsSevice.toggleAutoBuy(messageText[1])
+      await this._dexWalletsSevice.stopAutoBuy(messageText[1])
       return;
     } catch (error) {
       await this._telegramJobApiService.sendMessage(
@@ -538,7 +538,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
   }
 
-  private async handleToggleAutoSellCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleStartAutoBuyCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -555,7 +555,63 @@ export class TelegramBotLogicService implements OnModuleInit {
       return;
     }
     try {
-      await this._dexWalletsSevice.toggleAutoSell(messageText[1])
+      await this._dexWalletsSevice.startAutoBuy(messageText[1])
+      return;
+    } catch (error) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Ошибка'
+      );
+      return;
+    }
+  }
+
+  private async handleStopAutoSellCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один адрес кошелька ${example}`
+      );
+      return;
+    }
+    try {
+      await this._dexWalletsSevice.stopAutoSell(messageText[1])
+      return;
+    } catch (error) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Ошибка'
+      );
+      return;
+    }
+  }
+
+  private async handleStartAutoSellCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один адрес кошелька ${example}`
+      );
+      return;
+    }
+    try {
+      await this._dexWalletsSevice.startAutoSell(messageText[1])
       return;
     } catch (error) {
       await this._telegramJobApiService.sendMessage(
