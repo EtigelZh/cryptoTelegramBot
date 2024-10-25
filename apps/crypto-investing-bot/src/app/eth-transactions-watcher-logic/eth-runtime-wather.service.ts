@@ -326,26 +326,16 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           newDexOrder.status = DexOrderStatus.BUYING;
           newDexOrder.completedReason = null;
           newDexOrder.tokenAddress = followingDexTransaction.tokenAddress;
-          newDexOrder.sourceBuyingTransactionHash =
-            followingDexTransaction.transactionHash;
-          newDexOrder.sourceBuyingTransactionBlockNumber =
-            followingDexTransaction.blockNumber;
-          newDexOrder.sourceBuyingTransactionDate =
-            followingDexTransaction.createdAt;
-          newDexOrder.sourceBuyingTransactionPrice =
-            followingDexTransaction.economics.ethPerToken;
-          newDexOrder.sourceBuyingTransactionAmount =
-            followingDexTransaction.economics.amountToken;
+          newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash;
+          newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber;
+          newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt;
+          newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPerToken;
+          newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken;
           newDexOrder.sourceBuyingTransactions = [];
           newDexOrder.sourceSellingTransactions = [];
-          newDexOrder.targetBuyingPrice =
-            this._config.copyTradingTargetBuyingPriceMultiply *
-            newDexOrder.sourceBuyingTransactionPrice;
-          newDexOrder.targetBuyingAmountEth =
-            this._config.copyTradingTargetBuyingAmountEth;
-          newDexOrder.targetSellingPrice =
-            this._config.copyTradingTargetSellingPriceMultiply *
-            newDexOrder.sourceBuyingTransactionPrice;
+          newDexOrder.targetBuyingPrice = this._config.copyTradingTargetBuyingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
+          newDexOrder.targetBuyingAmountEth = this._config.copyTradingTargetBuyingAmountEth;
+          newDexOrder.targetSellingPrice = this._config.copyTradingTargetSellingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
           newDexOrder.targetSellingAmountTokenPercent = 1;
           newDexOrder.buyingTransactions = [];
           newDexOrder.sellingTransactions = [];
@@ -361,42 +351,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           const results = await Promise.allSettled(
             entries.map(async ([chatId, messageId]) => {
               newDexOrder.chatDexOrderId = Number(chatId);
-              const buttons = [
-                {
-                  text: 'Stop',
-                  callback_data: `dexOrderManualStop_${savedDexOrder.id}`,
-                },
-                {
-                  text: '-1 %',
-                  callback_data: `dexOrderTargetPriceChangeLess_${savedDexOrder.id}`,
-                },
-                {
-                  text: '+1 %',
-                  callback_data: `dexOrderTargetPriceChangeMore_${savedDexOrder.id}`,
-                },
-              ];
-
-              // Добавляем кнопку в зависимости от статуса ордера
-              if (savedDexOrder.status === DexOrderStatus.SELLING) {
-                buttons.push({
-                  text: 'change percent',
-                  callback_data: `dexOrderChangePercent_${savedDexOrder.id}`,
-                });
-              }
-              if (savedDexOrder.status === DexOrderStatus.BUYING) {
-                buttons.push({
-                  text: 'change price',
-                  callback_data: `dexOrderChangePrice_${savedDexOrder.id}`,
-                });
-              }
               const result = await this._telegramJobApiService.sendMessage(
                 chatId,
                 `Загрузка...`,
-                {
-                  reply_markup: {
-                    inline_keyboard: [buttons],
-                  },
-                }
               );
               await this._telegramJobApiService.pinMessage(
                 chatId,

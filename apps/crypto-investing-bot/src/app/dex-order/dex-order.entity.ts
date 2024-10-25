@@ -68,6 +68,10 @@ export class DexOrderEntity {
 
     @Column({ type: 'jsonb', default: {} })
     additionalFields: Record<string, unknown>;
+
+    /** Флаг, указывающий, включено ли автоматическое следование за продажами */
+    @Column({ default: true })
+    isAutoSellEnabled: boolean;
   
     @CreateDateColumn()
     createdAt: Date;
