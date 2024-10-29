@@ -26,7 +26,7 @@ export class DexOrderEntity {
     messageDexOrderId: number;
 
     @Column({nullable: true})
-    chatDexOrderId: number;
+    chatDexOrderId: string;
     /** Адрес контракта монеты */
     @Column()
     @Index()

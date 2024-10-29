@@ -300,16 +300,14 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           economics,
           message
         ),
-        ...entries.map(([chatId, messageId]) => {
           this._telegramJobApiService
-            .sendMessage(+chatId, message, {
+            .sendMessage(this._config.generalChatId, message, {
               parse_mode: 'Markdown',
               disable_web_page_preview: true,
             })
             .catch((error) => {
               Logger.log(`Error sending message: ${error.message}`);
-            });
-        }),
+            })
       ]);
       if (dexTransaction.status === 'fulfilled') {
         Logger.log(`Dex transaction saved: ${log.transactionHash}`);
@@ -356,57 +354,16 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           const savedDexOrder = await this._dexOrderService.createOrder(
             newDexOrder
           );
-          const entries = Object.entries(
-            walletEntity.walletSubscriptionMessages
-          );
-
-          const results = await Promise.allSettled(
-            entries.map(async ([chatId, messageId]) => {
-              newDexOrder.chatDexOrderId = Number(chatId);
-              const buttons = [
-                {
-                  text: 'Stop',
-                  callback_data: `dexOrderManualStop_${savedDexOrder.id}`,
-                },
-                {
-                  text: '-1 %',
-                  callback_data: `dexOrderTargetPriceChangeLess_${savedDexOrder.id}`,
-                },
-                {
-                  text: '+1 %',
-                  callback_data: `dexOrderTargetPriceChangeMore_${savedDexOrder.id}`,
-                },
-              ];
-
-              // Добавляем кнопку в зависимости от статуса ордера
-              if (savedDexOrder.status === DexOrderStatus.SELLING) {
-                buttons.push({
-                  text: 'change percent',
-                  callback_data: `dexOrderChangePercent_${savedDexOrder.id}`,
-                });
-              }
-              if (savedDexOrder.status === DexOrderStatus.BUYING) {
-                buttons.push({
-                  text: 'change price',
-                  callback_data: `dexOrderChangePrice_${savedDexOrder.id}`,
-                });
-              }
+              newDexOrder.chatDexOrderId = String(this._config.generalChatId);
               const result = await this._telegramJobApiService.sendMessage(
-                chatId,
-                `Загрузка...`,
-                {
-                  reply_markup: {
-                    inline_keyboard: [buttons],
-                  },
-                }
+                this._config.generalChatId,
+                `Загрузка...`
               );
               await this._telegramJobApiService.pinMessage(
-                chatId,
+                this._config.generalChatId,
                 result.message_id
               );
               newDexOrder.messageDexOrderId = Number(result.message_id);
-            })
-          );
           await this._dexOrderService.updateOrderMessageChatId(
             savedDexOrder.id,
             newDexOrder.messageDexOrderId,

@@ -28,6 +28,7 @@ import { FixDexOrder1724933944698 } from './1724933944698-fix-dex-order';
 import { FixDexOrderTransactionRelation1725348823129 } from './1725348823129-fix-dex-order-transaction-relation';
 import { AddIdMessageDexOrder1726083802740 } from './1726083802740-add-id-message-dex-order';
 import { FixDexOrdersStatusEnumTypo1727083802740 } from './1727083802740-fix-dex-order-status';
+import { FixDexOrderChatId1730217434148 } from './1730217434148-fix-dex-order-chat-id';
 
 export const migrations = [
   Migrations1710903030686,
@@ -60,4 +61,5 @@ export const migrations = [
   FixDexOrderTransactionRelation1725348823129,
   AddIdMessageDexOrder1726083802740,
   FixDexOrdersStatusEnumTypo1727083802740,
+  FixDexOrderChatId1730217434148
 ];

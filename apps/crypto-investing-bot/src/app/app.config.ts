@@ -122,6 +122,8 @@ export class AppConfig {
 
   dailyUpdateReportChatId: number = +(process.env.DAILY_UPDATE_REPORT_CHAT_ID || '254372545'); // -1002079084911
 
+  generalChatId: number = +(process.env.GENERAL_CHAT_ID || '-1002491942872')
+
   devPrefix: string = process.env.DEV_MESSAGE_PREFIX || '';
 
   network: string = process.env.NETWORK || 'mainnet';

@@ -23,7 +23,7 @@ export class DexOrderService {
     // TODO implement order creation
     return this._dexOrderRepository.save(order);
   }
-  async updateOrderMessageChatId(dexOrderId: number, messageId: number, chatId: number) {
+  async updateOrderMessageChatId(dexOrderId: number, messageId: number, chatId: string) {
     const order = await this._dexOrderRepository.findOne({
       where: {
         id: dexOrderId
@@ -182,7 +182,7 @@ export class DexOrderService {
         }
 
         await this._telegramJobApiService.editMessageText(
-          order.chatDexOrderId,
+          Number(order.chatDexOrderId),
           messageText,
           order.messageDexOrderId,
           undefined,

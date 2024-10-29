@@ -77,7 +77,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('cleanup', this.handleCleanup.bind(this));
     this._bot.command('emulate', this.handleEmulateCommand.bind(this));
     this._bot.command('get_price_history', this.handleTokenPriceHistoryCommand.bind(this));
-    this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this))
+    this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this));
+    this._bot.command('get_chat_id', this.handleGetChatIdCommand.bind(this))
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
@@ -539,6 +540,31 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._telegramJobApiService.sendMessage(
       ctx.from.id,
       'Пожалуйста, введите новый процент:'
+    );
+  }
+
+  private async handleGetChatIdCommand(ctx): Promise<void> {
+    const chatId = ctx.chat?.id;
+  
+    if (!chatId) {
+      await this._telegramJobApiService.sendMessage(
+        chatId,
+        'Не удалось получить chatID.'
+      );
+      return;
+    }
+  
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        chatId,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+  
+    this._telegramJobApiService.sendMessage(
+      chatId,
+      `ID этого чата [${chatId}] а этого сообщения ${ctx.message.message_id}`
     );
   }
 
