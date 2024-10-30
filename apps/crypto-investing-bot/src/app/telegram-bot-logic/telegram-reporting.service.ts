@@ -55,7 +55,7 @@ export class TelegramReportingService {
 
   @Cron(AppConfig.telegramReportingCron)
   async report(chatId = this._appConfig.dailyUpdateReportChatId, lastMessageId = this._lastMessageId) {
-    const [queueReport, dbReport, waitingCount, telegramWaitingCount, googleDriveQuota] = await Promise.all([
+    const results = await Promise.allSettled([
       this._analyticsService.getQueueReport(),
       this._analyticsService.getDbReport(),
       this._processingWalletsJobApiService.getWaitingCount(),
@@ -63,11 +63,13 @@ export class TelegramReportingService {
       this._googleDriveService.getQuota()
     ]);
 
+    const [queueReport, dbReport, waitingCount, telegramWaitingCount, googleDriveQuota] = results.map(result => result.status === 'fulfilled' ? result.value : `Ошибка при получении данных: ${result.reason}`);
+
     const manualApiRequests = this._zerionApiService.getRequestLimits('manual');
     const updatingApiRequests = this._zerionApiService.getRequestLimits('updating');
     const manualLimits = [
       `Запросов сегодня: `,
-      `Квота google drive: ${bytesToGigabytes(+googleDriveQuota.usage).toFixed(2)}/${bytesToGigabytes(+googleDriveQuota.limit).toFixed(2)} GB`,
+      typeof googleDriveQuota === 'string' ? `Ошибка получения Google квоты ${googleDriveQuota}` : `Квота google drive: ${bytesToGigabytes(+(googleDriveQuota['usage'])).toFixed(2)}/${bytesToGigabytes(+googleDriveQuota['limit']).toFixed(2)} GB`,
       `Ручные запросы: ${manualApiRequests.used}/${manualApiRequests.limit}`,
       `Запросы для обновлений: ${updatingApiRequests.used}/${updatingApiRequests.limit}`,
       `Очередь отправки сообщений в telegram: ${telegramWaitingCount}`,
