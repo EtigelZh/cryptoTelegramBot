@@ -319,7 +319,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     if (this._isBotMessage(ctx)) {
       return;
     }
-    const userId = ctx.from?.id;
+    const userId = ctx.chat?.id;
     const messageText = ctx.message.text;
 
     // Проверяем, ожидает ли пользователь ввода новой цены
@@ -352,7 +352,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       const newPercentText = messageText.trim().replace(',', '.');
       const newPercent = parseFloat(newPercentText);
       if (isNaN(newPercent) || newPercent <= 0) {
-        await ctx.reply('Пожалуйста, введите корректное число для процента');
+        await this._telegramJobApiService.sendMessage(ctx.chat.id, 'Пожалуйста, введите корректное число для процента');
         return;
       }
 
@@ -361,9 +361,9 @@ export class TelegramBotLogicService implements OnModuleInit {
       // Обновляем цену в базе данных
       try {
         await this._dexOrderService.dexOrderChangePrice(idDexOrder, newPercent);
-        await ctx.reply(`Процент для ордера ${idDexOrder} обновлена на ${newPercent}.`);
+        await this._telegramJobApiService.sendMessage(ctx.chat.id, `Процент для ордера ${idDexOrder} обновлена на ${newPercent}.`);
       } catch (error) {
-        await ctx.reply('Произошла ошибка при обновлении процента');
+        await this._telegramJobApiService.sendMessage(ctx.chat.id, 'Произошла ошибка при обновлении процента');
         console.error(error);
       }
 
@@ -401,7 +401,7 @@ export class TelegramBotLogicService implements OnModuleInit {
   private async handleStop(ctx): Promise<void>{
     this._dexOrderService.dexOrderStop(ctx.match[1])
     await this._telegramJobApiService.sendMessage(
-      ctx.from.id,
+      ctx.chat.id,
       `Лимитная заявка остановлена`
     );
     return;
@@ -506,8 +506,8 @@ export class TelegramBotLogicService implements OnModuleInit {
   }
 
   private async handleChangePriceButton(ctx): Promise<void> {
-    const userId = ctx.from?.id;
-    if (!this.isAdminUser(userId)) {
+    const userId = ctx.chat.id;
+    if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         userId,
         'Работа бота доступна только для избранных.',
@@ -519,14 +519,14 @@ export class TelegramBotLogicService implements OnModuleInit {
     const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
     this.userStates.set(userId, { state: 'awaiting_new_price', idDexOrder });
     await this._telegramJobApiService.sendMessage(
-      ctx.from.id,
+      userId,
       'Пожалуйста, введите новую цену:'
     );
   }
 
   private async handleChangePercentButton(ctx): Promise<void> {
-    const userId = ctx.from?.id;
-    if (!this.isAdminUser(userId)) {
+    const userId = ctx.chat?.id;
+    if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         userId,
         'Работа бота доступна только для избранных.',
@@ -538,7 +538,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
     this.userStates.set(userId, { state: 'awaiting_new_percent', idDexOrder });
     await this._telegramJobApiService.sendMessage(
-      ctx.from.id,
+      userId,
       'Пожалуйста, введите новый процент:'
     );
   }
