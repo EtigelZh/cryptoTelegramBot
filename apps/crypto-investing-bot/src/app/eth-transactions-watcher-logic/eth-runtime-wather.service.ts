@@ -25,6 +25,7 @@ import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity
 import { DexOrderEntity } from '../dex-order/dex-order.entity';
 import { DexOrderStatus } from '../dex-order/dex-order.models';
 import { Markup } from 'telegraf';
+import { DexWalletsService } from '../dex-wallets/dex-wallets.service';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -55,7 +56,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _ethPriceService: EthPriceService,
     private readonly _etherscanApi: EtherscanClientJobApiService,
     private readonly _dexTransactionService: DexTransactionService,
-    private readonly _dexOrderService: DexOrderService
+    private readonly _dexOrderService: DexOrderService,
+    private readonly _dexWalletsSevice: DexWalletsService
   ) {
     this._provider = new ethers.providers.AlchemyProvider(
       this._config.network,
@@ -119,11 +121,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     try {
       Logger.log(`Fetch logs for block ${blockNumber}`);
       Logger.log(`Wallets to watch: ${walletHashes.join(', ')}`);
-
-      const block = await this.alchemy.core.getBlockWithTransactions(
-        blockNumber
-      );
-
+      
+      const block = await this.alchemy.core.getBlockWithTransactions(blockNumber);
+      await this._dexWalletsSevice.saveWalletAddresses(walletHashes);
       // Параллельно обрабатываем каждый тип свапов
       await Promise.all([
         this._etherscanApi
@@ -311,41 +311,29 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       ]);
       if (dexTransaction.status === 'fulfilled') {
         Logger.log(`Dex transaction saved: ${log.transactionHash}`);
-        const followingDexTransaction: DexTransactionEntity =
-          dexTransaction.value;
-
-        if (followingDexTransaction.action == DexTransactionType.SELL) {
-          await this._dexOrderService.handleTokenPriceChangeSellEarly(
-            followingDexTransaction
-          );
+        const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
+        const sellEnabled = await this._dexWalletsSevice.getIsAutoSellEnabled(followingDexTransaction.wallet.hash)
+        if (followingDexTransaction.action == DexTransactionType.SELL && sellEnabled) {
+          await this._dexOrderService.handleTokenPriceChangeSellEarly(followingDexTransaction)
         }
-        if (followingDexTransaction.action == DexTransactionType.BUY) {
+        const buyEnabled = await this._dexWalletsSevice.getIsAutoBuyEnabled(followingDexTransaction.wallet.hash);
+        if (followingDexTransaction.action == DexTransactionType.BUY && buyEnabled) {
           const newDexOrder = new DexOrderEntity();
           newDexOrder.copyTradingWallet = followingDexTransaction.wallet;
           newDexOrder.wallet = { hash: this._config.metamaskWalletAddress };
           newDexOrder.status = DexOrderStatus.BUYING;
           newDexOrder.completedReason = null;
           newDexOrder.tokenAddress = followingDexTransaction.tokenAddress;
-          newDexOrder.sourceBuyingTransactionHash =
-            followingDexTransaction.transactionHash;
-          newDexOrder.sourceBuyingTransactionBlockNumber =
-            followingDexTransaction.blockNumber;
-          newDexOrder.sourceBuyingTransactionDate =
-            followingDexTransaction.createdAt;
-          newDexOrder.sourceBuyingTransactionPrice =
-            followingDexTransaction.economics.ethPerToken;
-          newDexOrder.sourceBuyingTransactionAmount =
-            followingDexTransaction.economics.amountToken;
+          newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash;
+          newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber;
+          newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt;
+          newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPerToken;
+          newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken;
           newDexOrder.sourceBuyingTransactions = [];
           newDexOrder.sourceSellingTransactions = [];
-          newDexOrder.targetBuyingPrice =
-            this._config.copyTradingTargetBuyingPriceMultiply *
-            newDexOrder.sourceBuyingTransactionPrice;
-          newDexOrder.targetBuyingAmountEth =
-            this._config.copyTradingTargetBuyingAmountEth;
-          newDexOrder.targetSellingPrice =
-            this._config.copyTradingTargetSellingPriceMultiply *
-            newDexOrder.sourceBuyingTransactionPrice;
+          newDexOrder.targetBuyingPrice = this._config.copyTradingTargetBuyingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
+          newDexOrder.targetBuyingAmountEth = this._config.copyTradingTargetBuyingAmountEth;
+          newDexOrder.targetSellingPrice = this._config.copyTradingTargetSellingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
           newDexOrder.targetSellingAmountTokenPercent = 1;
           newDexOrder.buyingTransactions = [];
           newDexOrder.sellingTransactions = [];

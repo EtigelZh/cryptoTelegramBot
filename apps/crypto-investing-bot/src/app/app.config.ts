@@ -127,7 +127,18 @@ export class AppConfig {
   devPrefix: string = process.env.DEV_MESSAGE_PREFIX || '';
 
   network: string = process.env.NETWORK || 'mainnet';
-  alchemyApiKey: string = process.env.ALCHEMY_API_KEY || '';
+
+  alchemyApiKeys: string[] = (process.env.ALCHEMY_API_KEYS || process.env.ALCHEMY_API_KEY || '').split(',');
+
+  get alchemyApiKey(): string {
+    const currentDayOfMonth = new Date().getDate();
+    // распределяем нагрузку на ключи алхимии по дням месяца, дни месяца должны использовать подряд для каждого ключа
+    const daysInCurrentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 0).getDate();
+    const daysPerKey = Math.ceil(daysInCurrentMonth / this.alchemyApiKeys.length);
+    const keyIndex = Math.floor(currentDayOfMonth / daysPerKey);
+    return this.alchemyApiKeys[keyIndex] || this.alchemyApiKeys[0];
+  }
+
   exampleTokenKeys: string = process.env.EXPAMPLE_TOKEN_KEYS || '' // example: '0x6982508145454Ce325dDbE47a25d4ec3d2311933 0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e 0x6B175474E89094C44Da98b954EedeAC495271d0F'
   metamaskPrivateKey: string = process.env.METAMASK_PRIVATE_KEY!;
   metamaskWalletAddress: string = process.env.METAMASK_WALLET_ADDRESS || '0xED1F35D23d0165429328cb891E84540F62CAe981';

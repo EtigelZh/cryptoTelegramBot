@@ -167,18 +167,29 @@ export class DexOrderService {
       }
       else {
         // Формируем массив кнопок в зависимости от статуса ордера
-        const buttons = [
-          { text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` },
+        const autoSellEnabledButtons = [{ text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` }]
+        autoSellEnabledButtons.push()
+        if (order.isAutoSellEnabled) {
+          autoSellEnabledButtons.push({ text: 'stopAutoSell', callback_data: `isStopAutoSellEnabled_${order.id}` })
+        }
+        else if (!order.isAutoSellEnabled) {
+          autoSellEnabledButtons.push({ text: 'startAutoSell', callback_data: `isStartAutoSellEnabled_${order.id}` })
+        }
+        
+        const buttons = [];
+        const priceChangeButtons = [
           { text: '-1 %', callback_data: `dexOrderTargetPriceChangeLess_${order.id}` },
-          { text: '+1 %', callback_data: `dexOrderTargetPriceChangeMore_${order.id}` },
+          { text: '+1 %', callback_data: `dexOrderTargetPriceChangeMore_${order.id}` }
         ];
-
+        buttons.push(autoSellEnabledButtons);
+        buttons.push(priceChangeButtons);
+  
         // Добавляем кнопку в зависимости от статуса ордера
         if (order.status === DexOrderStatus.SELLING) {
-          buttons.push({ text: 'change percent', callback_data: `dexOrderChangePercent_${order.id}` });
+          buttons.push([{ text: 'change percent', callback_data: `dexOrderChangePercent_${order.id}` }]);
         } 
         if (order.status === DexOrderStatus.BUYING) {
-          buttons.push({ text: 'change price', callback_data: `dexOrderChangePrice_${order.id}` });
+          buttons.push([{ text: 'change price', callback_data: `dexOrderChangePrice_${order.id}` }]);
         }
 
         await this._telegramJobApiService.editMessageText(
@@ -190,12 +201,11 @@ export class DexOrderService {
             parse_mode: 'Markdown',
             disable_web_page_preview: true,
             reply_markup: {
-              inline_keyboard: [buttons],
+              inline_keyboard: buttons,
             },
           },
         );
       }
-      return messageText;
     }),
   );
   }
@@ -213,9 +223,11 @@ export class DexOrderService {
 
     const results = await Promise.allSettled(
       orders.map(async (order) => {
-        order.targetSellingPrice = tokenEconomics.economics.ethPerToken
-        const savedOrder = await this._dexOrderRepository.save(order);
-        return savedOrder;
+        if (order.isAutoSellEnabled) {
+          order.targetSellingPrice = tokenEconomics.economics.ethPerToken;
+          const savedOrder = await this._dexOrderRepository.save(order);
+          return savedOrder;
+        }
       })
     );
     Logger.log(`Handled ${results.length} buy orders for token ${inspect(tokenEconomics)}`);
@@ -324,4 +336,35 @@ export class DexOrderService {
       order.targetSellingPrice = order.sourceBuyingTransactionPrice * (newTargetPrice / 100 + 1);
     await this._dexOrderRepository.save(order);
   }
+
+  async dexOrderStopAutoSell(dexOrderId: number) {
+    const order = await this._dexOrderRepository.findOne({
+        where: {
+            id: dexOrderId
+        },
+        relations: ['wallet'],
+    });
+
+    if (!order) {
+        throw new Error(`Order with ID ${dexOrderId} not found.`);
+    }
+    order.isAutoSellEnabled = false;
+    await this._dexOrderRepository.save(order);
+  }
+
+  async dexOrderStartAutoSell(dexOrderId: number) {
+    const order = await this._dexOrderRepository.findOne({
+        where: {
+            id: dexOrderId
+        },
+        relations: ['wallet'],
+    });
+
+    if (!order) {
+        throw new Error(`Order with ID ${dexOrderId} not found.`);
+    }
+    order.isAutoSellEnabled = true;
+    await this._dexOrderRepository.save(order);
+  }
+
 }
