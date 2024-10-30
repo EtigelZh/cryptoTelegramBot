@@ -10,6 +10,7 @@ import { EthPriceService } from "./eth-price.service";
 import { EtherscanApiModule } from "../etherscan-api/etherscan-api.module";
 import { DexTransactionsModule } from "../dex-transactions/dex-transactions.module";
 import { DexOrderModule } from "../dex-order/dex-order.module";
+import { DexWalletsModule } from "../dex-wallets/dex-wallets.module";
 
 @Module({
     imports: [
@@ -21,6 +22,7 @@ import { DexOrderModule } from "../dex-order/dex-order.module";
         EtherscanApiModule,
         DexTransactionsModule,
         DexOrderModule,
+        DexWalletsModule
     ],
     providers: [EthRuntimeWatcherService, EthPriceService, EthMissingBlockCheckerService],
     exports: [EthPriceService, EthRuntimeWatcherService],

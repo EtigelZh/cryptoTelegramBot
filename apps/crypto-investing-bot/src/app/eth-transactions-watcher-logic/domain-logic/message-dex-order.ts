@@ -37,23 +37,33 @@ async function messageEconmics(tokenEconomics: TokenEconomics, order: DexOrderEn
         timeElapsed,
         price: tokenEconomics.usdPerToken,
         targetBuyingPrice: order.targetBuyingPrice,
-        dexOrderPercent
+        dexOrderPercent,
+        isAutoSellEnabled: order.isAutoSellEnabled
     };
   }
 
 export async function messageDexOrder(tokenEconomics: TokenEconomics, orderPromise: DexOrderEntity) {
     const result = await messageEconmics(tokenEconomics, orderPromise)
     const dextoolsLink = `https://www.dextools.io/app/ru/ether/pair-explorer/${tokenEconomics.tokenAddress}`;
-    const messageText =
+    let messageText =
     `[${tokenEconomics.tokenSymbol}](${dextoolsLink}) 🚀 ${smartRound(
       result.percentChange
     )}% status: ${result.statusDexOrder}\n` +
     `Initial: ${smartRound(result.initialValue)} ETH\n` +
     `Worth: ${smartRound(result.currentValue)} ETH\n` +
     `Time elapsed: ${result.timeElapsed}\n` +
-    `💵 Price: ${smartRound(tokenEconomics.usdPerToken)}\n` +
-    (result.statusDexOrder === "SELLING"
-      ? `DEX ORDER PERCENT: ${smartRound(result.dexOrderPercent)}%`
-      : `TARGET BUY PRICE: ${smartRound(result.targetBuyingPrice)} ETH`);
+    `💵 Price: ${smartRound(tokenEconomics.usdPerToken)}\n`;
+
+    if (result.statusDexOrder === "SELLING") {
+      if (result.isAutoSellEnabled) {
+        messageText += `DEX ORDER PERCENT: ${smartRound(result.dexOrderPercent)}% (AutoSell ON)`;
+      }
+      else {
+        messageText += `DEX ORDER PERCENT: ${smartRound(result.dexOrderPercent)}% (AutoSell OFF)`;
+      }
+    }
+    if (result.statusDexOrder === "BUYING") {
+      messageText += `TARGET BUY PRICE: ${smartRound(result.targetBuyingPrice)} ETH`;
+    }
     return messageText
 }

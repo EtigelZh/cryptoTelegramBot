@@ -25,6 +25,7 @@ import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-
 import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
 import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
 import { DexOrderService } from '../dex-order/dex-order.service';
+import { DexWalletsService } from '../dex-wallets/dex-wallets.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -49,7 +50,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _walletService: WalletService,
     private _ethRuntimeWatcherService: EthRuntimeWatcherService,
     private _tokenPriceHistoryService: TokenPriceHistoryService,
-    private _dexOrderService: DexOrderService
+    private _dexOrderService: DexOrderService,
+    private _dexWalletsSevice: DexWalletsService 
   ) {}
 
   onModuleInit() {
@@ -78,6 +80,10 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('emulate', this.handleEmulateCommand.bind(this));
     this._bot.command('get_price_history', this.handleTokenPriceHistoryCommand.bind(this));
     this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this))
+    this._bot.command('stopAutoBuy', this.handleStopAutoBuyCommand.bind(this))
+    this._bot.command('startAutoBuy', this.handleStartAutoBuyCommand.bind(this))
+    this._bot.command('stopAutoSell', this.handleStopAutoSellCommand.bind(this))
+    this._bot.command('startAutoSell', this.handleStartAutoSellCommand.bind(this))
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
@@ -85,6 +91,8 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.action(/dexOrderTargetPriceChangeMore_(\d+)/, (ctx) => this.handleRaisePrice(ctx));
     this._bot.action(/dexOrderChangePrice_(\d+)/, (ctx) => this.handleChangePriceButton(ctx));
     this._bot.action(/dexOrderChangePercent_(\d+)/, (ctx) => this.handleChangePercentButton(ctx));
+    this._bot.action(/isStopAutoSellEnabled_(\d+)/, (ctx) => this.handleStopAutoBuyButton(ctx));
+    this._bot.action(/isStartAutoSellEnabled_(\d+)/, (ctx) => this.handleStartAutoBuyButton(ctx));
     // this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
   }
 
@@ -504,6 +512,118 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
   }
 
+  private async handleStopAutoBuyCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один адрес кошелька ${example}`
+      );
+      return;
+    }
+    try {
+      await this._dexWalletsSevice.stopAutoBuy(messageText[1])
+      return;
+    } catch (error) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Ошибка'
+      );
+      return;
+    }
+  }
+
+  private async handleStartAutoBuyCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один адрес кошелька ${example}`
+      );
+      return;
+    }
+    try {
+      await this._dexWalletsSevice.startAutoBuy(messageText[1])
+      return;
+    } catch (error) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Ошибка'
+      );
+      return;
+    }
+  }
+
+  private async handleStopAutoSellCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один адрес кошелька ${example}`
+      );
+      return;
+    }
+    try {
+      await this._dexWalletsSevice.stopAutoSell(messageText[1])
+      return;
+    } catch (error) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Ошибка'
+      );
+      return;
+    }
+  }
+
+  private async handleStartAutoSellCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один адрес кошелька ${example}`
+      );
+      return;
+    }
+    try {
+      await this._dexWalletsSevice.startAutoSell(messageText[1])
+      return;
+    } catch (error) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Ошибка'
+      );
+      return;
+    }
+  }
+
   private async handleChangePriceButton(ctx): Promise<void> {
     const userId = ctx.from?.id;
     if (!this.isAdminUser(userId)) {
@@ -540,6 +660,35 @@ export class TelegramBotLogicService implements OnModuleInit {
       ctx.from.id,
       'Пожалуйста, введите новый процент:'
     );
+  }
+  private async handleStopAutoBuyButton(ctx): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!this.isAdminUser(userId)) {
+      await this._telegramJobApiService.sendMessage(
+        userId,
+        'Работа бота доступна только для избранных.',
+      );
+      return;
+    }
+
+    // Устанавливаем состояние пользователя на 'awaiting_new_price'
+    const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
+    this._dexOrderService.dexOrderStopAutoSell(idDexOrder)
+  }
+
+  private async handleStartAutoBuyButton(ctx): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!this.isAdminUser(userId)) {
+      await this._telegramJobApiService.sendMessage(
+        userId,
+        'Работа бота доступна только для избранных.',
+      );
+      return;
+    }
+
+    // Устанавливаем состояние пользователя на 'awaiting_new_price'
+    const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
+    this._dexOrderService.dexOrderStartAutoSell(idDexOrder)
   }
 
 
