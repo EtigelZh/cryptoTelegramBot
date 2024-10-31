@@ -69,6 +69,7 @@ export class AppConfig {
   static readonly walletProcessorConcurrency = +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4);
   static readonly sendTelegramMessageProcessorConcurrency = +(process.env.SEND_TELEGRAM_MESSAGE_CONCURRENCY || 4);
   static readonly updateTelegramMessageProcessorConcurrency = +(process.env.UPDATE_TELEGRAM_MESSAGE_CONCURRENCY || 4);
+  static readonly pinTelegramMessageProcessorConcurrency = +(process.env.PIN_TELEGRAM_MESSAGE_CONCURRENCY || 1);
   static readonly updateOldWalletsCron = process.env.UPDATE_OLD_WALLETS_CRON || '10 */6 * * *';
   static readonly longTermProcessingCron = process.env.LONG_TERM_PROCESSING_CRON || '*/1 * * * *';
   static readonly telegramReportingCron = process.env.TELEGRAM_REPORTING_CRON || '*/1 * * * *';
