@@ -163,7 +163,8 @@ export class DexOrderService {
     orders.map(async (order) => {
       const messageText = await messageDexOrder(tokenEconomics, order);
       if (order.status === DexOrderStatus.COMPLETED) {
-        await this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId)
+        // ТАК НИКОГДА НЕ ДЕЛАТЬ - бесконечное создание событий unpinMessage
+        // await this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId)
       }
       else {
         // Формируем массив кнопок в зависимости от статуса ордера
