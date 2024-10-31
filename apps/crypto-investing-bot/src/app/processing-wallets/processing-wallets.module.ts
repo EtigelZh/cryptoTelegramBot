@@ -6,7 +6,7 @@ import { ZerionApiModule } from '../zerion-api/zerion-api.module';
 import { GoogleDriveModule } from '../google-api/google-drive.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { WalletModule } from '../wallet/wallet.module';
-import { AppConfigModule } from '../app.config';
+import { AppConfig, AppConfigModule } from '../app.config';
 import { TelegrafModule } from '../telegraf/telegraf.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LongTermProcessingWalletTaskEntity } from './long-term-processing-wallet-task.entity';
@@ -29,7 +29,8 @@ import { EtherscanApiModule } from '../etherscan-api/etherscan-api.module';
       name: walletQueueName,
       defaultJobOptions: {
         removeOnComplete: true,
-      },
+        removeOnFail: AppConfig.failedJobStorageConfig,
+      }
     }),
   ],
   controllers: [],
