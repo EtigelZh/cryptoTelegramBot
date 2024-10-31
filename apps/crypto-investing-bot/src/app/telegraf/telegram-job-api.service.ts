@@ -1,22 +1,31 @@
 import { InjectQueue } from '@nestjs/bull';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { telegramQueueName } from './queues';
 import { Queue } from 'bull';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
-import { Telegraf } from 'telegraf';
-import { TELEGRAF } from './telegraf.token';
 
 @Injectable()
 export class TelegramJobApiService {
   constructor(
     @InjectQueue(telegramQueueName) private telegramQueue: Queue,
-    @Inject(TELEGRAF) private readonly _bot: Telegraf,
   ) {
     this.telegramQueue.isPaused().then((paused) => {
       if (paused) {
         this.telegramQueue.resume();
       }
     });
+  }
+
+  async cleanQueue(top = 100) {
+    for (let i = 0; i < top; i++) {
+      await Promise.all([
+        this.telegramQueue.clean(0, 'completed', 1000),
+        this.telegramQueue.clean(0, 'failed', 1000),
+        this.telegramQueue.clean(0, 'wait', 1000),
+      ]).catch((error) => {
+        Logger.warn(`Error cleaning queue: ${error}`);
+      });
+    }
   }
 
   async getWaitingQueueSize() {
@@ -140,7 +149,7 @@ export class TelegramJobApiService {
   ): Promise<void> {
     try {
       if (chatId && messageId) {
-        await this._bot.telegram.pinChatMessage(chatId, messageId);
+        await this.telegramQueue.add('pinMessage', { chatId, messageId });
       }
     } catch (error) {
       if (error.response && error.response.statusCode === 429) {
@@ -156,8 +165,8 @@ export class TelegramJobApiService {
     messageId?: number
   ): Promise<void> {
     try {
-      if (chatId && messageId) {
-        await this._bot.telegram.unpinChatMessage(chatId, messageId);
+      if (chatId) {
+        await this.telegramQueue.add('unpinMessage', { chatId, messageId });
       }
     } catch (error) {
       if (error.response && error.response.statusCode === 429) {
