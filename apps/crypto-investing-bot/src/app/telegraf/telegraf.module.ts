@@ -1,8 +1,7 @@
-import { Logger, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { AppConfig, AppConfigModule } from '../app.config';
 import { Telegraf } from 'telegraf';
 import { TELEGRAF } from './telegraf.token';
-import { inspect } from 'util';
 import { BullModule } from '@nestjs/bull';
 import { telegramQueueName } from './queues';
 import { TelegramConsumer } from './telegram.consumer';
@@ -20,7 +19,8 @@ import { ErrorHandlingService } from '../error-handling/error-handling-service';
       },
       defaultJobOptions: {
         removeOnComplete: true,
-      },
+        removeOnFail: AppConfig.failedJobStorageConfig,
+      }
     }),
   ],
   providers: [

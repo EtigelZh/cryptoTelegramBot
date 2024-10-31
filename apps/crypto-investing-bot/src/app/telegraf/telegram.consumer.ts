@@ -1,11 +1,12 @@
 import { Process, Processor } from '@nestjs/bull';
 import { telegramQueueName } from './queues';
-import { Inject } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { TELEGRAF } from './telegraf.token';
 import { Telegraf } from 'telegraf';
 import { Job } from 'bull';
 import { AppConfig } from '../app.config';
 import { ExtraReplyMessage } from 'telegraf/typings/telegram-types';
+import { inspect } from 'util';
 
 @Processor(telegramQueueName)
 export class TelegramConsumer {
@@ -82,5 +83,12 @@ export class TelegramConsumer {
       job.data.chatId,
       job.data.messageId
     );
+  }
+
+  @Process({
+    name: '__default__',
+  })
+  async defaultProcessor(job: Job) {
+    Logger.warn(`Unknown job type: ${inspect(job)}`);
   }
 }

@@ -5,7 +5,7 @@ import { googleSheetsApiQueueName, GoogleSheetsConsumer } from './google-sheets.
 import { GoogleSheetsJobApiService } from './google-sheets-job-api.service';
 import { WalletModule } from '../../wallet/wallet.module';
 import { BullModule } from '@nestjs/bull';
-import { AppConfigModule } from '../../app.config';
+import { AppConfig, AppConfigModule } from '../../app.config';
 import { AnalyticsModule } from '../../analytics/analytics.module';
 
 @Module({})
@@ -25,7 +25,8 @@ export class GoogleSheetsModule {
           },
           defaultJobOptions: {
             removeOnComplete: true,
-          },
+            removeOnFail: AppConfig.failedJobStorageConfig,
+          }
         }),
       ],
       providers: [

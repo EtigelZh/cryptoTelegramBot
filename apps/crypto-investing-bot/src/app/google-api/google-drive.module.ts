@@ -5,7 +5,7 @@ import { GoogleSheetsModule } from './google-sheets/google-sheets.module';
 import { BullModule } from '@nestjs/bull';
 import { GoogleDriveConsumer, googleDriveQueueName } from './google-drive.consumer';
 import { GoogleDriveJobApiService } from './google-drive-job-api.service';
-import { AppConfigModule } from '../app.config';
+import { AppConfig, AppConfigModule } from '../app.config';
 import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
@@ -21,7 +21,8 @@ import { AnalyticsModule } from '../analytics/analytics.module';
       },
       defaultJobOptions: {
         removeOnComplete: true,
-      },
+        removeOnFail: AppConfig.failedJobStorageConfig,
+      }
     }),
   ],
   providers: [GoogleDriveService, GoogleDriveJobApiService, GoogleDriveConsumer],

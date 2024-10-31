@@ -63,7 +63,7 @@ if (typeof process.on === 'function') {
 
 
 export type ApiKeyAndLimit = { token: string; limit: number };
-
+const TWO_WEEKS_IN_SECONDS = 60 * 60 * 24 * 14;
 @Injectable()
 export class AppConfig {
   static readonly walletProcessorConcurrency = +(process.env.WALLET_PROCESSOR_CONCURRENCY || 4);
@@ -78,6 +78,16 @@ export class AppConfig {
   static readonly etherscanSearcherCron = process.env.ETHERSCAN_SEARCHER_CRON || '0 0 * * *';
   static readonly tokenPriceHistoryCron = process.env.TOKEN_PRICE_HISTORY_CRON || '*/15 * * * * *';
   static readonly checkMissingBlockCron = process.env.CHECK_MISSING_BLOCK_CRON || CronExpression.EVERY_HOUR;
+  static readonly failedJobStorageConfig = {
+    /**
+     * Keep failed jobs for 14 days.
+     */
+    age: +(process.env.STORE_FAILED_JOBS_TTL_SECONDS || TWO_WEEKS_IN_SECONDS),
+    /**
+     * Keep only 1000 failed jobs.
+     */
+    count: +(process.env.STORE_FAILED_JOBS_COUNT_LIMIT || 1000),
+  };
 
   minioEndpoint: string = process.env.MINIO_ENDPOINT || '';
   minioEndpointPort: number = +(process.env.MINIO_ENDPOINT_PORT || 9000);
