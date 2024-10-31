@@ -24,7 +24,8 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     BullModule.registerQueue({
       name: zerionApiFetchTransactionsQueueName,
       defaultJobOptions: {
-        removeOnComplete: true
+        removeOnComplete: true,
+        removeOnFail: AppConfig.failedJobStorageConfig,
       }
     }),
     BullModule.registerQueue({
@@ -34,7 +35,8 @@ import { AnalyticsModule } from '../analytics/analytics.module';
         duration: 60_000
       },
       defaultJobOptions: {
-        removeOnComplete: true
+        removeOnComplete: true,
+        removeOnFail: AppConfig.failedJobStorageConfig,
       }
     }),
     BullModule.registerQueue({
@@ -44,7 +46,8 @@ import { AnalyticsModule } from '../analytics/analytics.module';
         duration: 60_000
       },
       defaultJobOptions: {
-        removeOnComplete: true
+        removeOnComplete: true,
+        removeOnFail: AppConfig.failedJobStorageConfig,
       }
     }),
     WalletModule,

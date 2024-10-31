@@ -4,6 +4,7 @@ import { FinanceDataEntity } from './financial-data.entity';
 import { AnalyticsService } from './analytics.service';
 import { BullModule } from '@nestjs/bull';
 import { SaveToDbApiJobService, SaveToDbConsumer, saveToDbQueueName } from './save-to-db.consumer';
+import { AppConfig } from '../app.config';
 
 @Module({
   imports: [
@@ -11,7 +12,8 @@ import { SaveToDbApiJobService, SaveToDbConsumer, saveToDbQueueName } from './sa
     BullModule.registerQueue({
       name: saveToDbQueueName,
       defaultJobOptions: {
-        removeOnComplete: true
+        removeOnComplete: true,
+        removeOnFail: AppConfig.failedJobStorageConfig,
       }
     }),
   ],

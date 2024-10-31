@@ -104,12 +104,14 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
       return;
     }
-    await this._telegramJobApiService.sendMessage(
-      ctx.from.id,
-      'Очищаем данные...'
-    );
-    await this._googleDriveJobApiService.cleanup();
-
+    await Promise.allSettled([
+      this._telegramJobApiService.cleanQueue(),
+      this._googleDriveJobApiService.cleanup(),
+      this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Очищаем данные...'
+      ),
+    ]);
   }
   private async handleEmulateCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void>{
     const emulationMessageContext = {}
