@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AppConfig } from '../app.config';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -53,47 +53,59 @@ export class TelegramReportingService {
     await this._cacheManager.set(getDailyRedisKey(), this._lastMessageId);
   }
 
+  async timeout(promise: Promise<unknown>, ms: number): Promise<unknown> {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms)),
+    ]);
+  }
+
   @Cron(AppConfig.telegramReportingCron)
   async report(chatId = this._appConfig.dailyUpdateReportChatId, lastMessageId = this._lastMessageId) {
-    const results = await Promise.allSettled([
-      this._analyticsService.getQueueReport(),
-      this._analyticsService.getDbReport(),
-      this._processingWalletsJobApiService.getWaitingCount(),
-      this._telegramJobApiService.getWaitingQueueSize(),
-      this._googleDriveService.getQuota()
-    ]);
-
-    const [queueReport, dbReport, waitingCount, telegramWaitingCount, googleDriveQuota] = results.map(result => result.status === 'fulfilled' ? result.value : `Ошибка при получении данных: ${result.reason}`);
-
-    const manualApiRequests = this._zerionApiService.getRequestLimits('manual');
-    const updatingApiRequests = this._zerionApiService.getRequestLimits('updating');
-    const manualLimits = [
-      `Запросов сегодня: `,
-      typeof googleDriveQuota === 'string' ? `Ошибка получения Google квоты ${googleDriveQuota}` : `Квота google drive: ${bytesToGigabytes(+(googleDriveQuota['usage'])).toFixed(2)}/${bytesToGigabytes(+googleDriveQuota['limit']).toFixed(2)} GB`,
-      `Ручные запросы: ${manualApiRequests.used}/${manualApiRequests.limit}`,
-      `Запросы для обновлений: ${updatingApiRequests.used}/${updatingApiRequests.limit}`,
-      `Очередь отправки сообщений в telegram: ${telegramWaitingCount}`,
-      `Ошибок: ${ErrorHandlingService.getErrorsCount()}`,
-      `Кошельков в горячей очереди: ${waitingCount}`,
-    ].join('\n');
-
-    const fullReport = [
-      queueReport,
-      manualLimits,
-      dbReport,
-      `\nОбновлено: ${new Date().toLocaleDateString('RU-ru', {
-        timeZone: 'Europe/Moscow',
-        hour:  "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        timeZoneName: "longGeneric"
-      })}`
-    ].join('\n\n');
-
-    const updatedLastMessageId =  await this._telegramJobApiService.createOrUpdateLastMessage(lastMessageId, fullReport, chatId);
-    if (lastMessageId === this._lastMessageId && chatId === this._appConfig.dailyUpdateReportChatId) {
-      this._lastMessageId = updatedLastMessageId;
-      await this._cacheManager.set(getDailyRedisKey(), lastMessageId);
+    try {
+      const results = await Promise.allSettled([
+        this._analyticsService.getQueueReport(),
+        this._analyticsService.getDbReport(),
+        this._processingWalletsJobApiService.getWaitingCount(),
+        this._telegramJobApiService.getWaitingQueueSize(),
+        this._googleDriveService.getQuota()
+      ].map(promise => this.timeout(promise, 60_000)));
+  
+      const [queueReport, dbReport, waitingCount, telegramWaitingCount, googleDriveQuota] = results.map(result => result.status === 'fulfilled' ? result.value : `Ошибка при получении данных: ${result.reason}`);
+  
+      const manualApiRequests = this._zerionApiService.getRequestLimits('manual');
+      const updatingApiRequests = this._zerionApiService.getRequestLimits('updating');
+      const manualLimits = [
+        `Запросов сегодня: `,
+        typeof googleDriveQuota === 'string' ? `Ошибка получения Google квоты ${googleDriveQuota}` : `Квота google drive: ${bytesToGigabytes(+(googleDriveQuota['usage'])).toFixed(2)}/${bytesToGigabytes(+googleDriveQuota['limit']).toFixed(2)} GB`,
+        `Ручные запросы: ${manualApiRequests.used}/${manualApiRequests.limit}`,
+        `Запросы для обновлений: ${updatingApiRequests.used}/${updatingApiRequests.limit}`,
+        `Очередь отправки сообщений в telegram: ${telegramWaitingCount}`,
+        `Ошибок: ${ErrorHandlingService.getErrorsCount()}`,
+        `Кошельков в горячей очереди: ${waitingCount}`,
+      ].join('\n');
+  
+      const fullReport = [
+        queueReport,
+        manualLimits,
+        dbReport,
+        `\nОбновлено: ${new Date().toLocaleDateString('RU-ru', {
+          timeZone: 'Europe/Moscow',
+          hour:  "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          timeZoneName: "longGeneric"
+        })}`
+      ].join('\n\n');
+  
+      const updatedLastMessageId =  await this._telegramJobApiService.createOrUpdateLastMessage(lastMessageId, fullReport, chatId);
+      if (lastMessageId === this._lastMessageId && chatId === this._appConfig.dailyUpdateReportChatId) {
+        this._lastMessageId = updatedLastMessageId;
+        await this._cacheManager.set(getDailyRedisKey(), lastMessageId);
+      }
+    } catch (error) {
+      Logger.log(`Error while reporting: ${error}`);
     }
+    
   }
 }
