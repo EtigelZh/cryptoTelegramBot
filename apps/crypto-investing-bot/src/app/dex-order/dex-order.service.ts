@@ -141,6 +141,7 @@ export class DexOrderService {
         order.status = DexOrderStatus.COMPLETED;
         order.sellingTransactions = [mockSellingTransaction];
         order.completedReason = DexOrderCompletedReason.TRADING_PROFIT
+        this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId)
         const savedOrder = await this._dexOrderRepository.save(order);
         return savedOrder;
       })
@@ -280,7 +281,7 @@ export class DexOrderService {
 
     order.status = DexOrderStatus.COMPLETED;
     order.completedReason = DexOrderCompletedReason.MANUAL;
-
+    this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId);
     await this._dexOrderRepository.save(order);
   }
 

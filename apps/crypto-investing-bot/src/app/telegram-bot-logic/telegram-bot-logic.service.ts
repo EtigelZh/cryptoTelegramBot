@@ -410,7 +410,7 @@ export class TelegramBotLogicService implements OnModuleInit {
   private async handleStop(ctx): Promise<void>{
     this._dexOrderService.dexOrderStop(ctx.match[1])
     await this._telegramJobApiService.sendMessage(
-      ctx.from.id,
+      ctx.chat.id,
       `Лимитная заявка остановлена`
     );
     return;
