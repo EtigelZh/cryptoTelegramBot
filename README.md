@@ -24,6 +24,7 @@
 
 ```
 npm run migration:crypto-investing-bot --migration_name=migration-name
+npx typeorm-ts-node-esm migration:generate -d ./dist/apps/crypto-investing-bot/main.js apps/crypto-investing-bot/src/app/ migrations/${npm_config_migration_name}
 ```
 
 ## Bot commands
