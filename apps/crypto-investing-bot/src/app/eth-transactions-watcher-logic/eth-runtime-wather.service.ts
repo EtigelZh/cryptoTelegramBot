@@ -314,6 +314,10 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       if (dexTransaction.status === 'fulfilled') {
         Logger.log(`Dex transaction saved: ${log.transactionHash}`);
         const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
+        if (!ethers.utils.isAddress(followingDexTransaction.tokenAddress) || followingDexTransaction.tokenAddress === ethers.constants.AddressZero) {
+          Logger.error(`Недействительный адрес токена: ${followingDexTransaction.tokenAddress}`);
+          return;
+        }
         const sellEnabled = await this._dexWalletsSevice.getIsAutoSellEnabled(followingDexTransaction.wallet.hash)
         if (followingDexTransaction.action == DexTransactionType.SELL && sellEnabled) {
           await this._dexOrderService.handleTokenPriceChangeSellEarly(followingDexTransaction)
