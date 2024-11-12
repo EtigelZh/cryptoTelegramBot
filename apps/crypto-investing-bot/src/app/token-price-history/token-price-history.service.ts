@@ -5,7 +5,7 @@ import { TokenPriceHistoryEntity } from "./token-price-history.entity";
 import { AppConfig } from "../app.config";
 import { Cron } from "@nestjs/schedule";
 import { SwapTokensArgs } from "../utils/crypto-core/buy-coins";
-import { getTokenPrice, getTokenPriceV2 } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
+import { getTokenPrice, getTokenPriceForAlchemy, getTokenPriceV2 } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
 import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
 import { DexOrderService } from "../dex-order/dex-order.service";
 import { TokenEconomics } from "../eth-transactions-watcher-logic/domain-logic/handle-swap";
@@ -109,6 +109,7 @@ export class TokenPriceHistoryService {
             }
             await this._dexOrderService.handleTokenPriceChangeMessage(tokenDexOrder)
             await this._dexOrderService.handleTokenPriceChange(tokenDexOrder)
+            await getTokenPriceForAlchemy('0xd29da236dd4aac627346e1bba06a619e8c22d7c5', this._appConfig.alchemyApiKey)
         }
 
     }

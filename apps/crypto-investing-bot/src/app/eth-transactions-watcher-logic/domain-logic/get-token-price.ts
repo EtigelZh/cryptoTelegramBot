@@ -197,9 +197,6 @@ export async function getTokenPriceV2({
   const tokenInAddressChecksummed = ethers.utils.getAddress(tokenInAddress);
   const tokenOutAddressChecksummed = ethers.utils.getAddress(tokenOutAddress);
 
-  console.log('Token In Address:', tokenInAddressChecksummed);
-  console.log('Token Out Address:', tokenOutAddressChecksummed);
-
   // Минимальный ABI ERC20 для получения decimals и symbol
   const ERC20_ABI = [
     'function decimals() view returns (uint8)',
@@ -221,7 +218,7 @@ export async function getTokenPriceV2({
       symbol = await tokenContract.symbol();
     } catch (error) {
       symbol = 'UNKNOWN';
-      console.warn(`Ошибка при получении symbol для токена по адресу ${tokenAddress}: ${error.message}`);
+      console.log(`Ошибка при получении symbol для токена по адресу ${tokenAddress}`);
     }
 
     return { decimals, symbol };
@@ -274,10 +271,9 @@ export async function getTokenPriceV2({
       );
       selectedFee = fee;
       v3Success = true;
-      console.log(`Получена котировка через Uniswap V3 с уровнем комиссии ${fee}.`);
       break;
     } catch (error) {
-      console.warn(`Не удалось получить котировку через Uniswap V3 для уровня комиссии ${fee}: ${error.message}`);
+      console.log(`Не удалось получить котировку через Uniswap V3 для уровня комиссии ${fee}`);
     }
   }
 
@@ -327,7 +323,7 @@ export async function getTokenPriceV2({
           const tokensOutEther = amountsOutEther[amountsOutEther.length - 1];
           tokensPerEther = ethers.utils.formatUnits(tokensOutEther, tokenInData.decimals);
         } catch (error) {
-          console.warn(`Не удалось получить количество токенов за 1 Ether через Uniswap V2: ${error.message}`);
+          console.log(`Не удалось получить количество токенов за 1 Ether через Uniswap V2`);
         }
       const message = `You'll get approximately ${tokensPerEther} ${tokenOutData.symbol} for ${amountInStr} ${tokenInData.symbol} on Uniswap V2`;
       // Возврат результата
@@ -379,3 +375,47 @@ export async function getTokenPriceV2({
   }
 }
 
+export async function getTokenPriceForAlchemy(tokenAddress: string, apiKey: string) {
+  const url = `https://api.g.alchemy.com/prices/v1/${apiKey}/tokens/by-address`;
+
+  const options = {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify({
+      addresses: [
+        { network: 'eth-mainnet', address: tokenAddress },
+        { network: 'eth-mainnet', address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2' } // ETH address
+      ],
+      quoteCurrencies: ['USD']
+    })
+  };
+
+  try {
+    const res = await fetch(url, options);
+    const data = await res.json();
+
+    if (data && data.data && data.data.length >= 2) {
+      const tokenPriceData = data.data.find(d => d.address.toLowerCase() === tokenAddress.toLowerCase());
+      const ethPriceData = data.data.find(d => d.address === '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2');
+
+      if (tokenPriceData && ethPriceData) {
+        const tokenPriceUSD = parseFloat(tokenPriceData.prices[0].value);
+        const ethPriceUSD = parseFloat(ethPriceData.prices[0].value);
+
+        const tokenPriceInETH = tokenPriceUSD / ethPriceUSD;
+
+        console.log(`Цена токена в USD: $${tokenPriceUSD}`);
+        console.log(`Цена ETH в USD: $${ethPriceUSD}`);
+        console.log(`Цена токена в ETH: ${tokenPriceInETH} ETH`);
+
+        return tokenPriceInETH;
+      } else {
+        console.log('Не удалось найти данные о ценах для токена или ETH.');
+      }
+    } else {
+      console.log('Недостаточно данных в ответе API.');
+    }
+  } catch (err) {
+    console.error('Ошибка при fetch:', err);
+  }
+}
