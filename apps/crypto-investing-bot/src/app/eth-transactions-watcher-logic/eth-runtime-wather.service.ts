@@ -300,20 +300,22 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           economics,
           message
         ),
-        ...entries.map(([chatId, messageId]) => {
           this._telegramJobApiService
-            .sendMessage(+chatId, message, {
+            .sendMessage(this._config.generalChatId, message, {
               parse_mode: 'Markdown',
               disable_web_page_preview: true,
             })
             .catch((error) => {
               Logger.log(`Error sending message: ${error.message}`);
-            });
-        }),
+            })
       ]);
       if (dexTransaction.status === 'fulfilled') {
         Logger.log(`Dex transaction saved: ${log.transactionHash}`);
         const followingDexTransaction: DexTransactionEntity = dexTransaction.value;
+        if (!ethers.utils.isAddress(followingDexTransaction.tokenAddress) || followingDexTransaction.tokenAddress === ethers.constants.AddressZero) {
+          Logger.error(`Недействительный адрес токена: ${followingDexTransaction.tokenAddress}`);
+          return;
+        }
         const sellEnabled = await this._dexWalletsSevice.getIsAutoSellEnabled(followingDexTransaction.wallet.hash)
         if (followingDexTransaction.action == DexTransactionType.SELL && sellEnabled) {
           await this._dexOrderService.handleTokenPriceChangeSellEarly(followingDexTransaction)
@@ -344,24 +346,16 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           const savedDexOrder = await this._dexOrderService.createOrder(
             newDexOrder
           );
-          const entries = Object.entries(
-            walletEntity.walletSubscriptionMessages
-          );
-
-          const results = await Promise.allSettled(
-            entries.map(async ([chatId, messageId]) => {
-              newDexOrder.chatDexOrderId = Number(chatId);
+              newDexOrder.chatDexOrderId = String(this._config.generalChatId);
               const result = await this._telegramJobApiService.sendMessage(
-                chatId,
-                `Загрузка...`,
+                this._config.generalChatId,
+                `Загрузка...`
               );
               await this._telegramJobApiService.pinMessage(
-                chatId,
+                this._config.generalChatId,
                 result.message_id
               );
               newDexOrder.messageDexOrderId = Number(result.message_id);
-            })
-          );
           await this._dexOrderService.updateOrderMessageChatId(
             savedDexOrder.id,
             newDexOrder.messageDexOrderId,

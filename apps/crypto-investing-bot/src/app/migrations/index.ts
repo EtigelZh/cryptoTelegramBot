@@ -29,6 +29,7 @@ import { FixDexOrderTransactionRelation1725348823129 } from './1725348823129-fix
 import { AddIdMessageDexOrder1726083802740 } from './1726083802740-add-id-message-dex-order';
 import { AddDexWallets1729012757559 } from './1729012757559-add-dex-wallets';
 import { FixDexOrdersStatusEnumTypo1727083802740 } from './1727083802740-fix-dex-order-status';
+import { FixDexOrderChatId1730217434148 } from './1730217434148-fix-dex-order-chat-id';
 import { AddDexOrderIsAutoSellEnabled1729610353605 } from './1729610353605-add-dex-order-isAutoSellEnabled';
 
 export const migrations = [
@@ -63,5 +64,6 @@ export const migrations = [
   AddIdMessageDexOrder1726083802740,
   AddDexWallets1729012757559,
   FixDexOrdersStatusEnumTypo1727083802740,
+  FixDexOrderChatId1730217434148,
   AddDexOrderIsAutoSellEnabled1729610353605
 ];
