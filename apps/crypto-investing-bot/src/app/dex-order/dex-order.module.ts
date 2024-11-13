@@ -1,15 +1,19 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { DexOrderService } from "./dex-order.service";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { DexOrderEntity } from "./dex-order.entity";
 import { DexTransactionsModule } from "../dex-transactions/dex-transactions.module";
 import { TelegrafModule } from "../telegraf/telegraf.module";
+import { AppConfigModule } from "../app.config";
+import { EthTransactionsWatcherLogicModule } from "../eth-transactions-watcher-logic/eth-transactions-watcher-logic.module";
 
 @Module({
     imports: [
         DexTransactionsModule,
         TypeOrmModule.forFeature([DexOrderEntity]),
-        TelegrafModule
+        TelegrafModule,
+        AppConfigModule,
+        forwardRef(() => EthTransactionsWatcherLogicModule)
     ],
     controllers: [],
     providers: [DexOrderService],

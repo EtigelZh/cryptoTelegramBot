@@ -46,6 +46,7 @@ async function messageEconmics(tokenEconomics: TokenEconomics, order: DexOrderEn
 export async function messageDexOrder(tokenEconomics: TokenEconomics, orderPromise: DexOrderEntity) {
     const result = await messageEconmics(tokenEconomics, orderPromise)
     const dextoolsLink = `https://www.dextools.io/app/ru/ether/pair-explorer/${tokenEconomics.tokenAddress}`;
+    const updatedAt = new Date().toLocaleString();
     let messageText =
     `[${tokenEconomics.tokenSymbol}](${dextoolsLink}) 🚀 ${smartRound(
       result.percentChange
@@ -54,7 +55,8 @@ export async function messageDexOrder(tokenEconomics: TokenEconomics, orderPromi
     `Worth: ${smartRound(result.currentValue)} ETH\n` +
     `Time elapsed: ${result.timeElapsed}\n` +
     `💵 Price: ${smartRound(tokenEconomics.usdPerToken)} $\n` +
-    `💵 Price in ETH: ${smartRound(result.priceEth)} ETH\n`;
+    `💵 Price in ETH: ${smartRound(result.priceEth)} ETH\n` +
+    `Updated at: ${updatedAt}\n`; // Added date and time here
 
     if (result.statusDexOrder === "SELLING") {
       if (result.isAutoSellEnabled) {

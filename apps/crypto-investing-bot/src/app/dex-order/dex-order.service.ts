@@ -9,6 +9,10 @@ import { DexTransactionEconomics, DexTransactionType, TokenEconomics } from '../
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { messageDexOrder } from '../eth-transactions-watcher-logic/domain-logic/message-dex-order';
 import { inspect } from 'util';
+import { SwapTokensArgs } from '../utils/crypto-core/buy-coins';
+import { AppConfig } from '../app.config';
+import { getTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price';
+import { EthPriceService } from '../eth-transactions-watcher-logic/eth-price.service';
 
 @Injectable()
 export class DexOrderService {
@@ -17,6 +21,8 @@ export class DexOrderService {
     private readonly _dexOrderRepository: Repository<DexOrderEntity>,
     private readonly _dexTransactionService: DexTransactionService,
     private readonly _telegramJobApiService: TelegramJobApiService,
+    private readonly _appConfig: AppConfig,
+    private readonly _ethPriceService: EthPriceService
   ) {}
 
   async createOrder(order: DexOrderEntity) {
@@ -143,6 +149,17 @@ export class DexOrderService {
         order.completedReason = DexOrderCompletedReason.TRADING_PROFIT
         this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId)
         const savedOrder = await this._dexOrderRepository.save(order);
+        const messageText = await messageDexOrder(tokenEconomics, order);
+        await this._telegramJobApiService.editMessageText(
+          Number(order.chatDexOrderId),
+          messageText,
+          order.messageDexOrderId,
+          undefined,
+          {
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
+          },
+        );
         return savedOrder;
       })
     );
@@ -167,7 +184,8 @@ export class DexOrderService {
         // ТАК НИКОГДА НЕ ДЕЛАТЬ - бесконечное создание событий unpinMessage
         // await this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId)
       }
-      else {
+      else 
+      {
         // Формируем массив кнопок в зависимости от статуса ордера
         const autoSellEnabledButtons = [{ text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` }]
         autoSellEnabledButtons.push()
@@ -202,7 +220,8 @@ export class DexOrderService {
           {
             parse_mode: 'Markdown',
             disable_web_page_preview: true,
-            reply_markup: {
+            reply_markup: 
+            {
               inline_keyboard: buttons,
             },
           },
@@ -278,11 +297,42 @@ export class DexOrderService {
     if (!order) {
         throw new Error(`Order with ID ${dexOrderId} not found.`);
     }
-
+    const inputParams: SwapTokensArgs = {
+      chainId: this._appConfig.countChainId,
+      walletAddress: this._appConfig.metamaskWalletAddress,
+      tokenInAddress: this._appConfig.etherTokenAddress,
+      tokenOutAddress: order.tokenAddress,
+      amountInStr: `${this._appConfig.copyTradingTargetBuyingAmountEth}`,
+      alchemyApiToken: this._appConfig.alchemyApiKey,
+      privateKey: this._appConfig.metamaskPrivateKey
+      }
+      const result = await getTokenPrice(inputParams)
+    const tokenDexOrder: TokenEconomics = {
+        tokenSymbol: result.tokenOutSymbol,
+        tokenPerEth: result.numberQuotedAmountOut,
+        tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price,
+        ethPrice: this._ethPriceService.price,
+        ethPerToken: result.priceEthToken,
+        usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut,
+        tokenAddress: order.tokenAddress,
+        calculatedAt: new Date(),
+        calculatedAtBlockNumber: result.currentBlockNumber
+    }
     order.status = DexOrderStatus.COMPLETED;
     order.completedReason = DexOrderCompletedReason.MANUAL;
     this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId);
     await this._dexOrderRepository.save(order);
+    const messageText = await messageDexOrder(tokenDexOrder, order);
+    await this._telegramJobApiService.editMessageText(
+      Number(order.chatDexOrderId),
+      messageText,
+      order.messageDexOrderId,
+      undefined,
+      {
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
+      },
+    );
   }
 
   async dexOrderRaisePrice(dexOrderId: number) {
