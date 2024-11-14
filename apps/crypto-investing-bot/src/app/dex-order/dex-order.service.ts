@@ -369,4 +369,27 @@ export class DexOrderService {
     await this._dexOrderRepository.save(order);
   }
 
+  async dexOrderMissedBuyingPrice(
+    tokenEconomics: DexTransactionEntity, 
+  ) {
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        tokenAddress: tokenEconomics.tokenAddress,
+        status: DexOrderStatus.BUYING,
+        copyTradingWallet: tokenEconomics.wallet
+      },
+      relations: ['wallet'],
+    });
+
+    const results = await Promise.allSettled(
+      orders.map(async (order) => {
+        order.status = DexOrderStatus.COMPLETED
+        order.completedReason = DexOrderCompletedReason.MISSED_BUYING_PRICE
+        const savedOrder = await this._dexOrderRepository.save(order);
+        return savedOrder;
+      })
+    );
+    Logger.log(`Handled ${results.length} buy orders for token ${inspect(tokenEconomics)}`);
+  }
+
 }

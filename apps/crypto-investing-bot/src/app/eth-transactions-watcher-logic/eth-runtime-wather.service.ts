@@ -317,6 +317,9 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
           return;
         }
         const sellEnabled = await this._dexWalletsSevice.getIsAutoSellEnabled(followingDexTransaction.wallet.hash)
+        if (followingDexTransaction.action == DexTransactionType.SELL) {
+          await this._dexOrderService.dexOrderMissedBuyingPrice(followingDexTransaction)
+        }
         if (followingDexTransaction.action == DexTransactionType.SELL && sellEnabled) {
           await this._dexOrderService.handleTokenPriceChangeSellEarly(followingDexTransaction)
         }
