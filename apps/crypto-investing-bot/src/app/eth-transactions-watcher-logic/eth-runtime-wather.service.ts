@@ -12,7 +12,7 @@ import { WalletEntity } from '../wallet/wallet.entity';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { Alchemy, BlockWithTransactions, Network } from 'alchemy-sdk';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { EthPriceService } from './eth-price.service';
+import { EthPriceService } from '../eth-price-watcher/eth-price.service';
 import { EtherscanClientJobApiService } from '../etherscan-api/etherscan-client-job-api.service';
 import { DexTransactionType, handleSwap } from './domain-logic/handle-swap';
 import { Fungible, Log, WathcingTransactionsMode } from './domain-logic/models';

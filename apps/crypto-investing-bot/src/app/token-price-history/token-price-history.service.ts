@@ -9,7 +9,7 @@ import { getTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/ge
 import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
 import { DexOrderService } from "../dex-order/dex-order.service";
 import { TokenEconomics } from "../eth-transactions-watcher-logic/domain-logic/handle-swap";
-import { EthPriceService } from "../eth-transactions-watcher-logic/eth-price.service";
+import { EthPriceService } from "../eth-price-watcher/eth-price.service";
 
 @Injectable()
 export class TokenPriceHistoryService {
