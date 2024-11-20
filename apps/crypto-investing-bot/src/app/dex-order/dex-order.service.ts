@@ -472,11 +472,47 @@ export class DexOrderService {
       orders.map(async (order) => {
         order.status = DexOrderStatus.COMPLETED
         order.completedReason = DexOrderCompletedReason.MISSED_BUYING_PRICE
+        this._telegramJobApiService.unpinMessage(
+          order.chatDexOrderId,
+          order.messageDexOrderId
+        );
+        const inputParams: SwapTokensArgs = {
+          chainId: this._appConfig.countChainId,
+          walletAddress: this._appConfig.metamaskWalletAddress,
+          tokenInAddress: this._appConfig.etherTokenAddress,
+          tokenOutAddress: order.tokenAddress,
+          amountInStr: `${this._appConfig.copyTradingTargetBuyingAmountEth}`,
+          alchemyApiToken: this._appConfig.alchemyApiKey,
+          privateKey: this._appConfig.metamaskPrivateKey,
+        };
+        const result = await getTokenPrice(inputParams);
+        const tokenDexOrder: TokenEconomics = {
+          tokenSymbol: result.tokenOutSymbol,
+          tokenPerEth: result.numberQuotedAmountOut,
+          tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price,
+          ethPrice: this._ethPriceService.price,
+          ethPerToken: result.priceEthToken,
+          usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut,
+          tokenAddress: order.tokenAddress,
+          calculatedAt: new Date(),
+          calculatedAtBlockNumber: result.currentBlockNumber,
+        };
         const savedOrder = await this._dexOrderRepository.save(order);
+        const messageText = await messageDexOrder(tokenDexOrder, order);
+        await this._telegramJobApiService.editMessageText(
+          Number(order.chatDexOrderId),
+          messageText,
+          order.messageDexOrderId,
+          undefined,
+          {
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
+          }
+        );
         return savedOrder;
+        
       })
     );
-    Logger.log(`Handled ${results.length} buy orders for token ${inspect(tokenEconomics)}`);
   }
 
 }
