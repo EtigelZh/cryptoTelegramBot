@@ -24,8 +24,8 @@ import { DexOrderService } from '../dex-order/dex-order.service';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexOrderEntity } from '../dex-order/dex-order.entity';
 import { DexOrderStatus } from '../dex-order/dex-order.models';
-import { Markup } from 'telegraf';
 import { DexWalletsService } from '../dex-wallets/dex-wallets.service';
+import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -57,7 +57,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _etherscanApi: EtherscanClientJobApiService,
     private readonly _dexTransactionService: DexTransactionService,
     private readonly _dexOrderService: DexOrderService,
-    private readonly _dexWalletsSevice: DexWalletsService
+    private readonly _dexWalletsSevice: DexWalletsService,
+    private readonly _tokenPriceHistoryService: TokenPriceHistoryService,
   ) {
     this._provider = new ethers.providers.AlchemyProvider(
       this._config.network,
@@ -181,11 +182,14 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
   private _setupWebSocket() {
     this.alchemy.ws.on('block', (blockNumber) => {
+      Logger.debug(`Block ${blockNumber} received`);
       this.handleBlock(
         blockNumber,
         this._targetWalletAddresses.map((walletEntity) => walletEntity.hash),
         WathcingTransactionsMode.PRODUCTION
       );
+      
+      this._tokenPriceHistoryService.handleNewBlock(blockNumber);
     });
 
     this.alchemy.ws.on('open', () => {
