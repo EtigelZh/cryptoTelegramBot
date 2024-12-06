@@ -5,7 +5,7 @@ import { TokenPriceHistoryEntity } from "./token-price-history.entity";
 import { AppConfig } from "../app.config";
 import { Cron } from "@nestjs/schedule";
 import { SwapTokensArgs } from "../utils/crypto-core/buy-coins";
-import { getTokenPrice } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
+import { getTokenPrice, getTokenPriceForAlchemy, getTokenPriceV2 } from "../eth-transactions-watcher-logic/domain-logic/get-token-price";
 import { smartRound } from "../eth-transactions-watcher-logic/domain-logic/smart-round";
 import { DexOrderService } from "../dex-order/dex-order.service";
 import { TokenEconomics } from "../eth-transactions-watcher-logic/domain-logic/handle-swap";
@@ -72,13 +72,13 @@ export class TokenPriceHistoryService {
             const inputParams: SwapTokensArgs = {
             chainId: this._appConfig.countChainId,
             walletAddress: this._appConfig.metamaskWalletAddress,
-            tokenInAddress: this._appConfig.etherTokenAddress,
-            tokenOutAddress: monitoredCoin,
+            tokenInAddress: monitoredCoin,
+            tokenOutAddress: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
             amountInStr: `${this._appConfig.copyTradingTargetBuyingAmountEth}`,
             alchemyApiToken: this._appConfig.alchemyApiKey,
             privateKey: this._appConfig.metamaskPrivateKey
             }
-            const result = await getTokenPrice(inputParams)
+            const result = await getTokenPriceV2(inputParams)
             const lastPriceRecord = await this.tokenPriceHistoryRepository.findOne({
                 where: { tokenAddress: monitoredCoin },
                 order: { recordedAt: 'DESC' }
@@ -97,11 +97,11 @@ export class TokenPriceHistoryService {
             
             }
             const tokenDexOrder: TokenEconomics = {
-                tokenSymbol: result.tokenOutSymbol,
+                tokenSymbol: result.tokenInSymbol,
                 tokenPerEth: result.numberQuotedAmountOut,
                 tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price,
                 ethPrice: this._ethPriceService.price,
-                ethPerToken: result.priceEthToken,
+                ethPerToken: Number(result.amountOut),
                 usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut,
                 tokenAddress: monitoredCoin,
                 calculatedAt: new Date(),
@@ -109,6 +109,7 @@ export class TokenPriceHistoryService {
             }
             await this._dexOrderService.handleTokenPriceChangeMessage(tokenDexOrder)
             await this._dexOrderService.handleTokenPriceChange(tokenDexOrder)
+            await getTokenPriceForAlchemy('0xd29da236dd4aac627346e1bba06a619e8c22d7c5', this._appConfig.alchemyApiKey)
         }
 
     }

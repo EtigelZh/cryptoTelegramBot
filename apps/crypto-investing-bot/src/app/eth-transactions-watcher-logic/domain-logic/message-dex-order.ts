@@ -53,8 +53,8 @@ export async function messageDexOrder(tokenEconomics: TokenEconomics, orderPromi
     `Initial: ${smartRound(result.initialValue)} ETH\n` +
     `Worth: ${smartRound(result.currentValue)} ETH\n` +
     `Time elapsed: ${result.timeElapsed}\n` +
-    `💵 Price: ${smartRound(tokenEconomics.usdPerToken)} $\n` +
-    `💵 Price in ETH: ${smartRound(result.priceEth)} ETH\n`;
+    `💵 Price: ${smartRound(result.price)} $\n` +
+    `💵 Price to ETH: ${smartRound(result.priceEth)} ETH\n`;
 
     if (result.statusDexOrder === "SELLING") {
       if (result.isAutoSellEnabled) {

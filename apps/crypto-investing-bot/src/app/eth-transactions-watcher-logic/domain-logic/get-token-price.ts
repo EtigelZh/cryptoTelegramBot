@@ -106,7 +106,6 @@ export async function getTokenPrice({
         const quoterContract = new ethers.Contract(UNISWAP_QUOTER_ADDRESS_V3, QuoterABI.abi, provider);
         const quotedAmountOut = await quoterContract.callStatic.quoteExactInputSingle(
             tokenIn.address, tokenOut.address, pool.fee, amountIn, 0);
-
         numberQuotedAmountOut = Number(ethers.utils.formatUnits(quotedAmountOut, tokenOut.decimals));
         priceEthToken = (Number(amountInStr) / numberQuotedAmountOut);
 
@@ -166,4 +165,257 @@ export async function messageTokenPrice({
     });
     const message = `You'll get approximately ${smartRound(result.numberQuotedAmountOut)} ${result.tokenOutSymbol} for ${amountInStr} ${result.tokenInSymbol}\n${amountInStr} ${result.tokenOutSymbol} for ${smartRound(result.priceEthToken)} ${result.tokenInSymbol}`
     return message;
+}
+
+export async function getTokenPriceV2({
+  chainId,
+  walletAddress,
+  tokenInAddress,
+  tokenOutAddress,
+  amountInStr,
+  alchemyApiToken,
+  privateKey,
+}) {
+  // Проверка chainId
+  if (chainId !== 1) {
+    throw new Error('В настоящее время поддерживается только Ethereum mainnet (chainId 1).');
+  }
+
+  // Инициализация провайдера
+  const provider = new ethers.providers.AlchemyProvider(chainId, alchemyApiToken);
+
+  // Проверка наличия и корректности адресов токенов
+  if (!tokenInAddress || !ethers.utils.isAddress(tokenInAddress)) {
+    throw new Error(`Некорректный tokenInAddress: ${tokenInAddress}`);
+  }
+
+  if (!tokenOutAddress || !ethers.utils.isAddress(tokenOutAddress)) {
+    throw new Error(`Некорректный tokenOutAddress: ${tokenOutAddress}`);
+  }
+
+  // Приведение адресов к чексумированному формату
+  const tokenInAddressChecksummed = ethers.utils.getAddress(tokenInAddress);
+  const tokenOutAddressChecksummed = ethers.utils.getAddress(tokenOutAddress);
+
+  // Минимальный ABI ERC20 для получения decimals и symbol
+  const ERC20_ABI = [
+    'function decimals() view returns (uint8)',
+    'function symbol() view returns (string)',
+  ];
+
+  // Функция для получения данных о токене
+  async function getTokenData(tokenAddress) {
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    let decimals, symbol;
+
+    try {
+      decimals = await tokenContract.decimals();
+    } catch (error) {
+      throw new Error(`Ошибка при получении decimals для токена по адресу ${tokenAddress}: ${error.message}`);
+    }
+
+    try {
+      symbol = await tokenContract.symbol();
+    } catch (error) {
+      symbol = 'UNKNOWN';
+      console.log(`Ошибка при получении symbol для токена по адресу ${tokenAddress}`);
+    }
+
+    return { decimals, symbol };
+  }
+
+  // Получение данных о токенах
+  const [tokenInData, tokenOutData] = await Promise.all([
+    getTokenData(tokenInAddressChecksummed),
+    getTokenData(tokenOutAddressChecksummed),
+  ]);
+
+  // Конвертация входной суммы в наименьшие единицы (wei)
+  const amountIn = ethers.utils.parseUnits(amountInStr, tokenInData.decimals);
+
+  // Попытка получить котировку через Uniswap V3
+  let amountOut;
+  let selectedFee;
+  let price;
+
+  // Адрес контракта Quoter Uniswap V3 на Ethereum mainnet
+  const QUOTER_ADDRESS_V3 = '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6';
+
+  // ABI для функции quoteExactInputSingle
+  const quoterAbiV3 = [
+    'function quoteExactInputSingle(' +
+      'address tokenIn,' +
+      'address tokenOut,' +
+      'uint24 fee,' +
+      'uint256 amountIn,' +
+      'uint160 sqrtPriceLimitX96' +
+    ') external returns (uint256 amountOut)',
+  ];
+
+  // Инициализация контракта Quoter для V3
+  const quoterContractV3 = new ethers.Contract(QUOTER_ADDRESS_V3, quoterAbiV3, provider);
+
+  // Возможные уровни комиссии для Uniswap V3
+  const feeOptions = [100, 500, 1000, 3000, 10000]
+
+  let v3Success = false;
+
+  for (let fee of feeOptions) {
+    try {
+      amountOut = await quoterContractV3.callStatic.quoteExactInputSingle(
+        tokenInAddressChecksummed,
+        tokenOutAddressChecksummed,
+        fee,
+        amountIn,
+        0 // Без ограничения цены
+      );
+      selectedFee = fee;
+      v3Success = true;
+      break;
+    } catch (error) {
+      console.log(`Не удалось получить котировку через Uniswap V3 для уровня комиссии ${fee}`);
+    }
+  }
+
+  // Если не удалось получить котировку через Uniswap V3, пробуем через Uniswap V2
+  if (!v3Success) {
+    console.log('Переход к Uniswap V2 для получения котировки.');
+
+    // Адреса фабрики и роутера Uniswap V2
+    const UNISWAP_V2_FACTORY_ADDRESS = '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f';
+    const UNISWAP_V2_ROUTER_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
+
+    // ABI для функции getAmountsOut
+    const routerAbiV2 = [
+      'function getAmountsOut(uint256 amountIn, address[] memory path) external view returns (uint256[] memory amounts)',
+    ];
+
+    // Инициализация контракта роутера Uniswap V2
+    const routerContractV2 = new ethers.Contract(UNISWAP_V2_ROUTER_ADDRESS, routerAbiV2, provider);
+
+    // Путь обмена токенов
+    const path = [tokenInAddressChecksummed, tokenOutAddressChecksummed];
+    const pathP = [tokenOutAddressChecksummed, tokenInAddressChecksummed];
+
+    try {
+      const amountsOut = await routerContractV2.getAmountsOut(amountIn, path);
+      amountOut = amountsOut[amountsOut.length - 1];
+
+      // Получение текущего номера блока
+      const blockNumber = await provider.getBlockNumber();
+
+      // Форматирование выходной суммы для удобочитаемого вида
+      const amountOutFormatted = ethers.utils.formatUnits(amountOut, tokenOutData.decimals);
+
+      // Расчет цены (amountOut / amountIn)
+      const amountInDecimal = parseFloat(amountInStr);
+      const amountOutDecimal = parseFloat(amountOutFormatted);
+      price = amountOutDecimal / amountInDecimal;
+
+      // Инициализация переменной для количества токенов за 1 Ether
+      let tokensPerEther = null;
+
+      // Проверяем, является ли tokenInAddress WETH
+      const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
+        try {
+          const oneEtherIn = ethers.utils.parseEther('1'); // 1 Ether = 1e18 wei
+          const amountsOutEther = await routerContractV2.getAmountsOut(oneEtherIn, pathP);
+          const tokensOutEther = amountsOutEther[amountsOutEther.length - 1];
+          tokensPerEther = ethers.utils.formatUnits(tokensOutEther, tokenInData.decimals);
+        } catch (error) {
+          console.log(`Не удалось получить количество токенов за 1 Ether через Uniswap V2`);
+        }
+      const message = `You'll get approximately ${tokensPerEther} ${tokenOutData.symbol} for ${amountInStr} ${tokenInData.symbol} on Uniswap V2`;
+      // Возврат результата
+      return {
+        tokenInSymbol: tokenInData.symbol,
+        tokenOutSymbol: tokenOutData.symbol,
+        amountIn: amountInStr,
+        amountOut: amountOutFormatted,
+        priceEthToken: price,
+        platform: 'Uniswap V2',
+        currentBlockNumber: blockNumber,
+        fee: 0.003, // Комиссия Uniswap V2 составляет 0.3%
+        numberQuotedAmountOut: tokensPerEther, // Добавленное поле
+        message
+      };
+    } catch (error) {
+      throw new Error(`Не удалось получить котировку через Uniswap V2: ${error.message}`);
+    }
+  } else {
+    // Если удалось получить котировку через Uniswap V3
+    // Получение текущего номера блока
+    const blockNumber = await provider.getBlockNumber();
+
+    // Форматирование выходной суммы для удобочитаемого вида
+    const amountOutFormatted = ethers.utils.formatUnits(amountOut, tokenOutData.decimals);
+
+    // Расчет цены (amountOut / amountIn)
+    const amountInDecimal = parseFloat(amountInStr);
+    const amountOutDecimal = parseFloat(amountOutFormatted);
+    price = amountOutDecimal / amountInDecimal;
+
+    // Инициализация переменной для количества токенов за 1 Ether
+    let tokensPerEther = 1 / Number(amountOutFormatted);
+    const message = `You'll get approximately ${tokensPerEther} ${tokenOutData.symbol} for ${amountInStr} ${tokenInData.symbol} on Uniswap V3`;
+    // Возврат результата
+    return {
+      tokenInSymbol: tokenInData.symbol,
+      tokenOutSymbol: tokenOutData.symbol,
+      amountIn: amountInStr,
+      amountOut: amountOutFormatted,
+      priceEthToken: price,
+      feeTier: selectedFee,
+      platform: 'Uniswap V3',
+      currentBlockNumber: blockNumber,
+      fee: selectedFee / 1e6, // Преобразование комиссии в десятичный формат (например, 3000 => 0.003)
+      numberQuotedAmountOut: tokensPerEther, // Добавленное поле
+      message
+    };
+  }
+}
+
+export async function getTokenPriceForAlchemy(tokenAddress: string, apiKey: string) {
+  const url = `https://api.g.alchemy.com/prices/v1/${apiKey}/tokens/by-address`;
+
+  const options = {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify({
+      addresses: [
+        { network: 'eth-mainnet', address: tokenAddress },
+        { network: 'eth-mainnet', address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2' } // ETH address
+      ],
+      quoteCurrencies: ['USD']
+    })
+  };
+
+  try {
+    const res = await fetch(url, options);
+    const data = await res.json();
+
+    if (data && data.data && data.data.length >= 2) {
+      const tokenPriceData = data.data.find(d => d.address.toLowerCase() === tokenAddress.toLowerCase());
+      const ethPriceData = data.data.find(d => d.address === '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2');
+
+      if (tokenPriceData && ethPriceData) {
+        const tokenPriceUSD = parseFloat(tokenPriceData.prices[0].value);
+        const ethPriceUSD = parseFloat(ethPriceData.prices[0].value);
+
+        const tokenPriceInETH = tokenPriceUSD / ethPriceUSD;
+
+        console.log(`Цена токена в USD: $${tokenPriceUSD}`);
+        console.log(`Цена ETH в USD: $${ethPriceUSD}`);
+        console.log(`Цена токена в ETH: ${tokenPriceInETH} ETH`);
+
+        return tokenPriceInETH;
+      } else {
+        console.log('Не удалось найти данные о ценах для токена или ETH.');
+      }
+    } else {
+      console.log('Недостаточно данных в ответе API.');
+    }
+  } catch (err) {
+    console.error('Ошибка при fetch:', err);
+  }
 }
