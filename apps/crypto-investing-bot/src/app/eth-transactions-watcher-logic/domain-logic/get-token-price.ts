@@ -86,7 +86,7 @@ export async function getTokenPrice({
         const fees = [100, 500, 3000, 10000];
         let poolAddressV3;
         let fee;
-        for (let f of fees) {
+        for (const f of fees) {
             poolAddressV3 = await factoryContractV3.getPool(tokenIn.address, tokenOut.address, f);
             if (poolAddressV3 !== ethers.constants.AddressZero) {
                 fee = f;
@@ -260,7 +260,7 @@ export async function getTokenPriceV2({
 
   let v3Success = false;
 
-  for (let fee of feeOptions) {
+  for (const fee of feeOptions) {
     try {
       amountOut = await quoterContractV3.callStatic.quoteExactInputSingle(
         tokenInAddressChecksummed,
@@ -356,7 +356,7 @@ export async function getTokenPriceV2({
     price = amountOutDecimal / amountInDecimal;
 
     // Инициализация переменной для количества токенов за 1 Ether
-    let tokensPerEther = 1 / Number(amountOutFormatted);
+    const tokensPerEther = 1 / Number(amountOutFormatted);
     const message = `You'll get approximately ${tokensPerEther} ${tokenOutData.symbol} for ${amountInStr} ${tokenInData.symbol} on Uniswap V3`;
     // Возврат результата
     return {
@@ -375,47 +375,87 @@ export async function getTokenPriceV2({
   }
 }
 
-export async function getTokenPriceForAlchemy(tokenAddress: string, apiKey: string) {
-  const url = `https://api.g.alchemy.com/prices/v1/${apiKey}/tokens/by-address`;
 
-  const options = {
+type AlchemyTokenPriceResponse = {
+  data: AlchemyTokenPriceInfo[];
+}
+
+type AlchemyTokenPriceInfo = {
+  network: string;
+  address: string;
+  prices: AlchemyTokenPriceEntry[];
+}
+
+type AlchemyTokenPriceEntry = {
+  value: string;
+  currency: string;
+  lastUpdatedAt: string;
+}
+
+export type TokenPrice = {
+  tokenAddress: string;
+  // цена токена в USD
+  tokenPriceUSD: number;
+  // цена ETH в USD
+  ethPriceUSD: number;
+  // сколько стоит 1 токен в ETH
+  priceInEthPerToken: number;
+  // сколько получим токенов за 1 ETH
+  tokenAmountForOneETH: number;
+
+  lastUpdatedAt: Date;
+  calculatedAt: Date;
+}
+
+export async function getTokenPricesFromAlchemyApi(tokenAddresses: string[], apiKey: string): Promise<TokenPrice[]> {
+  const url = `https://api.g.alchemy.com/prices/v1/${apiKey}/tokens/by-address`;
+  const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
+  tokenAddresses.unshift(WETH_ADDRESS);
+
+  // разбиваем по 25 адресов на запрос
+  const chunks: string[][] = [];
+  const chunkSize = 25;
+
+  for (let i = 0; i < tokenAddresses.length; i += chunkSize) {
+    chunks.push(tokenAddresses.slice(i, i + chunkSize));
+  }
+
+  const requestOptions = chunks.map((chunk) => ({
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/json' },
     body: JSON.stringify({
-      addresses: [
-        { network: 'eth-mainnet', address: tokenAddress },
-        { network: 'eth-mainnet', address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2' } // ETH address
-      ],
-      quoteCurrencies: ['USD']
+      addresses: chunk.map(address => ({ network: 'eth-mainnet', address })),
     })
-  };
+  }));
 
-  try {
-    const res = await fetch(url, options);
-    const data = await res.json();
+  const responsesResults = await Promise.allSettled(requestOptions.map((options) => fetch(url, options)));
 
-    if (data && data.data && data.data.length >= 2) {
-      const tokenPriceData = data.data.find(d => d.address.toLowerCase() === tokenAddress.toLowerCase());
-      const ethPriceData = data.data.find(d => d.address === '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2');
+  const responses = await Promise.all(
+    responsesResults.filter(responseResult => responseResult.status === 'fulfilled' && responseResult.value)
+    .map((responseResult: PromiseFulfilledResult<Response>) => responseResult.value.json() as Promise<AlchemyTokenPriceResponse>)
+  );
 
-      if (tokenPriceData && ethPriceData) {
-        const tokenPriceUSD = parseFloat(tokenPriceData.prices[0].value);
-        const ethPriceUSD = parseFloat(ethPriceData.prices[0].value);
+  const rates = responses.flatMap(response => response.data);
 
-        const tokenPriceInETH = tokenPriceUSD / ethPriceUSD;
+  const ethPriceEntry = rates.find(rate => rate.address === WETH_ADDRESS);
 
-        console.log(`Цена токена в USD: $${tokenPriceUSD}`);
-        console.log(`Цена ETH в USD: $${ethPriceUSD}`);
-        console.log(`Цена токена в ETH: ${tokenPriceInETH} ETH`);
+  const ethPrice = ethPriceEntry.prices[0].value;
 
-        return tokenPriceInETH;
-      } else {
-        console.log('Не удалось найти данные о ценах для токена или ETH.');
-      }
-    } else {
-      console.log('Недостаточно данных в ответе API.');
-    }
-  } catch (err) {
-    console.error('Ошибка при fetch:', err);
-  }
+
+  return rates.map(rate => {
+    const tokenPriceUSD = parseFloat(rate.prices[0].value);
+    const priceInEthPerToken = tokenPriceUSD / parseFloat(ethPrice);
+    const tokenAmountForOneETH = 1 / priceInEthPerToken;
+
+    return {
+      tokenAddress: rate.address,
+      tokenPriceUSD,
+      ethPriceUSD: parseFloat(ethPrice),
+      tokenAmountForOneETH,
+      priceInEthPerToken,
+      lastUpdatedAt: new Date(rate.prices[0].lastUpdatedAt),
+      calculatedAt: new Date(),
+    };
+  });
+
 }
