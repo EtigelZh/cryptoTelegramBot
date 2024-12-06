@@ -439,10 +439,19 @@ export async function getTokenPricesFromAlchemyApi(tokenAddresses: string[], api
 
   const ethPriceEntry = rates.find(rate => rate.address === WETH_ADDRESS);
 
+  if (!ethPriceEntry && !ethPriceEntry.prices || ethPriceEntry.prices.length === 0) {
+    Logger.warn('No ETH price found');
+    return [];
+  }
+
   const ethPrice = ethPriceEntry.prices[0].value;
 
 
   return rates.map(rate => {
+    if (!rate.prices || rate.prices.length === 0) {
+      Logger.warn(`No prices for token ${rate.address}`);
+      return null;
+    }
     const tokenPriceUSD = parseFloat(rate.prices[0].value);
     const priceInEthPerToken = tokenPriceUSD / parseFloat(ethPrice);
     const tokenAmountForOneETH = 1 / priceInEthPerToken;
@@ -456,6 +465,6 @@ export async function getTokenPricesFromAlchemyApi(tokenAddresses: string[], api
       lastUpdatedAt: new Date(rate.prices[0].lastUpdatedAt),
       calculatedAt: new Date(),
     };
-  });
+  }).filter(Boolean);
 
 }
