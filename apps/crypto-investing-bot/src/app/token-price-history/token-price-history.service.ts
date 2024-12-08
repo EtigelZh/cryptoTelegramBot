@@ -116,9 +116,6 @@ export class TokenPriceHistoryService {
             calculatedAtBlockNumber: blockNumber,
           };
 
-          await this._dexOrderService.handleTokenPriceChangeMessage(
-            tokenDexOrder
-          );
           await this._dexOrderService.handleTokenPriceChange(tokenDexOrder);
         } catch (e) {
           Logger.error(`Error while handling token price change: ${e}`);

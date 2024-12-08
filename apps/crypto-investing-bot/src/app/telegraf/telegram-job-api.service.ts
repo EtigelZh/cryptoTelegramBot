@@ -7,12 +7,14 @@ import { ErrorHandlingService } from '../error-handling/error-handling-service';
 @Injectable()
 export class TelegramJobApiService {
   constructor(
-    @InjectQueue(telegramQueueName) private telegramQueue: Queue,
+    @InjectQueue(telegramQueueName) protected telegramQueue: Queue,
   ) {
     this.telegramQueue.isPaused().then((paused) => {
       if (paused) {
         this.telegramQueue.resume();
       }
+    }).catch((error) => {
+      Logger.error(`Error checking if queue is paused: ${error}`);
     });
   }
 

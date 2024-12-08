@@ -14,8 +14,8 @@ import { ErrorHandlingService } from '../error-handling/error-handling-service';
     BullModule.registerQueue({
       name: telegramQueueName,
       limiter: {
-        max: 55, // Максимальное количество задач, которые могут быть обработаны
-        duration: 60_000, // Период в миллисекундах (60 секунд)
+        max: 5, // Максимальное количество задач, которые могут быть обработаны
+        duration: 10_000, // Период в миллисекундах (60 секунд)
       },
       defaultJobOptions: {
         removeOnComplete: true,
