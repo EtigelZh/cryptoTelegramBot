@@ -72,7 +72,7 @@ export class TokenPriceHistoryService {
     const allTokenAddress = await this._dexOrderService.getAllTokenAddresses();
 
     const tokenPrices = await getTokenPricesFromAlchemyApi(
-      Array.from(allTokenAddress),
+      allTokenAddress,
       this._appConfig.alchemyApiKey
     );
 
@@ -105,7 +105,7 @@ export class TokenPriceHistoryService {
           }
 
           const tokenDexOrder: TokenEconomics = {
-            tokenSymbol: '',
+            tokenSymbol: tokenPrice.tokenSymbol,
             tokenPerEth: tokenPrice.tokenAmountForOneETH,
             tokenPerUsd: 1 / tokenPrice.tokenPriceUSD, // сколько стоит доют токенов за 1 доллар
             ethPrice: tokenPrice.ethPriceUSD, // сколько стоит долларов 1 eth

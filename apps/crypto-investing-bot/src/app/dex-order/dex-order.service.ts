@@ -37,6 +37,7 @@ export class DexOrderService {
     newDexOrder.status = DexOrderStatus.BUYING;
     newDexOrder.completedReason = null;
     newDexOrder.tokenAddress = followingDexTransaction.tokenAddress;
+    newDexOrder.tokenSymbol = followingDexTransaction.tokenSymbol;
     newDexOrder.sourceBuyingTransactionHash =
       followingDexTransaction.transactionHash;
     newDexOrder.sourceBuyingTransactionBlockNumber =
@@ -378,17 +379,22 @@ export class DexOrderService {
       isMockTransaction
     );
   }
-  async getAllTokenAddresses(): Promise<Set<string>> {
+  async getAllTokenAddresses(): Promise<Pick<DexOrderEntity, 'tokenAddress' | 'tokenSymbol'>[]> {
     try {
       const orders = await this._dexOrderRepository.find({
-        select: ['tokenAddress'],
+        select: ['tokenAddress', 'tokenSymbol'],
         where: {
           status: In(['BUYING', 'SELLING']),
         },
       });
-
-      const tokenAddresses = orders.map((order) => order.tokenAddress);
-      return new Set(tokenAddresses);
+      // remove duplicates
+      return orders.filter(
+        (order, index, self) =>
+          index ===
+          self.findIndex(
+            (t) => t.tokenAddress === order.tokenAddress
+          )
+      );
     } catch (error) {
       Logger.error(`Failed to get all token addresses: ${error.message}`);
       throw error;

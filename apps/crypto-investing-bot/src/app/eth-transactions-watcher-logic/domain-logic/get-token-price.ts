@@ -392,8 +392,11 @@ type AlchemyTokenPriceEntry = {
   lastUpdatedAt: string;
 }
 
+export type InputTokenPrice = Pick<TokenPrice, 'tokenAddress' | 'tokenSymbol'>;
+
 export type TokenPrice = {
   tokenAddress: string;
+  tokenSymbol?: string;
   // цена токена в USD
   tokenPriceUSD: number;
   // цена ETH в USD
@@ -407,13 +410,16 @@ export type TokenPrice = {
   calculatedAt: Date;
 }
 
-export async function getTokenPricesFromAlchemyApi(tokenAddresses: string[], apiKey: string): Promise<TokenPrice[]> {
+export async function getTokenPricesFromAlchemyApi(tokenAddresses: InputTokenPrice[], apiKey: string): Promise<TokenPrice[]> {
   const url = `https://api.g.alchemy.com/prices/v1/${apiKey}/tokens/by-address`;
   const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
-  tokenAddresses.unshift(WETH_ADDRESS);
+  tokenAddresses.unshift({
+    tokenAddress: WETH_ADDRESS,
+    tokenSymbol: 'WETH'
+  });
 
   // разбиваем по 25 адресов на запрос
-  const chunks: string[][] = [];
+  const chunks: InputTokenPrice[][] = [];
   const chunkSize = 25;
 
   for (let i = 0; i < tokenAddresses.length; i += chunkSize) {
@@ -424,7 +430,7 @@ export async function getTokenPricesFromAlchemyApi(tokenAddresses: string[], api
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/json' },
     body: JSON.stringify({
-      addresses: chunk.map(address => ({ network: 'eth-mainnet', address })),
+      addresses: chunk.map(address => ({ network: 'eth-mainnet', address: address.tokenAddress })),
     })
   }));
 
@@ -457,6 +463,7 @@ export async function getTokenPricesFromAlchemyApi(tokenAddresses: string[], api
     const tokenAmountForOneETH = 1 / priceInEthPerToken;
 
     return {
+      tokenSymbol: tokenAddresses.find(token => token.tokenAddress === rate.address)?.tokenSymbol,
       tokenAddress: rate.address,
       tokenPriceUSD,
       ethPriceUSD: parseFloat(ethPrice),

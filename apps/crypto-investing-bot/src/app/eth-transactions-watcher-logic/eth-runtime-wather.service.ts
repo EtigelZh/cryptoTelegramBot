@@ -325,7 +325,10 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         }
         const buyEnabled = await this._dexWalletsSevice.getIsAutoBuyEnabled(followingDexTransaction.wallet.hash);
         if (followingDexTransaction.action == DexTransactionType.BUY && buyEnabled) {
-          const tokenPrice = await getTokenPricesFromAlchemyApi([followingDexTransaction.tokenAddress], this._config.alchemyApiKey);
+          const tokenPrice = await getTokenPricesFromAlchemyApi([{
+            tokenAddress: followingDexTransaction.tokenAddress,
+            tokenSymbol: followingDexTransaction.tokenSymbol
+          }], this._config.alchemyApiKey);
 
           const foundTokenPrice = tokenPrice.find((price) => price.tokenAddress === followingDexTransaction.tokenAddress); 
           
