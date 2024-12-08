@@ -12,7 +12,7 @@ import { inspect } from 'util';
 export class TelegramConsumer {
   constructor(
     @Inject(TELEGRAF)
-    private readonly bot: Telegraf
+    protected bot: Telegraf
   ) {}
 
   @Process({

@@ -20,7 +20,7 @@ async function getElapsedTime(calculatedAt: Date): Promise<string> {
     return `${days} days, ${hours} hours, ${minutes} minutes, and ${seconds} seconds ago`;
   }
 
-async function messageEconmics(tokenEconomics: TokenEconomics, order: DexOrderEntity) {
+async function messageEconomics(tokenEconomics: TokenEconomics, order: DexOrderEntity) {
 
     const initialValue = order.sourceBuyingTransactionPrice * order.sourceBuyingTransactionAmount;
     const currentValue = tokenEconomics.ethPerToken * order.sourceBuyingTransactionAmount;
@@ -44,7 +44,7 @@ async function messageEconmics(tokenEconomics: TokenEconomics, order: DexOrderEn
   }
 
 export async function messageDexOrder(tokenEconomics: TokenEconomics, orderPromise: DexOrderEntity) {
-    const result = await messageEconmics(tokenEconomics, orderPromise)
+    const result = await messageEconomics(tokenEconomics, orderPromise)
     const dextoolsLink = `https://www.dextools.io/app/ru/ether/pair-explorer/${tokenEconomics.tokenAddress}`;
     const updatedAt = new Date().toLocaleString();
     let messageText =

@@ -6,12 +6,14 @@ import { DexTransactionsModule } from "../dex-transactions/dex-transactions.modu
 import { TelegrafModule } from "../telegraf/telegraf.module";
 import { AppConfigModule } from "../app.config";
 import { EthPriceWatcherModule } from "../eth-price-watcher/eth-price-watcher.module";
+import { TelegramDexReporterModule } from "../telegram-dex-reporter/telegram-dex-reporter.module";
 
 @Module({
     imports: [
         DexTransactionsModule,
         TypeOrmModule.forFeature([DexOrderEntity]),
         TelegrafModule,
+        TelegramDexReporterModule,
         AppConfigModule,
         EthPriceWatcherModule,
     ],
