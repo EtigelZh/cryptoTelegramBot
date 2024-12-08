@@ -5,10 +5,18 @@ import { In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { DexOrderCompletedReason, DexOrderStatus } from './dex-order.models';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
-import { DexTransactionEconomics, DexTransactionType, TokenEconomics } from '../eth-transactions-watcher-logic/domain-logic/handle-swap';
+import {
+  DexTransactionEconomics,
+  DexTransactionType,
+  TokenEconomics,
+} from '../eth-transactions-watcher-logic/domain-logic/handle-swap';
 import { TelegramJobApiService } from '../telegraf/telegram-job-api.service';
 import { messageDexOrder } from '../eth-transactions-watcher-logic/domain-logic/message-dex-order';
 import { inspect } from 'util';
+import { SwapTokensArgs } from '../utils/crypto-core/buy-coins';
+import { AppConfig } from '../app.config';
+import { getTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price';
+import { EthPriceService } from '../eth-price-watcher/eth-price.service';
 
 @Injectable()
 export class DexOrderService {
@@ -17,19 +25,25 @@ export class DexOrderService {
     private readonly _dexOrderRepository: Repository<DexOrderEntity>,
     private readonly _dexTransactionService: DexTransactionService,
     private readonly _telegramJobApiService: TelegramJobApiService,
+    private readonly _appConfig: AppConfig,
+    private readonly _ethPriceService: EthPriceService
   ) {}
 
   async createOrder(order: DexOrderEntity) {
     // TODO implement order creation
     return this._dexOrderRepository.save(order);
   }
-  async updateOrderMessageChatId(dexOrderId: number, messageId: number, chatId: string) {
+  async updateOrderMessageChatId(
+    dexOrderId: number,
+    messageId: number,
+    chatId: string
+  ) {
     const order = await this._dexOrderRepository.findOne({
       where: {
-        id: dexOrderId
+        id: dexOrderId,
       },
       relations: ['wallet'],
-    })
+    });
     order.messageDexOrderId = messageId;
     order.chatDexOrderId = chatId;
     const savedOrder = await this._dexOrderRepository.save(order);
@@ -41,27 +55,21 @@ export class DexOrderService {
     throw new NotImplementedException();
   }
 
-  async handleCopyTradingWalletSellOrder(dexTransactionEntity: DexTransactionEntity) {
+  async handleCopyTradingWalletSellOrder(
+    dexTransactionEntity: DexTransactionEntity
+  ) {
     // Кейс с тем что копируемый кошелек продал монету
     throw new NotImplementedException();
   }
 
-  async handleTokenPriceChange(
-    tokenEconomics: TokenEconomics,
-  ) {
+  async handleTokenPriceChange(tokenEconomics: TokenEconomics) {
     await Promise.allSettled([
-      this.handleTokenPriceChangeBuyOrders(
-        tokenEconomics
-      ),
-      this.handleTokenPriceChangeSellOrders(
-        tokenEconomics
-      )
+      this.handleTokenPriceChangeBuyOrders(tokenEconomics),
+      this.handleTokenPriceChangeSellOrders(tokenEconomics),
     ]);
   }
 
-  async handleTokenPriceChangeBuyOrders(
-    tokenEconomics: TokenEconomics,
-  ) {
+  async handleTokenPriceChangeBuyOrders(tokenEconomics: TokenEconomics) {
     const orders = await this._dexOrderRepository.find({
       where: {
         tokenAddress: tokenEconomics.tokenAddress,
@@ -80,7 +88,8 @@ export class DexOrderService {
           {
             action: DexTransactionType.BUY,
             tokenAddress: tokenEconomics.tokenAddress,
-            amountToken: order.targetBuyingAmountEth / tokenEconomics.ethPerToken,
+            amountToken:
+              order.targetBuyingAmountEth / tokenEconomics.ethPerToken,
             amountUSD: order.targetBuyingAmountEth * tokenEconomics.ethPrice,
             amountWETH: order.targetBuyingAmountEth,
             tokenSymbol: tokenEconomics.tokenSymbol,
@@ -100,12 +109,12 @@ export class DexOrderService {
         return savedOrder;
       })
     );
-    Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
+    Logger.log(
+      `Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`
+    );
   }
 
-  async handleTokenPriceChangeSellOrders(
-    tokenEconomics: TokenEconomics,
-  ) {
+  async handleTokenPriceChangeSellOrders(tokenEconomics: TokenEconomics) {
     const orders = await this._dexOrderRepository.find({
       where: {
         tokenAddress: tokenEconomics.tokenAddress,
@@ -117,83 +126,38 @@ export class DexOrderService {
 
     const results = await Promise.allSettled(
       orders.map(async (order) => {
-        const mockSellingTransaction = await this.createMockDexBuyingTransaction(
-          tokenEconomics.calculatedAtBlockNumber,
-          `mock-buy-${order.id}`,
-          order.wallet.hash,
-          {
-            action: DexTransactionType.SELL,
-            tokenAddress: tokenEconomics.tokenAddress,
-            amountToken: order.targetBuyingAmountEth / tokenEconomics.ethPerToken,
-            amountUSD: order.targetBuyingAmountEth * tokenEconomics.ethPrice,
-            amountWETH: order.targetBuyingAmountEth,
-            tokenSymbol: tokenEconomics.tokenSymbol,
-            tokenPerEth: tokenEconomics.tokenPerEth,
-            tokenPerUsd: tokenEconomics.tokenPerUsd,
-            ethPrice: tokenEconomics.ethPrice,
-            ethPerToken: tokenEconomics.ethPerToken,
-            usdPerToken: tokenEconomics.usdPerToken,
-            calculatedAt: tokenEconomics.calculatedAt,
-            calculatedAtBlockNumber: tokenEconomics.calculatedAtBlockNumber,
-          },
-          'mock buy transaction'
-        );
+        const mockSellingTransaction =
+          await this.createMockDexBuyingTransaction(
+            tokenEconomics.calculatedAtBlockNumber,
+            `mock-buy-${order.id}`,
+            order.wallet.hash,
+            {
+              action: DexTransactionType.SELL,
+              tokenAddress: tokenEconomics.tokenAddress,
+              amountToken:
+                order.targetBuyingAmountEth / tokenEconomics.ethPerToken,
+              amountUSD: order.targetBuyingAmountEth * tokenEconomics.ethPrice,
+              amountWETH: order.targetBuyingAmountEth,
+              tokenSymbol: tokenEconomics.tokenSymbol,
+              tokenPerEth: tokenEconomics.tokenPerEth,
+              tokenPerUsd: tokenEconomics.tokenPerUsd,
+              ethPrice: tokenEconomics.ethPrice,
+              ethPerToken: tokenEconomics.ethPerToken,
+              usdPerToken: tokenEconomics.usdPerToken,
+              calculatedAt: tokenEconomics.calculatedAt,
+              calculatedAtBlockNumber: tokenEconomics.calculatedAtBlockNumber,
+            },
+            'mock buy transaction'
+          );
         order.status = DexOrderStatus.COMPLETED;
         order.sellingTransactions = [mockSellingTransaction];
-        order.completedReason = DexOrderCompletedReason.TRADING_PROFIT
-        this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId)
+        order.completedReason = DexOrderCompletedReason.TRADING_PROFIT;
+        this._telegramJobApiService.unpinMessage(
+          order.chatDexOrderId,
+          order.messageDexOrderId
+        );
         const savedOrder = await this._dexOrderRepository.save(order);
-        return savedOrder;
-      })
-    );
-    Logger.log(`Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`);
-  }
-
-  async handleTokenPriceChangeMessage(
-  tokenEconomics: TokenEconomics,
-  ) {
-  const orders = await this._dexOrderRepository.find({
-    where: {
-      tokenAddress: tokenEconomics.tokenAddress,
-      status: In([DexOrderStatus.BUYING, DexOrderStatus.SELLING, DexOrderStatus.COMPLETED]),
-    },
-    relations: ['wallet'],
-  });
-
-  const results = await Promise.allSettled(
-    orders.map(async (order) => {
-      const messageText = await messageDexOrder(tokenEconomics, order);
-      if (order.status === DexOrderStatus.COMPLETED) {
-        // ТАК НИКОГДА НЕ ДЕЛАТЬ - бесконечное создание событий unpinMessage
-        // await this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId)
-      }
-      else {
-        // Формируем массив кнопок в зависимости от статуса ордера
-        const autoSellEnabledButtons = [{ text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` }]
-        autoSellEnabledButtons.push()
-        if (order.isAutoSellEnabled) {
-          autoSellEnabledButtons.push({ text: 'stopAutoSell', callback_data: `isStopAutoSellEnabled_${order.id}` })
-        }
-        else if (!order.isAutoSellEnabled) {
-          autoSellEnabledButtons.push({ text: 'startAutoSell', callback_data: `isStartAutoSellEnabled_${order.id}` })
-        }
-        
-        const buttons = [];
-        const priceChangeButtons = [
-          { text: '-1 %', callback_data: `dexOrderTargetPriceChangeLess_${order.id}` },
-          { text: '+1 %', callback_data: `dexOrderTargetPriceChangeMore_${order.id}` }
-        ];
-        buttons.push(autoSellEnabledButtons);
-        buttons.push(priceChangeButtons);
-  
-        // Добавляем кнопку в зависимости от статуса ордера
-        if (order.status === DexOrderStatus.SELLING) {
-          buttons.push([{ text: 'change percent', callback_data: `dexOrderChangePercent_${order.id}` }]);
-        } 
-        if (order.status === DexOrderStatus.BUYING) {
-          buttons.push([{ text: 'change price', callback_data: `dexOrderChangePrice_${order.id}` }]);
-        }
-
+        const messageText = await messageDexOrder(tokenEconomics, order);
         await this._telegramJobApiService.editMessageText(
           Number(order.chatDexOrderId),
           messageText,
@@ -202,19 +166,104 @@ export class DexOrderService {
           {
             parse_mode: 'Markdown',
             disable_web_page_preview: true,
-            reply_markup: {
-              inline_keyboard: buttons,
-            },
-          },
+          }
         );
-      }
-    }),
-  );
+        return savedOrder;
+      })
+    );
+    Logger.log(
+      `Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`
+    );
   }
 
-  async handleTokenPriceChangeSellEarly(
-    tokenEconomics: DexTransactionEntity,
-  ) {
+  async handleTokenPriceChangeMessage(tokenEconomics: TokenEconomics) {
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        tokenAddress: tokenEconomics.tokenAddress,
+        status: In([
+          DexOrderStatus.BUYING,
+          DexOrderStatus.SELLING,
+          DexOrderStatus.COMPLETED,
+        ]),
+      },
+      relations: ['wallet'],
+    });
+
+    const results = await Promise.allSettled(
+      orders.map(async (order) => {
+        const messageText = await messageDexOrder(tokenEconomics, order);
+        if (order.status === DexOrderStatus.COMPLETED) {
+          // ТАК НИКОГДА НЕ ДЕЛАТЬ - бесконечное создание событий unpinMessage
+          // await this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId)
+        } else {
+          // Формируем массив кнопок в зависимости от статуса ордера
+          const autoSellEnabledButtons = [
+            { text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` },
+          ];
+          autoSellEnabledButtons.push();
+          if (order.isAutoSellEnabled) {
+            autoSellEnabledButtons.push({
+              text: 'stopAutoSell',
+              callback_data: `isStopAutoSellEnabled_${order.id}`,
+            });
+          } else if (!order.isAutoSellEnabled) {
+            autoSellEnabledButtons.push({
+              text: 'startAutoSell',
+              callback_data: `isStartAutoSellEnabled_${order.id}`,
+            });
+          }
+
+          const buttons = [];
+          const priceChangeButtons = [
+            {
+              text: '-1 %',
+              callback_data: `dexOrderTargetPriceChangeLess_${order.id}`,
+            },
+            {
+              text: '+1 %',
+              callback_data: `dexOrderTargetPriceChangeMore_${order.id}`,
+            },
+          ];
+          buttons.push(autoSellEnabledButtons);
+          buttons.push(priceChangeButtons);
+
+          // Добавляем кнопку в зависимости от статуса ордера
+          if (order.status === DexOrderStatus.SELLING) {
+            buttons.push([
+              {
+                text: 'change percent',
+                callback_data: `dexOrderChangePercent_${order.id}`,
+              },
+            ]);
+          }
+          if (order.status === DexOrderStatus.BUYING) {
+            buttons.push([
+              {
+                text: 'change price',
+                callback_data: `dexOrderChangePrice_${order.id}`,
+              },
+            ]);
+          }
+
+          await this._telegramJobApiService.editMessageText(
+            Number(order.chatDexOrderId),
+            messageText,
+            order.messageDexOrderId,
+            undefined,
+            {
+              parse_mode: 'Markdown',
+              disable_web_page_preview: true,
+              reply_markup: {
+                inline_keyboard: buttons,
+              },
+            }
+          );
+        }
+      })
+    );
+  }
+
+  async handleTokenPriceChangeSellEarly(tokenEconomics: DexTransactionEntity) {
     const orders = await this._dexOrderRepository.find({
       where: {
         tokenAddress: tokenEconomics.tokenAddress,
@@ -232,9 +281,12 @@ export class DexOrderService {
         }
       })
     );
-    Logger.log(`Handled ${results.length} buy orders for token ${inspect(tokenEconomics)}`);
+    Logger.log(
+      `Handled ${results.length} buy orders for token ${inspect(
+        tokenEconomics
+      )}`
+    );
   }
-
 
   async createMockDexBuyingTransaction(
     blockNumber: number,
@@ -250,7 +302,7 @@ export class DexOrderService {
       walletHash,
       economics,
       messageText,
-      isMockTransaction,
+      isMockTransaction
     );
   }
   async getAllTokenAddresses(): Promise<Set<string>> {
@@ -259,7 +311,7 @@ export class DexOrderService {
         select: ['tokenAddress'],
       });
 
-      const tokenAddresses = orders.map(order => order.tokenAddress);
+      const tokenAddresses = orders.map((order) => order.tokenAddress);
       return new Set(tokenAddresses);
     } catch (error) {
       Logger.error(`Failed to get all token addresses: ${error.message}`);
@@ -269,86 +321,121 @@ export class DexOrderService {
 
   async dexOrderStop(dexOrderId: number) {
     const order = await this._dexOrderRepository.findOne({
-        where: {
-            id: dexOrderId
-        },
-        relations: ['wallet'],
+      where: {
+        id: dexOrderId,
+      },
+      relations: ['wallet'],
     });
 
     if (!order) {
-        throw new Error(`Order with ID ${dexOrderId} not found.`);
+      throw new Error(`Order with ID ${dexOrderId} not found.`);
     }
-
+    const inputParams: SwapTokensArgs = {
+      chainId: this._appConfig.countChainId,
+      walletAddress: this._appConfig.metamaskWalletAddress,
+      tokenInAddress: this._appConfig.etherTokenAddress,
+      tokenOutAddress: order.tokenAddress,
+      amountInStr: `${this._appConfig.copyTradingTargetBuyingAmountEth}`,
+      alchemyApiToken: this._appConfig.alchemyApiKey,
+      privateKey: this._appConfig.metamaskPrivateKey,
+    };
+    const result = await getTokenPrice(inputParams);
+    const tokenDexOrder: TokenEconomics = {
+      tokenSymbol: result.tokenOutSymbol,
+      tokenPerEth: result.numberQuotedAmountOut,
+      tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price,
+      ethPrice: this._ethPriceService.price,
+      ethPerToken: result.priceEthToken,
+      usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut,
+      tokenAddress: order.tokenAddress,
+      calculatedAt: new Date(),
+      calculatedAtBlockNumber: result.currentBlockNumber,
+    };
     order.status = DexOrderStatus.COMPLETED;
     order.completedReason = DexOrderCompletedReason.MANUAL;
-    this._telegramJobApiService.unpinMessage(order.chatDexOrderId, order.messageDexOrderId);
+    this._telegramJobApiService.unpinMessage(
+      order.chatDexOrderId,
+      order.messageDexOrderId
+    );
     await this._dexOrderRepository.save(order);
+    const messageText = await messageDexOrder(tokenDexOrder, order);
+    await this._telegramJobApiService.editMessageText(
+      Number(order.chatDexOrderId),
+      messageText,
+      order.messageDexOrderId,
+      undefined,
+      {
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
+      }
+    );
   }
 
   async dexOrderRaisePrice(dexOrderId: number) {
     const order = await this._dexOrderRepository.findOne({
-        where: {
-            id: dexOrderId
-        },
-        relations: ['wallet'],
+      where: {
+        id: dexOrderId,
+      },
+      relations: ['wallet'],
     });
 
     if (!order) {
-        throw new Error(`Order with ID ${dexOrderId} not found.`);
+      throw new Error(`Order with ID ${dexOrderId} not found.`);
     }
-    if(order.status == DexOrderStatus.BUYING)
+    if (order.status == DexOrderStatus.BUYING)
       order.targetBuyingPrice = order.targetBuyingPrice * 1.01;
-    if(order.status == DexOrderStatus.SELLING)
+    if (order.status == DexOrderStatus.SELLING)
       order.targetSellingPrice = order.targetSellingPrice * 1.01;
     await this._dexOrderRepository.save(order);
   }
 
   async dexOrderReductionPrice(dexOrderId: number) {
     const order = await this._dexOrderRepository.findOne({
-        where: {
-            id: dexOrderId
-        },
-        relations: ['wallet'],
+      where: {
+        id: dexOrderId,
+      },
+      relations: ['wallet'],
     });
 
     if (!order) {
-        throw new Error(`Order with ID ${dexOrderId} not found.`);
+      throw new Error(`Order with ID ${dexOrderId} not found.`);
     }
-    if(order.status == DexOrderStatus.BUYING)
+    if (order.status == DexOrderStatus.BUYING)
       order.targetBuyingPrice = order.targetBuyingPrice * 0.99;
-    if(order.status == DexOrderStatus.SELLING)
+    if (order.status == DexOrderStatus.SELLING)
       order.targetSellingPrice = order.targetSellingPrice * 0.99;
     await this._dexOrderRepository.save(order);
   }
 
   async dexOrderChangePrice(dexOrderId: number, newTargetPrice: number) {
     const order = await this._dexOrderRepository.findOne({
-        where: {
-            id: dexOrderId
-        },
-        relations: ['wallet'],
+      where: {
+        id: dexOrderId,
+      },
+      relations: ['wallet'],
     });
 
     if (!order) {
-        throw new Error(`Order with ID ${dexOrderId} not found.`);
+      throw new Error(`Order with ID ${dexOrderId} not found.`);
     }
-    if(order.status == DexOrderStatus.BUYING)
+    if (order.status == DexOrderStatus.BUYING)
       order.targetBuyingPrice = newTargetPrice;
-    if(order.status == DexOrderStatus.SELLING)
-      order.targetSellingPrice = order.sourceBuyingTransactionPrice * (newTargetPrice / 100 + 1);
+    if (order.status == DexOrderStatus.SELLING)
+      order.targetSellingPrice =
+        order.sourceBuyingTransactionPrice * (newTargetPrice / 100 + 1);
     await this._dexOrderRepository.save(order);
   }
 
   async dexOrderStopAutoSell(dexOrderId: number) {
     const order = await this._dexOrderRepository.findOne({
-        where: {
-            id: dexOrderId
-        },
-        relations: ['wallet'],
+      where: {
+        id: dexOrderId,
+      },
+      relations: ['wallet'],
     });
 
     if (!order) {
-        throw new Error(`Order with ID ${dexOrderId} not found.`);
+      throw new Error(`Order with ID ${dexOrderId} not found.`);
     }
     order.isAutoSellEnabled = false;
     await this._dexOrderRepository.save(order);
@@ -356,17 +443,16 @@ export class DexOrderService {
 
   async dexOrderStartAutoSell(dexOrderId: number) {
     const order = await this._dexOrderRepository.findOne({
-        where: {
-            id: dexOrderId
-        },
-        relations: ['wallet'],
+      where: {
+        id: dexOrderId,
+      },
+      relations: ['wallet'],
     });
 
     if (!order) {
-        throw new Error(`Order with ID ${dexOrderId} not found.`);
+      throw new Error(`Order with ID ${dexOrderId} not found.`);
     }
     order.isAutoSellEnabled = true;
     await this._dexOrderRepository.save(order);
   }
-
 }
