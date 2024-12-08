@@ -200,6 +200,7 @@ export class DexOrderService {
             }
           )
           .then(async (messageId) => {
+            Logger.log(`Updating message ID for order ${order.id} to ${messageId}`);
             if (!!messageId && order.messageDexOrderId !== messageId) {
               await this._dexOrderRepository.update(savedOrder.id, {
                 messageDexOrderId: messageId,
@@ -303,7 +304,17 @@ export class DexOrderService {
               inline_keyboard: buttons,
             },
           }
-        );
+        ).then(async (messageId) => {
+          Logger.log(`Updating message ID for order ${order.id} to ${messageId}`);
+          if (!!messageId && order.messageDexOrderId !== messageId) {
+            await this._dexOrderRepository.update(order.id, {
+              messageDexOrderId: messageId,
+            });
+            Logger.log(
+              `Updated message ID for order ${order.id} to ${messageId}`
+            );
+          }
+        });
       })
     );
 
@@ -435,6 +446,7 @@ export class DexOrderService {
         }
       )
       .then(async (messageId) => {
+        Logger.log(`Updating message ID for order ${order.id} to ${messageId}`);
         if (!!messageId && order.messageDexOrderId !== messageId) {
           await this._dexOrderRepository.update(order.id, {
             messageDexOrderId: messageId,

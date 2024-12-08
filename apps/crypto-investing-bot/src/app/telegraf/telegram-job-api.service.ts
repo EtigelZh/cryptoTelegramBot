@@ -66,6 +66,7 @@ export class TelegramJobApiService {
         }
       }
     }
+    Logger.debug(`Last message id: ${lastMessageId}`);
     return lastMessageId;
   }
 
