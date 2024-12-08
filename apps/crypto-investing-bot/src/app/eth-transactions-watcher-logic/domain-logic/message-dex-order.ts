@@ -43,8 +43,8 @@ async function messageEconomics(tokenEconomics: TokenEconomics, order: DexOrderE
     };
   }
 
-export async function messageDexOrder(tokenEconomics: TokenEconomics, orderPromise: DexOrderEntity) {
-    const result = await messageEconomics(tokenEconomics, orderPromise)
+export async function messageDexOrder(tokenEconomics: TokenEconomics, order: DexOrderEntity) {
+    const result = await messageEconomics(tokenEconomics, order)
     const dextoolsLink = `https://www.dextools.io/app/ru/ether/pair-explorer/${tokenEconomics.tokenAddress}`;
     const updatedAt = new Date().toLocaleString();
     let messageText =

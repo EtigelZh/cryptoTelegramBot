@@ -1,7 +1,7 @@
-import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DexOrderEntity } from './dex-order.entity';
-import { In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { DexOrderCompletedReason, DexOrderStatus } from './dex-order.models';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
@@ -68,63 +68,58 @@ export class DexOrderService {
 
     newDexOrder.chatDexOrderId = String(this._config.generalChatId);
 
-    await this._telegramDexReporterJobApiService.pinMessage(
-      this._config.generalChatId,
-      result.message_id
-    );
+    this._telegramDexReporterJobApiService
+      .pinMessage(this._config.generalChatId, result.message_id)
+      .catch((error) => {
+        Logger.error(`Error while pinning message: ${error}`);
+      });
 
     return this._dexOrderRepository.save(newDexOrder);
   }
 
-  async updateOrderMessageChatId(
-    dexOrderId: number,
-    messageId: number,
-    chatId: string
-  ) {
-    const order = await this._dexOrderRepository.findOne({
-      where: {
-        id: dexOrderId,
-      },
-      relations: ['wallet'],
-    });
-    order.messageDexOrderId = messageId;
-    order.chatDexOrderId = chatId;
-    const savedOrder = await this._dexOrderRepository.save(order);
-    return savedOrder;
-  }
-
-  async handleManualCancelOrder(orderId: number) {
-    // Кейс с тем что пользователь отменил ордер вручную
-    throw new NotImplementedException();
-  }
-
-  async handleCopyTradingWalletSellOrder(
-    dexTransactionEntity: DexTransactionEntity
-  ) {
-    // Кейс с тем что копируемый кошелек продал монету
-    throw new NotImplementedException();
-  }
-
   async handleTokenPriceChange(tokenEconomics: TokenEconomics) {
-    await Promise.allSettled([
-      this.handleTokenPriceChangeBuyOrders(tokenEconomics),
-      this.handleTokenPriceChangeSellOrders(tokenEconomics),
-    ]);
-  }
-
-  async handleTokenPriceChangeBuyOrders(tokenEconomics: TokenEconomics) {
     const orders = await this._dexOrderRepository.find({
       where: {
         tokenAddress: tokenEconomics.tokenAddress,
-        status: DexOrderStatus.BUYING,
-        targetBuyingPrice: MoreThanOrEqual(tokenEconomics.ethPerToken),
+        status: In([DexOrderStatus.BUYING, DexOrderStatus.SELLING]),
       },
       relations: ['wallet'],
     });
 
+    const buyOrders: DexOrderEntity[] = [];
+    const sellOrders: DexOrderEntity[] = [];
+    const messageOrders: DexOrderEntity[] = [];
+
+    for (const order of orders) {
+      if (
+        order.status === DexOrderStatus.BUYING &&
+        order.targetBuyingPrice >= tokenEconomics.ethPerToken
+      ) {
+        buyOrders.push(order);
+      } else if (
+        order.status === DexOrderStatus.SELLING &&
+        order.targetSellingPrice <= tokenEconomics.ethPerToken
+      ) {
+        sellOrders.push(order);
+      } else {
+        messageOrders.push(order);
+      }
+    }
+
+    await Promise.allSettled([
+      this.handleTokenPriceChangeBuyOrders(tokenEconomics, buyOrders),
+      this.handleTokenPriceChangeSellOrders(tokenEconomics, sellOrders),
+      this.handleTokenPriceChangeMessage(tokenEconomics, messageOrders),
+    ]);
+  }
+
+  async handleTokenPriceChangeBuyOrders(
+    tokenEconomics: TokenEconomics,
+    orders: DexOrderEntity[]
+  ): Promise<void> {
     const results = await Promise.allSettled(
       orders.map(async (order) => {
-        return this.createMockDexBuyingTransaction(
+        const mockBuyingTransaction = await this.createMockDexBuyingTransaction(
           tokenEconomics.calculatedAtBlockNumber,
           `mock-buy-${order.id}`,
           order.wallet.hash,
@@ -145,11 +140,10 @@ export class DexOrderService {
             calculatedAtBlockNumber: tokenEconomics.calculatedAtBlockNumber,
           },
           'mock buy transaction'
-        ).then(async (mockBuyingTransaction) => {
-          order.status = DexOrderStatus.SELLING;
-          order.buyingTransactions = [mockBuyingTransaction];
-          return this._dexOrderRepository.save(order);
-        });
+        );
+        order.status = DexOrderStatus.SELLING;
+        order.buyingTransactions = [mockBuyingTransaction];
+        return this._dexOrderRepository.save(order);
       })
     );
     Logger.log(
@@ -157,69 +151,68 @@ export class DexOrderService {
     );
   }
 
-  async handleTokenPriceChangeSellOrders(tokenEconomics: TokenEconomics) {
-    const orders = await this._dexOrderRepository.find({
-      where: {
-        tokenAddress: tokenEconomics.tokenAddress,
-        status: DexOrderStatus.SELLING,
-        targetSellingPrice: LessThanOrEqual(tokenEconomics.ethPerToken),
-      },
-      relations: ['wallet'],
-    });
-
+  async handleTokenPriceChangeSellOrders(
+    tokenEconomics: TokenEconomics,
+    orders: DexOrderEntity[]
+  ): Promise<void> {
     const results = await Promise.allSettled(
-      orders.map((order) => {
-        return this.createMockDexBuyingTransaction(
-          tokenEconomics.calculatedAtBlockNumber,
-          `mock-buy-${order.id}`,
-          order.wallet.hash,
-          {
-            action: DexTransactionType.SELL,
-            tokenAddress: tokenEconomics.tokenAddress,
-            amountToken:
-              order.targetBuyingAmountEth / tokenEconomics.ethPerToken,
-            amountUSD: order.targetBuyingAmountEth * tokenEconomics.ethPrice,
-            amountWETH: order.targetBuyingAmountEth,
-            tokenSymbol: tokenEconomics.tokenSymbol,
-            tokenPerEth: tokenEconomics.tokenPerEth,
-            tokenPerUsd: tokenEconomics.tokenPerUsd,
-            ethPrice: tokenEconomics.ethPrice,
-            ethPerToken: tokenEconomics.ethPerToken,
-            usdPerToken: tokenEconomics.usdPerToken,
-            calculatedAt: tokenEconomics.calculatedAt,
-            calculatedAtBlockNumber: tokenEconomics.calculatedAtBlockNumber,
-          },
-          'mock buy transaction'
-        )
-          .then(async (mockSellingTransaction) => {
-            order.status = DexOrderStatus.COMPLETED;
-            order.sellingTransactions = [mockSellingTransaction];
-            order.completedReason = DexOrderCompletedReason.TRADING_PROFIT;
-            this._telegramDexReporterJobApiService.unpinMessage(
-              order.chatDexOrderId,
-              order.messageDexOrderId
-            );
-            return this._dexOrderRepository.save(order);
-          })
-          .then(async (savedOrder) => {
-            messageDexOrder(tokenEconomics, order)
-              .then((messageText) => {
-                this._telegramDexReporterJobApiService.editMessageText(
-                  Number(order.chatDexOrderId),
-                  messageText,
-                  order.messageDexOrderId,
-                  undefined,
-                  {
-                    parse_mode: 'Markdown',
-                    disable_web_page_preview: true,
-                  }
-                );
-              })
-              .catch((error) => {
-                Logger.error(`Error while editing message: ${error}`);
+      orders.map(async (order) => {
+        const mockSellingTransaction =
+          await this.createMockDexBuyingTransaction(
+            tokenEconomics.calculatedAtBlockNumber,
+            `mock-buy-${order.id}`,
+            order.wallet.hash,
+            {
+              action: DexTransactionType.SELL,
+              tokenAddress: tokenEconomics.tokenAddress,
+              amountToken:
+                order.targetBuyingAmountEth / tokenEconomics.ethPerToken,
+              amountUSD: order.targetBuyingAmountEth * tokenEconomics.ethPrice,
+              amountWETH: order.targetBuyingAmountEth,
+              tokenSymbol: tokenEconomics.tokenSymbol,
+              tokenPerEth: tokenEconomics.tokenPerEth,
+              tokenPerUsd: tokenEconomics.tokenPerUsd,
+              ethPrice: tokenEconomics.ethPrice,
+              ethPerToken: tokenEconomics.ethPerToken,
+              usdPerToken: tokenEconomics.usdPerToken,
+              calculatedAt: tokenEconomics.calculatedAt,
+              calculatedAtBlockNumber: tokenEconomics.calculatedAtBlockNumber,
+            },
+            'mock buy transaction'
+          );
+        order.status = DexOrderStatus.COMPLETED;
+        order.sellingTransactions = [mockSellingTransaction];
+        order.completedReason = DexOrderCompletedReason.TRADING_PROFIT;
+        this._telegramDexReporterJobApiService.unpinMessage(
+          order.chatDexOrderId,
+          order.messageDexOrderId
+        );
+        const savedOrder = await this._dexOrderRepository.save(order);
+        const messageText = await messageDexOrder(tokenEconomics, order);
+        this._telegramDexReporterJobApiService
+          .createOrUpdateLastMessage(
+            order.messageDexOrderId,
+            messageText,
+            Number(order.chatDexOrderId),
+            {
+              parse_mode: 'Markdown',
+              disable_web_page_preview: true,
+            }
+          )
+          .then(async (messageId) => {
+            if (!!messageId && order.messageDexOrderId !== messageId) {
+              await this._dexOrderRepository.update(savedOrder.id, {
+                messageDexOrderId: messageId,
               });
-            return savedOrder;
+              Logger.log(
+                `Updated message ID for order ${order.id} to ${messageId}`
+              );
+            }
+          })
+          .catch((error) => {
+            Logger.error(`Error while editing message: ${error}`);
           });
+        return savedOrder;
       })
     );
     if (results.length > 0) {
@@ -239,84 +232,78 @@ export class DexOrderService {
     }
   }
 
-  async handleTokenPriceChangeMessage(tokenEconomics: TokenEconomics) {
-    const orders = await this._dexOrderRepository.find({
-      where: {
-        tokenAddress: tokenEconomics.tokenAddress,
-        status: In([DexOrderStatus.BUYING, DexOrderStatus.SELLING]),
-      },
-      relations: ['wallet'],
-    });
-
+  async handleTokenPriceChangeMessage(
+    tokenEconomics: TokenEconomics,
+    orders: DexOrderEntity[]
+  ): Promise<void> {
     if (orders.length === 0) {
       return;
     }
 
     const results = await Promise.allSettled(
-      orders.map((order) => {
-        return messageDexOrder(tokenEconomics, order).then((messageText) => {
-          // Формируем массив кнопок в зависимости от статуса ордера
-          const autoSellEnabledButtons = [
-            { text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` },
-          ];
-          if (order.isAutoSellEnabled) {
-            autoSellEnabledButtons.push({
-              text: 'stopAutoSell',
-              callback_data: `isStopAutoSellEnabled_${order.id}`,
-            });
-          } else if (!order.isAutoSellEnabled) {
-            autoSellEnabledButtons.push({
-              text: 'startAutoSell',
-              callback_data: `isStartAutoSellEnabled_${order.id}`,
-            });
-          }
+      orders.map(async (order) => {
+        const messageText = await messageDexOrder(tokenEconomics, order);
 
-          const buttons = [];
-          const priceChangeButtons = [
+        // Формируем массив кнопок в зависимости от статуса ордера
+        const autoSellEnabledButtons = [
+          { text: 'Stop', callback_data: `dexOrderManualStop_${order.id}` },
+        ];
+        if (order.isAutoSellEnabled) {
+          autoSellEnabledButtons.push({
+            text: 'stopAutoSell',
+            callback_data: `isStopAutoSellEnabled_${order.id}`,
+          });
+        } else if (!order.isAutoSellEnabled) {
+          autoSellEnabledButtons.push({
+            text: 'startAutoSell',
+            callback_data: `isStartAutoSellEnabled_${order.id}`,
+          });
+        }
+
+        const buttons = [];
+        const priceChangeButtons = [
+          {
+            text: '-1 %',
+            callback_data: `dexOrderTargetPriceChangeLess_${order.id}`,
+          },
+          {
+            text: '+1 %',
+            callback_data: `dexOrderTargetPriceChangeMore_${order.id}`,
+          },
+        ];
+        buttons.push(autoSellEnabledButtons);
+        buttons.push(priceChangeButtons);
+
+        // Добавляем кнопку в зависимости от статуса ордера
+        if (order.status === DexOrderStatus.SELLING) {
+          buttons.push([
             {
-              text: '-1 %',
-              callback_data: `dexOrderTargetPriceChangeLess_${order.id}`,
+              text: 'change percent',
+              callback_data: `dexOrderChangePercent_${order.id}`,
             },
+          ]);
+        }
+        if (order.status === DexOrderStatus.BUYING) {
+          buttons.push([
             {
-              text: '+1 %',
-              callback_data: `dexOrderTargetPriceChangeMore_${order.id}`,
+              text: 'change price',
+              callback_data: `dexOrderChangePrice_${order.id}`,
             },
-          ];
-          buttons.push(autoSellEnabledButtons);
-          buttons.push(priceChangeButtons);
+          ]);
+        }
 
-          // Добавляем кнопку в зависимости от статуса ордера
-          if (order.status === DexOrderStatus.SELLING) {
-            buttons.push([
-              {
-                text: 'change percent',
-                callback_data: `dexOrderChangePercent_${order.id}`,
-              },
-            ]);
+        return this._telegramDexReporterJobApiService.createOrUpdateLastMessage(
+          order.messageDexOrderId,
+          messageText,
+          Number(order.chatDexOrderId),
+          {
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
+            reply_markup: {
+              inline_keyboard: buttons,
+            },
           }
-          if (order.status === DexOrderStatus.BUYING) {
-            buttons.push([
-              {
-                text: 'change price',
-                callback_data: `dexOrderChangePrice_${order.id}`,
-              },
-            ]);
-          }
-
-          return this._telegramDexReporterJobApiService.editMessageText(
-            Number(order.chatDexOrderId),
-            messageText,
-            order.messageDexOrderId,
-            undefined,
-            {
-              parse_mode: 'Markdown',
-              disable_web_page_preview: true,
-              reply_markup: {
-                inline_keyboard: buttons,
-              },
-            }
-          );
-        });
+        );
       })
     );
 
@@ -437,16 +424,26 @@ export class DexOrderService {
     );
     await this._dexOrderRepository.save(order);
     const messageText = await messageDexOrder(tokenDexOrder, order);
-    await this._telegramDexReporterJobApiService.editMessageText(
-      Number(order.chatDexOrderId),
-      messageText,
-      order.messageDexOrderId,
-      undefined,
-      {
-        parse_mode: 'Markdown',
-        disable_web_page_preview: true,
-      }
-    );
+    await this._telegramDexReporterJobApiService
+      .createOrUpdateLastMessage(
+        order.messageDexOrderId,
+        messageText,
+        Number(order.chatDexOrderId),
+        {
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true,
+        }
+      )
+      .then(async (messageId) => {
+        if (!!messageId && order.messageDexOrderId !== messageId) {
+          await this._dexOrderRepository.update(order.id, {
+            messageDexOrderId: messageId,
+          });
+          Logger.log(
+            `Updated message ID for order ${order.id} to ${messageId}`
+          );
+        }
+      });
   }
 
   async dexOrderRaisePrice(dexOrderId: number) {
