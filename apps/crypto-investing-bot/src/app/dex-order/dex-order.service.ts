@@ -309,6 +309,9 @@ export class DexOrderService {
     try {
       const orders = await this._dexOrderRepository.find({
         select: ['tokenAddress'],
+        where: {
+          status: In(['BUYING', 'SELLING']),
+        }
       });
 
       const tokenAddresses = orders.map((order) => order.tokenAddress);
