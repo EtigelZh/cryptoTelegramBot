@@ -22,10 +22,9 @@ import { formatTradeProfitResult } from './domain-logic/format-trade-profit';
 import { humanizeEconomics } from './domain-logic/humanize-economics';
 import { DexOrderService } from '../dex-order/dex-order.service';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
-import { DexOrderEntity } from '../dex-order/dex-order.entity';
-import { DexOrderStatus } from '../dex-order/dex-order.models';
 import { DexWalletsService } from '../dex-wallets/dex-wallets.service';
 import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
+import { getTokenPricesFromAlchemyApi } from './domain-logic/get-token-price';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -326,12 +325,19 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         }
         const buyEnabled = await this._dexWalletsSevice.getIsAutoBuyEnabled(followingDexTransaction.wallet.hash);
         if (followingDexTransaction.action == DexTransactionType.BUY && buyEnabled) {
-          
+          const tokenPrice = await getTokenPricesFromAlchemyApi([followingDexTransaction.tokenAddress], this._config.alchemyApiKey);
 
-          // TODO create order
+          const foundTokenPrice = tokenPrice.find((price) => price.tokenAddress === followingDexTransaction.tokenAddress); 
+          
+          if (!foundTokenPrice) {
+            Logger.error(`Token price not found for token: ${followingDexTransaction.tokenAddress}`);
+            return;
+          }
+
           const savedDexOrder = await this._dexOrderService.createOrder(
             followingDexTransaction
           );
+          Logger.log(`Dex order created: ${savedDexOrder.id}`);
         }
       }
     }
