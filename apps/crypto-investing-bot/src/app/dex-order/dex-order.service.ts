@@ -98,9 +98,11 @@ export class DexOrderService {
       ) {
         buyOrders.push(order);
       } else if (
+        // Добавить проверку на флаг
         order.status === DexOrderStatus.SELLING &&
         order.targetSellingPrice <= tokenEconomics.ethPerToken
       ) {
+        // выставить флаг
         sellOrders.push(order);
       } else {
         messageOrders.push(order);
@@ -111,6 +113,7 @@ export class DexOrderService {
       this.handleTokenPriceChangeBuyOrders(tokenEconomics, buyOrders),
       this.handleTokenPriceChangeSellOrders(tokenEconomics, sellOrders),
       this.handleTokenPriceChangeMessage(tokenEconomics, messageOrders),
+      // пытаемся сделать продажу
     ]);
   }
 
