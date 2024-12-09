@@ -42,6 +42,7 @@ export class TelegramJobApiService {
     extra?: unknown
   ): Promise<number> {
     if (lastMessageId) {
+      Logger.debug(`Editing message: ${lastMessageId}`);
       await this.editMessageText(
         chatId,
         messageText,
@@ -51,6 +52,7 @@ export class TelegramJobApiService {
       );
     } else {
       try {
+        Logger.debug(`Sending message: ${messageText}`);
         const sentMessage = await this.sendMessage(
           chatId,
           messageText,
