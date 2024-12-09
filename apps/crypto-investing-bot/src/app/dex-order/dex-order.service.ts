@@ -100,9 +100,11 @@ export class DexOrderService {
       } else if (
         // Добавить проверку на флаг
         order.status === DexOrderStatus.SELLING &&
-        order.targetSellingPrice <= tokenEconomics.ethPerToken
+        order.targetSellingPrice <= tokenEconomics.ethPerToken &&
+        order.isTokenForSale === false
       ) {
         // выставить флаг
+        order.isTokenForSale = true
         sellOrders.push(order);
       } else {
         messageOrders.push(order);
