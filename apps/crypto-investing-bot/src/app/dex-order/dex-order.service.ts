@@ -611,7 +611,7 @@ export class DexOrderService {
       orders.map(async (order) => {
         order.status = DexOrderStatus.COMPLETED
         order.completedReason = DexOrderCompletedReason.MISSED_BUYING_PRICE
-        this._telegramJobApiService.unpinMessage(
+        this._telegramDexReporterJobApiService.unpinMessage(
           order.chatDexOrderId,
           order.messageDexOrderId
         );
@@ -638,7 +638,7 @@ export class DexOrderService {
         };
         const savedOrder = await this._dexOrderRepository.save(order);
         const messageText = await messageDexOrder(tokenDexOrder, order);
-        await this._telegramJobApiService.editMessageText(
+        await this._telegramDexReporterJobApiService.editMessageText(
           Number(order.chatDexOrderId),
           messageText,
           order.messageDexOrderId,
@@ -652,6 +652,26 @@ export class DexOrderService {
         
       })
     );
+
+    if (results.length > 0) {
+      Logger.log(
+        `Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`,
+        'DexOrderService.dexOrderMissedBuyingPrice'
+      );
+    }
+
+    const failedResults = results.filter(
+      (result) => result.status === 'rejected'
+    );
+
+    if (failedResults.length > 0) {
+      Logger.error(
+        `Failed to handle ${failedResults.length} orders for token ${
+          tokenEconomics.tokenSymbol
+        } ${inspect(failedResults)}`,
+        'DexOrderService.dexOrderMissedBuyingPrice'
+      );
+    }
   }
 
 }
