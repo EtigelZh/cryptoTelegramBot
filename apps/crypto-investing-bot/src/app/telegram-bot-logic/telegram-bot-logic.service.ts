@@ -417,15 +417,21 @@ export class TelegramBotLogicService implements OnModuleInit {
     return;
   }
 
-  private async handleReductionPrice(ctx): Promise<void> {
-    await this._dexOrderService.dexOrderReductionPrice(ctx.match[1]);
-    await this._telegramJobApiService.sendMessage(ctx.from.id, `Цена уменьшена`);
+  private async handleReductionPrice(ctx): Promise<void>{
+    await this._dexOrderService.dexOrderReductionPrice(ctx.match[1])
+    await this._telegramJobApiService.sendMessage(
+      ctx.chat.id,
+      `Цена уменьшена`
+    );
     return;
   }
 
-  private async handleRaisePrice(ctx): Promise<void> {
-    await this._dexOrderService.dexOrderRaisePrice(ctx.match[1]);
-    await this._telegramJobApiService.sendMessage(ctx.from.id, `Цена увеличена`);
+  private async handleRaisePrice(ctx): Promise<void>{
+    await this._dexOrderService.dexOrderRaisePrice(ctx.match[1])
+    await this._telegramJobApiService.sendMessage(
+      ctx.chat.id,
+      `Цена увеличена`
+    );
     return;
   }
 
