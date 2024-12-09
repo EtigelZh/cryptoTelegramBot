@@ -5,7 +5,6 @@ import { message } from 'telegraf/filters';
 import { MountMap } from 'telegraf/typings/telegram-types';
 import { WithSentryPerformance } from '../utils/sentry-performance';
 
-
 import { ZerionApiService } from '../zerion-api/zerion-api.service';
 import { Cron } from '@nestjs/schedule';
 import { ZerionApiQueueName } from '../zerion-api/zerion-api.models';
@@ -19,7 +18,7 @@ import { TelegramReportingService } from './telegram-reporting.service';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
 import { GoogleDriveJobApiService } from '../google-api/google-drive-job-api.service';
 import { WalletService } from '../wallet/wallet.service';
-import { messageTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price'
+import { messageTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price';
 import { SwapTokensArgs } from '../utils/crypto-core/buy-coins';
 import { EthRuntimeWatcherService } from '../eth-transactions-watcher-logic/eth-runtime-wather.service';
 import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/domain-logic/models';
@@ -31,7 +30,9 @@ const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
   '\n\nПример команд:\n`0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`/transactions 0xb585cEb627ef3edbF07b77Ba679b1b26181c579E`\n\n`0x3004892cf2946356e8e4570a94748afdff86681c, 0x4eacda2bb8ae4c46b8384b86c5c136350180f243, 0xaf06c1529a8162dc34c9b03d6bb91e034fa03009`';
 const exampleEmulate =
-  '\n\nПример команды:\n`/emulate 20509610 0xae80a091efd5f808371c723f8ea82bb6560f9b10`\n\n`/emulate 20509610,20489685 0xae80a091efd5f808371c723f8ea82bb6560f9b10`'
+  '\n\nПример команды:\n`/emulate 20509610 0xae80a091efd5f808371c723f8ea82bb6560f9b10`\n\n`/emulate 20509610,20489685 0xae80a091efd5f808371c723f8ea82bb6560f9b10`';
+
+type Ctx = Context<MountMap['text'] & MountMap['message']>;
 
 @Injectable()
 export class TelegramBotLogicService implements OnModuleInit {
@@ -51,7 +52,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _ethRuntimeWatcherService: EthRuntimeWatcherService,
     private _tokenPriceHistoryService: TokenPriceHistoryService,
     private _dexOrderService: DexOrderService,
-    private _dexWalletsSevice: DexWalletsService 
+    private _dexWalletsSevice: DexWalletsService
   ) {}
 
   onModuleInit() {
@@ -68,10 +69,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('transactions', this.handleTransactionsCommand.bind(this));
     this._bot.command('subscribe', this.handleSubscribeCommand.bind(this));
     this._bot.command('unsubscribe', this.handleUnsubscribeCommand.bind(this));
-    this._bot.command(
-      'update_old_wallets',
-      this.handleUpdateOldWalletsCommand.bind(this)
-    );
+    this._bot.command('update_old_wallets', this.handleUpdateOldWalletsCommand.bind(this));
     this._bot.command('restart', this.handleRestart.bind(this));
     this._bot.command('search_zerion', this.handleZerionSearch.bind(this));
     this._bot.command('search_etherscan', this.handleEtherscanSearch.bind(this));
@@ -79,15 +77,18 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('cleanup', this.handleCleanup.bind(this));
     this._bot.command('emulate', this.handleEmulateCommand.bind(this));
     this._bot.command('get_price_history', this.handleTokenPriceHistoryCommand.bind(this));
-    this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this))
-    this._bot.command('stopAutoBuy', this.handleStopAutoBuyCommand.bind(this))
-    this._bot.command('startAutoBuy', this.handleStartAutoBuyCommand.bind(this))
-    this._bot.command('stopAutoSell', this.handleStopAutoSellCommand.bind(this))
-    this._bot.command('startAutoSell', this.handleStartAutoSellCommand.bind(this))
+    this._bot.command('get_token_price', this.handleGetTokenPriceCommand.bind(this));
+    this._bot.command('stopAutoBuy', this.handleStopAutoBuyCommand.bind(this));
+    this._bot.command('startAutoBuy', this.handleStartAutoBuyCommand.bind(this));
+    this._bot.command('stopAutoSell', this.handleStopAutoSellCommand.bind(this));
+    this._bot.command('startAutoSell', this.handleStartAutoSellCommand.bind(this));
+    this._bot.command('reportDexOrder', this.handleReportDexOrderCommand.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
-    this._bot.action(/dexOrderTargetPriceChangeLess_(\d+)/, (ctx) => this.handleReductionPrice(ctx));
+    this._bot.action(/dexOrderTargetPriceChangeLess_(\d+)/, (ctx) =>
+      this.handleReductionPrice(ctx)
+    );
     this._bot.action(/dexOrderTargetPriceChangeMore_(\d+)/, (ctx) => this.handleRaisePrice(ctx));
     this._bot.action(/dexOrderChangePrice_(\d+)/, (ctx) => this.handleChangePriceButton(ctx));
     this._bot.action(/dexOrderChangePercent_(\d+)/, (ctx) => this.handleChangePercentButton(ctx));
@@ -96,7 +97,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     // this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
   }
 
-  private async handleCleanup(ctx: Context<MountMap['text']>) {
+  private async handleCleanup(ctx: Ctx) {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -107,15 +108,12 @@ export class TelegramBotLogicService implements OnModuleInit {
     await Promise.allSettled([
       this._telegramJobApiService.cleanQueue(),
       this._googleDriveJobApiService.cleanup(),
-      this._telegramJobApiService.sendMessage(
-        ctx.from.id,
-        'Очищаем данные...'
-      ),
+      this._telegramJobApiService.sendMessage(ctx.from.id, 'Очищаем данные...'),
     ]);
   }
-  private async handleEmulateCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void>{
-    const emulationMessageContext = {}
-    emulationMessageContext[ctx.chat.id] = ctx.message.message_id
+  private async handleEmulateCommand(ctx: Ctx): Promise<void> {
+    const emulationMessageContext = {};
+    emulationMessageContext[ctx.chat.id] = ctx.message.message_id;
     const partsMessage = ctx.message.text.split(' ');
     const partsBlocks = partsMessage[1];
     const partHash = partsMessage[2];
@@ -141,15 +139,20 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
       return;
     }
-    const blockNumbers = partsBlocks.split(',')
-    const walletHashes = []
-    walletHashes.push(partHash)
+    const blockNumbers = partsBlocks.split(',');
+    const walletHashes = [];
+    walletHashes.push(partHash);
     for (const block of blockNumbers) {
-      await this._ethRuntimeWatcherService.handleBlock(Number(block), walletHashes, WathcingTransactionsMode.EMULATION, emulationMessageContext);
+      await this._ethRuntimeWatcherService.handleBlock(
+        Number(block),
+        walletHashes,
+        WathcingTransactionsMode.EMULATION,
+        emulationMessageContext
+      );
     }
   }
 
-  private async handleSubscribeCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleSubscribeCommand(ctx: Ctx): Promise<void> {
     console.log(`ctx.message.text: ${ctx.message.text}`);
     const matchedHash = ctx.message.text.match(walletHashRegex);
     if (!matchedHash?.length) {
@@ -178,7 +181,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     );
   }
 
-  private async handleUnsubscribeCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleUnsubscribeCommand(ctx: Ctx): Promise<void> {
     const matchedHash = ctx.message.text.match(walletHashRegex);
     if (!matchedHash?.length) {
       await this._telegramJobApiService.sendMessage(
@@ -205,7 +208,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     );
   }
 
-  private async handleReport( ctx: Context<MountMap['text']>) {
+  private async handleReport(ctx: Ctx) {
     if (this._isBotMessage(ctx)) {
       return;
     }
@@ -224,7 +227,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._telegramReportingService.report(ctx.from.id, message.message_id);
   }
 
-  private async handleZerionSearch( ctx: Context<MountMap['text']>) {
+  private async handleZerionSearch(ctx: Ctx) {
     if (this._isBotMessage(ctx)) {
       return;
     }
@@ -243,7 +246,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._walletSearcherService.getNewZerionWallets();
   }
 
-  private async handleEtherscanSearch( ctx: Context<MountMap['text']>) {
+  private async handleEtherscanSearch(ctx: Ctx) {
     if (this._isBotMessage(ctx)) {
       return;
     }
@@ -262,9 +265,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._walletSearcherService.getNewEtherscanWallets();
   }
 
-  private async handleRestart(
-    ctx: Context<MountMap['text']>
-  ) {
+  private async handleRestart(ctx: Ctx) {
     if (this._isBotMessage(ctx)) {
       return;
     }
@@ -283,12 +284,9 @@ export class TelegramBotLogicService implements OnModuleInit {
     setTimeout(() => {
       process.exit(0);
     }, 1_000);
-
   }
 
-  private async handleUpdateOldWalletsCommand(
-    ctx: Context<MountMap['text']>
-  ): Promise<void> {
+  private async handleUpdateOldWalletsCommand(ctx: Ctx): Promise<void> {
     if (this._isBotMessage(ctx)) {
       return;
     }
@@ -299,8 +297,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
       return;
     }
-    const numberOfWalletsToUpdate =
-      this._zerionApi.getEstimateAvailableProcessingWallets();
+    const numberOfWalletsToUpdate = this._zerionApi.getEstimateAvailableProcessingWallets();
     if (numberOfWalletsToUpdate <= 0) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -322,9 +319,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     await this._processWallets(oldWallets, ctx, 'updating', false);
   }
 
-  private async handlePossibleWalletHash(
-    ctx: Context<MountMap['text']>
-  ): Promise<unknown> {
+  private async handlePossibleWalletHash(ctx: Ctx): Promise<unknown> {
     if (this._isBotMessage(ctx)) {
       return;
     }
@@ -361,7 +356,10 @@ export class TelegramBotLogicService implements OnModuleInit {
       const newPercentText = messageText.trim().replace(',', '.');
       const newPercent = parseFloat(newPercentText);
       if (isNaN(newPercent) || newPercent <= 0) {
-        await this._telegramJobApiService.sendMessage(ctx.chat.id, 'Пожалуйста, введите корректное число для процента');
+        await this._telegramJobApiService.sendMessage(
+          ctx.chat.id,
+          'Пожалуйста, введите корректное число для процента'
+        );
         return;
       }
 
@@ -370,9 +368,15 @@ export class TelegramBotLogicService implements OnModuleInit {
       // Обновляем цену в базе данных
       try {
         await this._dexOrderService.dexOrderChangePrice(idDexOrder, newPercent);
-        await this._telegramJobApiService.sendMessage(ctx.chat.id, `Процент для ордера ${idDexOrder} обновлена на ${newPercent}.`);
+        await this._telegramJobApiService.sendMessage(
+          ctx.chat.id,
+          `Процент для ордера ${idDexOrder} обновлена на ${newPercent}.`
+        );
       } catch (error) {
-        await this._telegramJobApiService.sendMessage(ctx.chat.id, 'Произошла ошибка при обновлении процента');
+        await this._telegramJobApiService.sendMessage(
+          ctx.chat.id,
+          'Произошла ошибка при обновлении процента'
+        );
         console.error(error);
       }
 
@@ -380,7 +384,7 @@ export class TelegramBotLogicService implements OnModuleInit {
       this.userStates.delete(userId);
       return;
     }
-    
+
     // Check if the message looks like a wallet hash
     if (messageText.startsWith('0x')) {
       // Call your handler for wallet hash here
@@ -407,34 +411,25 @@ export class TelegramBotLogicService implements OnModuleInit {
     );
   }
 
-  private async handleStop(ctx): Promise<void>{
-    this._dexOrderService.dexOrderStop(ctx.match[1])
-    await this._telegramJobApiService.sendMessage(
-      ctx.chat.id,
-      `Лимитная заявка остановлена`
-    );
+  private async handleStop(ctx): Promise<void> {
+    this._dexOrderService.dexOrderStop(ctx.match[1]);
+    await this._telegramJobApiService.sendMessage(ctx.chat.id, `Лимитная заявка остановлена`);
     return;
   }
 
-  private async handleReductionPrice(ctx): Promise<void>{
-    await this._dexOrderService.dexOrderReductionPrice(ctx.match[1])
-    await this._telegramJobApiService.sendMessage(
-      ctx.from.id,
-      `Цена уменьшена`
-    );
+  private async handleReductionPrice(ctx): Promise<void> {
+    await this._dexOrderService.dexOrderReductionPrice(ctx.match[1]);
+    await this._telegramJobApiService.sendMessage(ctx.from.id, `Цена уменьшена`);
     return;
   }
 
-  private async handleRaisePrice(ctx): Promise<void>{
-    await this._dexOrderService.dexOrderRaisePrice(ctx.match[1])
-    await this._telegramJobApiService.sendMessage(
-      ctx.from.id,
-      `Цена увеличена`
-    );
+  private async handleRaisePrice(ctx): Promise<void> {
+    await this._dexOrderService.dexOrderRaisePrice(ctx.match[1]);
+    await this._telegramJobApiService.sendMessage(ctx.from.id, `Цена увеличена`);
     return;
   }
 
-  private async handleTokenPriceHistoryCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleTokenPriceHistoryCommand(ctx: Ctx): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -442,8 +437,8 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
       return;
     }
-    const messageText = ctx.message.text.split(' ')
-    const tokenHash = messageText[1]
+    const messageText = ctx.message.text.split(' ');
+    const tokenHash = messageText[1];
     if (!tokenHash) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -460,18 +455,15 @@ export class TelegramBotLogicService implements OnModuleInit {
         );
         return;
       }
-      const response = await this._tokenPriceHistoryService.messageTokenPriceHistory(history)
-      await this._telegramJobApiService.sendMessage(
-        ctx.from.id,
-        response
-      );
+      const response = await this._tokenPriceHistoryService.messageTokenPriceHistory(history);
+      await this._telegramJobApiService.sendMessage(ctx.from.id, response);
     } catch (error) {
       ctx.reply('Произошла ошибка при получении данных.');
       console.error(error);
     }
   }
 
-  private async handleGetTokenPriceCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleGetTokenPriceCommand(ctx: Ctx): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -495,15 +487,12 @@ export class TelegramBotLogicService implements OnModuleInit {
       tokenOutAddress: tokenHash,
       amountInStr: '1',
       alchemyApiToken: this._appConfig.alchemyApiKey,
-      privateKey: this._appConfig.metamaskPrivateKey
+      privateKey: this._appConfig.metamaskPrivateKey,
     };
-    
+
     try {
       const result = await messageTokenPrice(inputParams);
-      await this._telegramJobApiService.sendMessage(
-        ctx.from.id,
-        result
-      );
+      await this._telegramJobApiService.sendMessage(ctx.from.id, result);
       return;
     } catch (error) {
       await this._telegramJobApiService.sendMessage(
@@ -514,7 +503,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
   }
 
-  private async handleStopAutoBuyCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleStopAutoBuyCommand(ctx: Ctx): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -531,18 +520,15 @@ export class TelegramBotLogicService implements OnModuleInit {
       return;
     }
     try {
-      await this._dexWalletsSevice.stopAutoBuy(messageText[1])
+      await this._dexWalletsSevice.stopAutoBuy(messageText[1]);
       return;
     } catch (error) {
-      await this._telegramJobApiService.sendMessage(
-        ctx.from.id,
-        'Ошибка'
-      );
+      await this._telegramJobApiService.sendMessage(ctx.from.id, 'Ошибка');
       return;
     }
   }
 
-  private async handleStartAutoBuyCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleStartAutoBuyCommand(ctx: Ctx): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -559,18 +545,15 @@ export class TelegramBotLogicService implements OnModuleInit {
       return;
     }
     try {
-      await this._dexWalletsSevice.startAutoBuy(messageText[1])
+      await this._dexWalletsSevice.startAutoBuy(messageText[1]);
       return;
     } catch (error) {
-      await this._telegramJobApiService.sendMessage(
-        ctx.from.id,
-        'Ошибка'
-      );
+      await this._telegramJobApiService.sendMessage(ctx.from.id, 'Ошибка');
       return;
     }
   }
 
-  private async handleStopAutoSellCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleStopAutoSellCommand(ctx: Ctx): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -587,18 +570,48 @@ export class TelegramBotLogicService implements OnModuleInit {
       return;
     }
     try {
-      await this._dexWalletsSevice.stopAutoSell(messageText[1])
+      await this._dexWalletsSevice.stopAutoSell(messageText[1]);
       return;
     } catch (error) {
-      await this._telegramJobApiService.sendMessage(
-        ctx.from.id,
-        'Ошибка'
-      );
+      await this._telegramJobApiService.sendMessage(ctx.from.id, 'Ошибка');
       return;
     }
   }
 
-  private async handleStartAutoSellCommand(ctx: Context<MountMap['text'] & MountMap['message']>): Promise<void> {
+  private async handleReportDexOrderCommand(ctx: Ctx): Promise<void> {
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    const messageText = ctx.message.text.split(' ');
+    if (!messageText[1]) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Передавайте вторым агргументом id лимитных заявок ${example}`
+      );
+      return;
+    }
+    const dexOrdersIds = messageText[1]
+      .split(',')
+      .map((id) => parseInt(id))
+      .filter((id) => id && !isNaN(id));
+    if (!dexOrdersIds.length) {
+      await this._telegramJobApiService.sendMessage(
+        ctx.from.id,
+        `Не указан ни один id лимитной заявки ${example}`
+      );
+      return;
+    }
+    for (const id of dexOrdersIds) {
+      const report = await this._dexOrderService.getDexOrderCurrentReportStatus(id);
+      await this._telegramJobApiService.sendMessage(ctx.from.id, report);
+    }
+  }
+
+  private async handleStartAutoSellCommand(ctx: Ctx): Promise<void> {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
@@ -615,13 +628,10 @@ export class TelegramBotLogicService implements OnModuleInit {
       return;
     }
     try {
-      await this._dexWalletsSevice.startAutoSell(messageText[1])
+      await this._dexWalletsSevice.startAutoSell(messageText[1]);
       return;
     } catch (error) {
-      await this._telegramJobApiService.sendMessage(
-        ctx.from.id,
-        'Ошибка'
-      );
+      await this._telegramJobApiService.sendMessage(ctx.from.id, 'Ошибка');
       return;
     }
   }
@@ -631,7 +641,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         userId,
-        'Работа бота доступна только для избранных.',
+        'Работа бота доступна только для избранных.'
       );
       return;
     }
@@ -639,10 +649,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     // Устанавливаем состояние пользователя на 'awaiting_new_price'
     const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
     this.userStates.set(userId, { state: 'awaiting_new_price', idDexOrder });
-    await this._telegramJobApiService.sendMessage(
-      userId,
-      'Пожалуйста, введите новую цену:'
-    );
+    await this._telegramJobApiService.sendMessage(userId, 'Пожалуйста, введите новую цену:');
   }
 
   private async handleChangePercentButton(ctx): Promise<void> {
@@ -650,7 +657,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         userId,
-        'Работа бота доступна только для избранных.',
+        'Работа бота доступна только для избранных.'
       );
       return;
     }
@@ -658,24 +665,21 @@ export class TelegramBotLogicService implements OnModuleInit {
     // Устанавливаем состояние пользователя на 'awaiting_new_price'
     const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
     this.userStates.set(userId, { state: 'awaiting_new_percent', idDexOrder });
-    await this._telegramJobApiService.sendMessage(
-      userId,
-      'Пожалуйста, введите новый процент:'
-    );
+    await this._telegramJobApiService.sendMessage(userId, 'Пожалуйста, введите новый процент:');
   }
   private async handleStopAutoBuyButton(ctx): Promise<void> {
     const userId = ctx.from?.id;
     if (!this.isAdminUser(userId)) {
       await this._telegramJobApiService.sendMessage(
         userId,
-        'Работа бота доступна только для избранных.',
+        'Работа бота доступна только для избранных.'
       );
       return;
     }
 
     // Устанавливаем состояние пользователя на 'awaiting_new_price'
     const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
-    this._dexOrderService.dexOrderStopAutoSell(idDexOrder)
+    this._dexOrderService.dexOrderStopAutoSell(idDexOrder);
   }
 
   private async handleStartAutoBuyButton(ctx): Promise<void> {
@@ -683,27 +687,24 @@ export class TelegramBotLogicService implements OnModuleInit {
     if (!this.isAdminUser(userId)) {
       await this._telegramJobApiService.sendMessage(
         userId,
-        'Работа бота доступна только для избранных.',
+        'Работа бота доступна только для избранных.'
       );
       return;
     }
 
     // Устанавливаем состояние пользователя на 'awaiting_new_price'
     const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
-    this._dexOrderService.dexOrderStartAutoSell(idDexOrder)
+    this._dexOrderService.dexOrderStartAutoSell(idDexOrder);
   }
 
   private async handleGetChatIdCommand(ctx): Promise<void> {
     const chatId = ctx.chat?.id;
-  
+
     if (!chatId) {
-      await this._telegramJobApiService.sendMessage(
-        chatId,
-        'Не удалось получить chatID.'
-      );
+      await this._telegramJobApiService.sendMessage(chatId, 'Не удалось получить chatID.');
       return;
     }
-  
+
     if (!this.isAdminUser(ctx.from?.id)) {
       await this._telegramJobApiService.sendMessage(
         chatId,
@@ -711,18 +712,15 @@ export class TelegramBotLogicService implements OnModuleInit {
       );
       return;
     }
-  
+
     this._telegramJobApiService.sendMessage(
       chatId,
       `ID этого чата [${chatId}] а этого сообщения ${ctx.message.message_id}`
     );
   }
 
-
   @WithSentryPerformance('Handle transactions command')
-  private async handleTransactionsCommand(
-    ctx: Context<MountMap['text'] & MountMap['message']>
-  ): Promise<unknown> {
+  private async handleTransactionsCommand(ctx: Ctx): Promise<unknown> {
     if (this._isBotMessage(ctx)) {
       return;
     }
@@ -765,12 +763,11 @@ export class TelegramBotLogicService implements OnModuleInit {
         suffix = `(${index + 1} из ${oldWallets.length})`;
       }
 
-
       try {
         parentMessageId = await this._telegramJobApiService.createOrUpdateLastMessage(
           parentMessageId,
           `Кошелек ${walletHash} добавлен в очередь ${suffix}`,
-          this._appConfig.dailyUpdateReportChatId,
+          this._appConfig.dailyUpdateReportChatId
         );
       } catch (e) {
         Logger.log(`Error sending message: ${e}`);
@@ -782,16 +779,16 @@ export class TelegramBotLogicService implements OnModuleInit {
         suffix,
         parentMessageId,
         silent: true,
-        apiKeyQueueName: 'updating'
+        apiKeyQueueName: 'updating',
       } as ProcessingWalletArguments);
     }
   }
 
   private async _processWallets(
     matchedHash: string[],
-    ctx: Context<MountMap['text'] & MountMap['message']>,
+    ctx: Ctx,
     apiKeyQueueName: ZerionApiQueueName,
-    calculateScore,
+    calculateScore
   ) {
     const jobResults = [];
     for (const walletHash of matchedHash) {
@@ -811,19 +808,20 @@ export class TelegramBotLogicService implements OnModuleInit {
         Logger.log(`Error sending message: ${e}`);
       }
 
-      jobResults.push(this._processingWalletsJobApiService.processWallet({
-        walletHash,
-        chatId: ctx.chat.id,
-        suffix,
-        parentMessageId,
-        apiKeyQueueName,
-        calculateScore
-      } as ProcessingWalletArguments));
+      jobResults.push(
+        this._processingWalletsJobApiService.processWallet({
+          walletHash,
+          chatId: ctx.chat.id,
+          suffix,
+          parentMessageId,
+          apiKeyQueueName,
+          calculateScore,
+        } as ProcessingWalletArguments)
+      );
     }
     const summarySheetUpdatedResults = await Promise.allSettled(jobResults);
     const summarySheetUpdated = summarySheetUpdatedResults.some(
-      (res) =>
-        res.status === 'fulfilled' && res.value?.summarySheetUpdated === true
+      (res) => res.status === 'fulfilled' && res.value?.summarySheetUpdated === true
     );
     if (summarySheetUpdated) {
       this._telegramJobApiService.sendMessage(
@@ -834,10 +832,13 @@ export class TelegramBotLogicService implements OnModuleInit {
   }
 
   private handleBotError(error: Error, ctx): void {
-    ErrorHandlingService.handleError({ error, message: `Telegraf bot error Context: ${ctx}` });
+    ErrorHandlingService.handleError({
+      error,
+      message: `Telegraf bot error Context: ${ctx}`,
+    });
   }
 
-  private _isBotMessage(ctx: Context<MountMap['text']>): boolean {
+  private _isBotMessage(ctx: Ctx): boolean {
     return ctx.message.from.is_bot;
   }
 

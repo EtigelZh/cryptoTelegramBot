@@ -10,6 +10,7 @@ import IUniswapV3Factory from '@uniswap/v3-core/artifacts/contracts/interfaces/I
 import IUniswapV3Pool from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterABI from '@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json';
 import { AppConfig } from "../../app.config";
+import type { TokenEconomics } from "./handle-swap";
 
 const UNISWAP_FACTORY_ADDRESS_V2 = '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f';
 const UNISWAP_FACTORY_ADDRESS_V3 = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
@@ -474,4 +475,18 @@ export async function getTokenPricesFromAlchemyApi(tokenAddresses: InputTokenPri
     };
   }).filter(Boolean);
 
+}
+
+export function convertTokenPriceToEconomics(tokenPrice: TokenPrice, blockNumber?: number): TokenEconomics {
+  return {
+    tokenSymbol: tokenPrice.tokenSymbol,
+    tokenPerEth: tokenPrice.tokenAmountForOneETH,
+    tokenPerUsd: 1 / tokenPrice.tokenPriceUSD, // сколько стоит доют токенов за 1 доллар
+    ethPrice: tokenPrice.ethPriceUSD, // сколько стоит долларов 1 eth
+    ethPerToken: tokenPrice.priceInEthPerToken,
+    usdPerToken: tokenPrice.tokenPriceUSD, // сколько стоит долларов 1 токен
+    tokenAddress: tokenPrice.tokenAddress,
+    calculatedAt: new Date(),
+    calculatedAtBlockNumber: blockNumber,
+  }
 }

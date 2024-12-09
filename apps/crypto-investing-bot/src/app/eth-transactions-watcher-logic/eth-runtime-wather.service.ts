@@ -293,8 +293,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       } catch (error) {
         Logger.error(`Error sending message: ${error.message}`);
       }
-
-      const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+      
       const [dexTransaction] = await Promise.allSettled([
         this._dexTransactionService.saveDexTransaction(
           log.blockNumber,

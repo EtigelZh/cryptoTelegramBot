@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TokenPriceHistoryEntity } from './token-price-history.entity';
 import { AppConfig } from '../app.config';
-import { getTokenPricesFromAlchemyApi } from '../eth-transactions-watcher-logic/domain-logic/get-token-price';
+import { convertTokenPriceToEconomics, getTokenPricesFromAlchemyApi } from '../eth-transactions-watcher-logic/domain-logic/get-token-price';
 import { smartRound } from '../eth-transactions-watcher-logic/domain-logic/smart-round';
 import { DexOrderService } from '../dex-order/dex-order.service';
 import { TokenEconomics } from '../eth-transactions-watcher-logic/domain-logic/handle-swap';
@@ -104,17 +104,7 @@ export class TokenPriceHistoryService {
             await this.tokenPriceHistoryRepository.save(tokenPriceHistory);
           }
 
-          const tokenDexOrder: TokenEconomics = {
-            tokenSymbol: tokenPrice.tokenSymbol,
-            tokenPerEth: tokenPrice.tokenAmountForOneETH,
-            tokenPerUsd: 1 / tokenPrice.tokenPriceUSD, // сколько стоит доют токенов за 1 доллар
-            ethPrice: tokenPrice.ethPriceUSD, // сколько стоит долларов 1 eth
-            ethPerToken: tokenPrice.priceInEthPerToken,
-            usdPerToken: tokenPrice.tokenPriceUSD, // сколько стоит долларов 1 токен
-            tokenAddress: monitoredCoin,
-            calculatedAt: new Date(),
-            calculatedAtBlockNumber: blockNumber,
-          };
+          const tokenDexOrder: TokenEconomics = convertTokenPriceToEconomics(tokenPrice, blockNumber);
 
           await this._dexOrderService.handleTokenPriceChange(tokenDexOrder);
         } catch (e) {
