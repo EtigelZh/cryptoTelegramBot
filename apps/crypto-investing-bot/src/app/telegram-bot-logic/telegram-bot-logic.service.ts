@@ -583,7 +583,6 @@ export class TelegramBotLogicService implements OnModuleInit {
       await this._telegramJobApiService.sendMessage(
         ctx.from.id,
         'Работа бота доступна только для избранных.',
-        { parse_mode: 'Markdown', disable_web_page_preview: true }
       );
       return;
     }
@@ -608,7 +607,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     }
     for (const id of dexOrdersIds) {
       const report = await this._dexOrderService.getDexOrderCurrentReportStatus(id);
-      await this._telegramJobApiService.sendMessage(ctx.from.id, report);
+      await this._telegramJobApiService.sendMessage(ctx.from.id, report,  { parse_mode: 'Markdown', disable_web_page_preview: true });
     }
   }
 
