@@ -30,6 +30,9 @@ export class DexTransactionEntity {
     @Index()
     tokenAddress: string;
 
+    @Column({ nullable: true })
+    tokenSymbol?: string;
+
     @Column({ type: 'enum', enum: DexTransactionType})
     action: DexTransactionType;
 

@@ -3,16 +3,19 @@ import { Injectable, Logger } from '@nestjs/common';
 import { telegramQueueName } from './queues';
 import { Queue } from 'bull';
 import { ErrorHandlingService } from '../error-handling/error-handling-service';
+import { inspect } from 'util';
 
 @Injectable()
 export class TelegramJobApiService {
   constructor(
-    @InjectQueue(telegramQueueName) private telegramQueue: Queue,
+    @InjectQueue(telegramQueueName) protected telegramQueue: Queue,
   ) {
     this.telegramQueue.isPaused().then((paused) => {
       if (paused) {
         this.telegramQueue.resume();
       }
+    }).catch((error) => {
+      Logger.error(`Error checking if queue is paused: ${error}`);
     });
   }
 
@@ -53,6 +56,7 @@ export class TelegramJobApiService {
           messageText,
           extra
         );
+        Logger.debug(`Sent message: ${inspect(sentMessage)}`);
         lastMessageId = sentMessage.message_id;
       } catch (error) {
         if (error.response && error.response.statusCode === 429) {
@@ -62,6 +66,7 @@ export class TelegramJobApiService {
         }
       }
     }
+    Logger.debug(`Last message id: ${lastMessageId}`);
     return lastMessageId;
   }
 

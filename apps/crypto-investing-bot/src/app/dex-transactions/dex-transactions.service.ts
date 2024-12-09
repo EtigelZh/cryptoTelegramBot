@@ -27,6 +27,7 @@ export class DexTransactionService {
       wallet: { hash: walletHash },
       action: economics.action,
       tokenAddress: economics.tokenAddress,
+      tokenSymbol: economics.tokenSymbol,
       economics,
       message: { text: messageText },
       isMockTransaction,

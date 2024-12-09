@@ -22,10 +22,9 @@ import { formatTradeProfitResult } from './domain-logic/format-trade-profit';
 import { humanizeEconomics } from './domain-logic/humanize-economics';
 import { DexOrderService } from '../dex-order/dex-order.service';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
-import { DexOrderEntity } from '../dex-order/dex-order.entity';
-import { DexOrderStatus } from '../dex-order/dex-order.models';
-import { Markup } from 'telegraf';
 import { DexWalletsService } from '../dex-wallets/dex-wallets.service';
+import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
+import { getTokenPricesFromAlchemyApi } from './domain-logic/get-token-price';
 
 @Injectable()
 export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
@@ -57,7 +56,8 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
     private readonly _etherscanApi: EtherscanClientJobApiService,
     private readonly _dexTransactionService: DexTransactionService,
     private readonly _dexOrderService: DexOrderService,
-    private readonly _dexWalletsSevice: DexWalletsService
+    private readonly _dexWalletsSevice: DexWalletsService,
+    private readonly _tokenPriceHistoryService: TokenPriceHistoryService,
   ) {
     this._provider = new ethers.providers.AlchemyProvider(
       this._config.network,
@@ -181,11 +181,14 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
 
   private _setupWebSocket() {
     this.alchemy.ws.on('block', (blockNumber) => {
+      Logger.debug(`Block ${blockNumber} received`);
       this.handleBlock(
         blockNumber,
         this._targetWalletAddresses.map((walletEntity) => walletEntity.hash),
         WathcingTransactionsMode.PRODUCTION
       );
+      
+      this._tokenPriceHistoryService.handleNewBlock(blockNumber);
     });
 
     this.alchemy.ws.on('open', () => {
@@ -290,8 +293,7 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
       } catch (error) {
         Logger.error(`Error sending message: ${error.message}`);
       }
-
-      const entries = Object.entries(walletEntity.walletSubscriptionMessages);
+      
       const [dexTransaction] = await Promise.allSettled([
         this._dexTransactionService.saveDexTransaction(
           log.blockNumber,
@@ -325,45 +327,22 @@ export class EthRuntimeWatcherService implements OnModuleInit, OnModuleDestroy {
         }
         const buyEnabled = await this._dexWalletsSevice.getIsAutoBuyEnabled(followingDexTransaction.wallet.hash);
         if (followingDexTransaction.action == DexTransactionType.BUY && buyEnabled) {
-          const newDexOrder = new DexOrderEntity();
-          newDexOrder.copyTradingWallet = followingDexTransaction.wallet;
-          newDexOrder.wallet = { hash: this._config.metamaskWalletAddress };
-          newDexOrder.status = DexOrderStatus.BUYING;
-          newDexOrder.completedReason = null;
-          newDexOrder.tokenAddress = followingDexTransaction.tokenAddress;
-          newDexOrder.sourceBuyingTransactionHash = followingDexTransaction.transactionHash;
-          newDexOrder.sourceBuyingTransactionBlockNumber = followingDexTransaction.blockNumber;
-          newDexOrder.sourceBuyingTransactionDate = followingDexTransaction.createdAt;
-          newDexOrder.sourceBuyingTransactionPrice = followingDexTransaction.economics.ethPerToken;
-          newDexOrder.sourceBuyingTransactionAmount = followingDexTransaction.economics.amountToken;
-          newDexOrder.sourceBuyingTransactions = [];
-          newDexOrder.sourceSellingTransactions = [];
-          newDexOrder.targetBuyingPrice = this._config.copyTradingTargetBuyingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
-          newDexOrder.targetBuyingAmountEth = this._config.copyTradingTargetBuyingAmountEth;
-          newDexOrder.targetSellingPrice = this._config.copyTradingTargetSellingPriceMultiply * newDexOrder.sourceBuyingTransactionPrice;
-          newDexOrder.targetSellingAmountTokenPercent = 1;
-          newDexOrder.buyingTransactions = [];
-          newDexOrder.sellingTransactions = [];
+          const tokenPrice = await getTokenPricesFromAlchemyApi([{
+            tokenAddress: followingDexTransaction.tokenAddress,
+            tokenSymbol: followingDexTransaction.tokenSymbol
+          }], this._config.alchemyApiKey);
 
-          // TODO create order
+          const foundTokenPrice = tokenPrice.find((price) => price.tokenAddress === followingDexTransaction.tokenAddress); 
+          
+          if (!foundTokenPrice) {
+            Logger.error(`Token price not found for token: ${followingDexTransaction.tokenAddress}`);
+            return;
+          }
+
           const savedDexOrder = await this._dexOrderService.createOrder(
-            newDexOrder
+            followingDexTransaction
           );
-              newDexOrder.chatDexOrderId = String(this._config.generalChatId);
-              const result = await this._telegramJobApiService.sendMessage(
-                this._config.generalChatId,
-                `Загрузка...`
-              );
-              await this._telegramJobApiService.pinMessage(
-                this._config.generalChatId,
-                result.message_id
-              );
-              newDexOrder.messageDexOrderId = Number(result.message_id);
-          await this._dexOrderService.updateOrderMessageChatId(
-            savedDexOrder.id,
-            newDexOrder.messageDexOrderId,
-            newDexOrder.chatDexOrderId
-          );
+          Logger.log(`Dex order created: ${savedDexOrder.id}`);
         }
       }
     }

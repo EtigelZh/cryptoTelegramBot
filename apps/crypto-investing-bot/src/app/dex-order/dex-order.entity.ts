@@ -31,6 +31,9 @@ export class DexOrderEntity {
     @Column()
     @Index()
     tokenAddress: string;
+
+    @Column({ nullable: true })
+    tokenSymbol?: string;
     /** Транзакция за которой повторяли покупки */
     @Column()
     sourceBuyingTransactionHash: string;

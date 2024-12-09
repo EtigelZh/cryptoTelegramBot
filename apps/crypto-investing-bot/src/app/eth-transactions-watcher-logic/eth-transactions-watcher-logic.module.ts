@@ -11,6 +11,7 @@ import { DexTransactionsModule } from "../dex-transactions/dex-transactions.modu
 import { DexOrderModule } from "../dex-order/dex-order.module";
 import { DexWalletsModule } from "../dex-wallets/dex-wallets.module";
 import { EthPriceWatcherModule } from "../eth-price-watcher/eth-price-watcher.module";
+import { TokenPriceHistoryModule } from "../token-price-history/token-price-history.module";
 
 @Module({
     imports: [
@@ -24,6 +25,7 @@ import { EthPriceWatcherModule } from "../eth-price-watcher/eth-price-watcher.mo
         DexOrderModule,
         DexWalletsModule,
         EthPriceWatcherModule,
+        TokenPriceHistoryModule,
     ],
     providers: [EthRuntimeWatcherService, EthMissingBlockCheckerService],
     exports: [EthRuntimeWatcherService],
