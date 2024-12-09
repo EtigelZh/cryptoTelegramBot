@@ -14,7 +14,7 @@ import { messageDexOrder } from '../eth-transactions-watcher-logic/domain-logic/
 import { inspect } from 'util';
 import { SwapTokensArgs } from '../utils/crypto-core/buy-coins';
 import { AppConfig } from '../app.config';
-import { getTokenPrice } from '../eth-transactions-watcher-logic/domain-logic/get-token-price';
+import { convertTokenPriceToEconomics, getTokenPrice, getTokenPricesFromAlchemyApi } from '../eth-transactions-watcher-logic/domain-logic/get-token-price';
 import { EthPriceService } from '../eth-price-watcher/eth-price.service';
 import { TelegramDexReporterJobApiService } from '../telegram-dex-reporter/telegram-dex-reporter-job-api.service';
 
@@ -184,12 +184,9 @@ export class DexOrderService {
         order.status = DexOrderStatus.COMPLETED;
         order.sellingTransactions = [mockSellingTransaction];
         order.completedReason = DexOrderCompletedReason.TRADING_PROFIT;
-        this._telegramDexReporterJobApiService.unpinMessage(
-          order.chatDexOrderId,
-          order.messageDexOrderId
-        );
+        
         const savedOrder = await this._dexOrderRepository.save(order);
-        const messageText = await messageDexOrder(tokenEconomics, order);
+        const messageText = await messageDexOrder(tokenEconomics, savedOrder);
         this._telegramDexReporterJobApiService
           .createOrUpdateLastMessage(
             order.messageDexOrderId,
@@ -210,6 +207,10 @@ export class DexOrderService {
                 `Updated message ID for order ${order.id} to ${messageId}`
               );
             }
+            return this._telegramDexReporterJobApiService.unpinMessage(
+              order.chatDexOrderId,
+              order.messageDexOrderId
+            );
           })
           .catch((error) => {
             Logger.error(`Error while editing message: ${error}`);
@@ -335,6 +336,42 @@ export class DexOrderService {
         } ${inspect(failedResults)}`
       );
     }
+  }
+
+  async getDexOrderCurrentReportStatus(dexOrderId: number) {
+    const foundDexOrder = await this._dexOrderRepository.findOne({
+      where: {
+        id: dexOrderId,
+      },
+      relations: ['wallet'],
+    });
+
+    if (!foundDexOrder) {
+      throw new Error(`Order with ID ${dexOrderId} not found.`);
+    }
+
+    let economics: DexTransactionEconomics;
+    if (foundDexOrder.sellingTransactions.length > 0) {
+      economics = foundDexOrder.sellingTransactions[0].economics;
+    } else if (foundDexOrder.buyingTransactions.length > 0) {
+      economics = foundDexOrder.buyingTransactions[0].economics;
+    } else {
+      const tokenPrices = await getTokenPricesFromAlchemyApi([{ tokenAddress: foundDexOrder.tokenAddress, tokenSymbol: foundDexOrder.tokenSymbol }], this._appConfig.alchemyApiKey);
+      const tokenPrice = tokenPrices.find((price) => price.tokenAddress === foundDexOrder.tokenAddress);
+      if (!tokenPrice) {
+        throw new Error(`Token price not found for token ${foundDexOrder.tokenSymbol}`);
+      }
+      const tokenEconomics: TokenEconomics = convertTokenPriceToEconomics(tokenPrice);
+      economics = {
+        ...tokenEconomics,
+        action: foundDexOrder.status === DexOrderStatus.BUYING ? DexTransactionType.BUY : DexTransactionType.SELL,
+        amountToken: foundDexOrder.sourceBuyingTransactionAmount,
+        amountUSD: foundDexOrder.sourceBuyingTransactionAmount * tokenEconomics.ethPrice,
+        amountWETH: foundDexOrder.sourceBuyingTransactionAmount,
+      }
+    }
+
+    return await messageDexOrder(economics, foundDexOrder);
   }
 
   async handleTokenPriceChangeSellEarly(tokenEconomics: DexTransactionEntity) {
