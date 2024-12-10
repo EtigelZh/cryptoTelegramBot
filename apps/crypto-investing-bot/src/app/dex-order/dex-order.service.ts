@@ -290,6 +290,10 @@ export class DexOrderService {
               text: 'change percent',
               callback_data: `dexOrderChangePercent_${order.id}`,
             },
+            {
+              text: 'sell token',
+              callback_data: `dexOrderSellToken_${order.id}`,
+            },
           ]);
         }
         if (order.status === DexOrderStatus.BUYING) {
@@ -674,4 +678,18 @@ export class DexOrderService {
     }
   }
 
+  async dexOrderSellTokenButton(dexOrderId: number) {
+    const order = await this._dexOrderRepository.findOne({
+      where: {
+        id: dexOrderId,
+      },
+      relations: ['wallet'],
+    });
+
+    if (!order) {
+      throw new Error(`Order with ID ${dexOrderId} not found.`);
+    }
+    order.targetSellingPrice = 0;
+    await this._dexOrderRepository.save(order);
+  }
 }
