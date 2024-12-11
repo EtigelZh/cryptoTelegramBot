@@ -88,7 +88,7 @@ export class DexOrderService {
     });
 
     const buyOrders: DexOrderEntity[] = [];
-    const sellOrders: DexOrderEntity[] = [];
+    let sellOrders: DexOrderEntity[] = [];
     const messageOrders: DexOrderEntity[] = [];
 
     for (const order of orders) {
@@ -100,17 +100,19 @@ export class DexOrderService {
       } else if (
         // Добавить проверку на флаг
         order.status === DexOrderStatus.SELLING &&
-        order.targetSellingPrice <= tokenEconomics.ethPerToken &&
-        order.isTokenForSale === false
+        order.targetSellingPrice <= tokenEconomics.ethPerToken
       ) {
-        // выставить флаг
-        order.isTokenForSale = true
-        sellOrders.push(order);
+        if (
+          !order.isTokenForSale
+        ) {
+          order.isTokenForSale = true
+          await this._dexOrderRepository.save(order);
+        }
       } else {
         messageOrders.push(order);
       }
     }
-
+    sellOrders.push(...await this.dexOrderGetSell())
     await Promise.allSettled([
       this.handleTokenPriceChangeBuyOrders(tokenEconomics, buyOrders),
       this.handleTokenPriceChangeSellOrders(tokenEconomics, sellOrders),
@@ -589,5 +591,20 @@ export class DexOrderService {
     }
     order.isAutoSellEnabled = true;
     await this._dexOrderRepository.save(order);
+  }
+
+  async dexOrderGetSell() {
+    const order = await this._dexOrderRepository.find({
+      where: {
+        status: DexOrderStatus.SELLING,
+        isTokenForSale: true
+      },
+      relations: ['wallet'],
+    });
+
+    if (!order) {
+      throw new Error(`not found.`);
+    }
+    return order;
   }
 }
