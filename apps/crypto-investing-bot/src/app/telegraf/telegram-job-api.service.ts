@@ -42,6 +42,7 @@ export class TelegramJobApiService {
     extra?: unknown
   ): Promise<number> {
     if (lastMessageId) {
+      Logger.debug(`Editing message: ${lastMessageId}`);
       await this.editMessageText(
         chatId,
         messageText,
@@ -51,6 +52,7 @@ export class TelegramJobApiService {
       );
     } else {
       try {
+        Logger.debug(`Sending message: ${messageText}`);
         const sentMessage = await this.sendMessage(
           chatId,
           messageText,
@@ -85,7 +87,7 @@ export class TelegramJobApiService {
         },
         {
           removeOnComplete: true,
-          attempts: 5,
+          attempts: 2,
           backoff: {
             type: 'exponential',
             delay: 5000,
@@ -101,6 +103,18 @@ export class TelegramJobApiService {
     }
   }
 
+  async removeJob<T = unknown>(jobId: string): Promise<void> {
+    const foundJob = await this.telegramQueue.getJob(jobId);
+    if (foundJob && (await foundJob.isWaiting())) {
+      Logger.log(`Removing old job ${jobId}`);
+      try {
+        await foundJob.remove();
+      } catch (error) {
+        ErrorHandlingService.handleError({ error, message: `Error removing old job` });
+      }
+    }
+  }
+
   async editMessageText(
     chatId: number,
     message: string,
@@ -110,15 +124,13 @@ export class TelegramJobApiService {
   ) {
     const jobId = `${chatId}-${messageId}`;
     try {
-      const foundJob = await this.telegramQueue.getJob(jobId);
-      if (foundJob && (await foundJob.isWaiting())) {
-        Logger.log(`Removing old job ${jobId}`);
-        try {
-          await foundJob.remove();
-        } catch (error) {
-          ErrorHandlingService.handleError({ error, message: `Error removing old job` });
-        }
-      }
+      await Promise.race([
+        this.removeJob(jobId),
+        new Promise((resolve) => setTimeout(() => resolve(''), 1000)),
+      ]).catch((error) => {
+        ErrorHandlingService.handleError({ error, message: `Error removing old job` });
+      });
+      
       const job = await this.telegramQueue.add(
         'editMessageText',
         {
@@ -131,7 +143,7 @@ export class TelegramJobApiService {
         {
           removeOnComplete: true,
           jobId: `${chatId}-${messageId}`,
-          attempts: 3,
+          attempts: 2,
           backoff: {
             type: 'exponential',
             delay: 5000

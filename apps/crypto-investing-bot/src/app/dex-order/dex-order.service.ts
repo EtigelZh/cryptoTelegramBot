@@ -120,6 +120,7 @@ export class DexOrderService {
   ): Promise<void> {
     const results = await Promise.allSettled(
       orders.map(async (order) => {
+        Logger.debug(`Handling buy order ${order.id}`);
         const mockBuyingTransaction = await this.createMockDexBuyingTransaction(
           tokenEconomics.calculatedAtBlockNumber,
           `mock-buy-${order.id}`,
@@ -148,7 +149,8 @@ export class DexOrderService {
       })
     );
     Logger.log(
-      `Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`
+      `Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`,
+      'DexOrderService.handleTokenPriceChangeBuyOrders'
     );
   }
 
@@ -158,6 +160,7 @@ export class DexOrderService {
   ): Promise<void> {
     const results = await Promise.allSettled(
       orders.map(async (order) => {
+        Logger.debug(`Handling sell order ${order.id}`);
         const mockSellingTransaction =
           await this.createMockDexBuyingTransaction(
             tokenEconomics.calculatedAtBlockNumber,
@@ -220,7 +223,8 @@ export class DexOrderService {
     );
     if (results.length > 0) {
       Logger.log(
-        `Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`
+        `Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`,
+        'DexOrderService.handleTokenPriceChangeSellOrders'
       );
     }
     const failedResults = results.filter(
@@ -240,11 +244,13 @@ export class DexOrderService {
     orders: DexOrderEntity[]
   ): Promise<void> {
     if (orders.length === 0) {
+      Logger.debug(`No orders to handle for token ${tokenEconomics.tokenSymbol}`,  'DexOrderService.handleTokenPriceChangeMessage');
       return;
     }
 
     const results = await Promise.allSettled(
       orders.map(async (order) => {
+        Logger.debug(`Handling message for order ${order.id}`, 'DexOrderService.handleTokenPriceChangeMessage');
         const messageText = await messageDexOrder(tokenEconomics, order);
 
         // Формируем массив кнопок в зависимости от статуса ордера
@@ -313,7 +319,8 @@ export class DexOrderService {
               messageDexOrderId: messageId,
             });
             Logger.log(
-              `Updated message ID for order ${order.id} to ${messageId}`
+              `Updated message ID for order ${order.id} to ${messageId}`,
+              'DexOrderService.handleTokenPriceChangeMessage'
             );
           }
         });
@@ -322,7 +329,8 @@ export class DexOrderService {
 
     if (results.length > 0) {
       Logger.debug(
-        `Handled ${results.length} orders for token ${tokenEconomics.tokenSymbol}`
+        `Handled ${results.length} orders for token ${tokenEconomics.tokenSymbol}`,
+         'DexOrderService.handleTokenPriceChangeMessage'
       );
     }
 
@@ -333,7 +341,8 @@ export class DexOrderService {
       Logger.error(
         `Failed to handle ${failedResults.length} orders for token ${
           tokenEconomics.tokenSymbol
-        } ${inspect(failedResults)}`
+        } ${inspect(failedResults)}`,
+       'DexOrderService.handleTokenPriceChangeMessage'
       );
     }
   }
@@ -585,7 +594,86 @@ export class DexOrderService {
     order.isAutoSellEnabled = true;
     await this._dexOrderRepository.save(order);
   }
-  
+
+  async dexOrderMissedBuyingPrice(
+    tokenEconomics: DexTransactionEntity, 
+  ) {
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        tokenAddress: tokenEconomics.tokenAddress,
+        status: DexOrderStatus.BUYING,
+        copyTradingWallet: tokenEconomics.wallet
+      },
+      relations: ['wallet'],
+    });
+
+    const results = await Promise.allSettled(
+      orders.map(async (order) => {
+        order.status = DexOrderStatus.COMPLETED
+        order.completedReason = DexOrderCompletedReason.MISSED_BUYING_PRICE
+        this._telegramDexReporterJobApiService.unpinMessage(
+          order.chatDexOrderId,
+          order.messageDexOrderId
+        );
+        const inputParams: SwapTokensArgs = {
+          chainId: this._appConfig.countChainId,
+          walletAddress: this._appConfig.metamaskWalletAddress,
+          tokenInAddress: this._appConfig.etherTokenAddress,
+          tokenOutAddress: order.tokenAddress,
+          amountInStr: `${this._appConfig.copyTradingTargetBuyingAmountEth}`,
+          alchemyApiToken: this._appConfig.alchemyApiKey,
+          privateKey: this._appConfig.metamaskPrivateKey,
+        };
+        const result = await getTokenPrice(inputParams);
+        const tokenDexOrder: TokenEconomics = {
+          tokenSymbol: result.tokenOutSymbol,
+          tokenPerEth: result.numberQuotedAmountOut,
+          tokenPerUsd: result.numberQuotedAmountOut / this._ethPriceService.price,
+          ethPrice: this._ethPriceService.price,
+          ethPerToken: result.priceEthToken,
+          usdPerToken: this._ethPriceService.price / result.numberQuotedAmountOut,
+          tokenAddress: order.tokenAddress,
+          calculatedAt: new Date(),
+          calculatedAtBlockNumber: result.currentBlockNumber,
+        };
+        const savedOrder = await this._dexOrderRepository.save(order);
+        const messageText = await messageDexOrder(tokenDexOrder, order);
+        await this._telegramDexReporterJobApiService.editMessageText(
+          Number(order.chatDexOrderId),
+          messageText,
+          order.messageDexOrderId,
+          undefined,
+          {
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
+          }
+        );
+        return savedOrder;
+        
+      })
+    );
+
+    if (results.length > 0) {
+      Logger.log(
+        `Handled ${results.length} buy orders for token ${tokenEconomics.tokenSymbol}`,
+        'DexOrderService.dexOrderMissedBuyingPrice'
+      );
+    }
+
+    const failedResults = results.filter(
+      (result) => result.status === 'rejected'
+    );
+
+    if (failedResults.length > 0) {
+      Logger.error(
+        `Failed to handle ${failedResults.length} orders for token ${
+          tokenEconomics.tokenSymbol
+        } ${inspect(failedResults)}`,
+        'DexOrderService.dexOrderMissedBuyingPrice'
+      );
+    }
+  }
+
   async dexOrderGetThanThreeDays(): Promise<number[]> {
     // Вычисляем дату 3 дня назад от текущей даты
     const threeDaysAgo = new Date();
