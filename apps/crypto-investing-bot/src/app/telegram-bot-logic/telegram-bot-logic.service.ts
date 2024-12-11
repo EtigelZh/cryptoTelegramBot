@@ -25,6 +25,7 @@ import { WathcingTransactionsMode } from '../eth-transactions-watcher-logic/doma
 import { TokenPriceHistoryService } from '../token-price-history/token-price-history.service';
 import { DexOrderService } from '../dex-order/dex-order.service';
 import { DexWalletsService } from '../dex-wallets/dex-wallets.service';
+import { TELEGRAF_DEX_REPORTER } from '../telegram-dex-reporter/telegram-dex-reporter.constants';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -52,12 +53,14 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _ethRuntimeWatcherService: EthRuntimeWatcherService,
     private _tokenPriceHistoryService: TokenPriceHistoryService,
     private _dexOrderService: DexOrderService,
-    private _dexWalletsSevice: DexWalletsService
+    private _dexWalletsSevice: DexWalletsService,
+    @Inject(TELEGRAF_DEX_REPORTER) private _telegramDexReporter: Telegraf,
   ) {}
 
   onModuleInit() {
     this.initializeBotCommands();
     this._bot.catch(this.handleBotError);
+    this._telegramDexReporter.catch(this.handleBotError);
   }
 
   getMe() {
@@ -85,16 +88,16 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._bot.command('reportDexOrder', this.handleReportDexOrderCommand.bind(this));
     this._bot.on('message', this.handlePossibleWalletHash.bind(this)); // Listen for any text message
     this._bot.on([message('text')], this.handlePossibleWalletHash.bind(this)); // Listen for any text message
-    this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
-    this._bot.action(/dexOrderTargetPriceChangeLess_(\d+)/, (ctx) =>
+    this._telegramDexReporter.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
+    this._telegramDexReporter.action(/dexOrderTargetPriceChangeLess_(\d+)/, (ctx) =>
       this.handleReductionPrice(ctx)
     );
-    this._bot.action(/dexOrderTargetPriceChangeMore_(\d+)/, (ctx) => this.handleRaisePrice(ctx));
-    this._bot.action(/dexOrderChangePrice_(\d+)/, (ctx) => this.handleChangePriceButton(ctx));
-    this._bot.action(/dexOrderChangePercent_(\d+)/, (ctx) => this.handleChangePercentButton(ctx));
-    this._bot.action(/isStopAutoSellEnabled_(\d+)/, (ctx) => this.handleStopAutoBuyButton(ctx));
-    this._bot.action(/isStartAutoSellEnabled_(\d+)/, (ctx) => this.handleStartAutoBuyButton(ctx));
-    this._bot.action(/dexOrderSellToken_(\d+)/, (ctx) => this.handleSellTokenButton(ctx));
+    this._telegramDexReporter.action(/dexOrderTargetPriceChangeMore_(\d+)/, (ctx) => this.handleRaisePrice(ctx));
+    this._telegramDexReporter.action(/dexOrderChangePrice_(\d+)/, (ctx) => this.handleChangePriceButton(ctx));
+    this._telegramDexReporter.action(/dexOrderChangePercent_(\d+)/, (ctx) => this.handleChangePercentButton(ctx));
+    this._telegramDexReporter.action(/isStopAutoSellEnabled_(\d+)/, (ctx) => this.handleStopAutoBuyButton(ctx));
+    this._telegramDexReporter.action(/isStartAutoSellEnabled_(\d+)/, (ctx) => this.handleStartAutoBuyButton(ctx));
+    this._telegramDexReporter.action(/dexOrderSellToken_(\d+)/, (ctx) => this.handleSellTokenButton(ctx));
     // this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
   }
 
