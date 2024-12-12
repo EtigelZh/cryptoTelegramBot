@@ -673,21 +673,19 @@ export class DexOrderService {
       );
     }
   }
-
+  
   async dexOrderGetThanThreeDays(): Promise<number[]> {
-    // Вычисляем дату 3 дня назад от текущей даты
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
-    // Выполняем запрос к базе данных с использованием Find Operator LessThan
     const orders = await this._dexOrderRepository.find({
       where: {
         createdAt: LessThan(threeDaysAgo),
+        status: DexOrderStatus.BUYING
       },
-      select: ['id'],
+      relations: ['wallet']
     });
 
-    // Извлекаем и возвращаем только ID заказов
-    return orders.map(order => order.id);
+    return orders.map(order => order.messageDexOrderId);
   }
 }
