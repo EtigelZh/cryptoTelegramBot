@@ -93,6 +93,11 @@ export class DexOrderService {
 
     for (const order of orders) {
       if (
+        order.isTokenForSale
+      ) {
+        sellOrders.push(order)
+      }
+      if (
         order.status === DexOrderStatus.BUYING &&
         order.targetBuyingPrice >= tokenEconomics.ethPerToken
       ) {
@@ -112,7 +117,7 @@ export class DexOrderService {
         messageOrders.push(order);
       }
     }
-    sellOrders.push(...await this.dexOrderGetSell())
+    
     await Promise.allSettled([
       this.handleTokenPriceChangeBuyOrders(tokenEconomics, buyOrders),
       this.handleTokenPriceChangeSellOrders(tokenEconomics, sellOrders),
@@ -682,7 +687,7 @@ export class DexOrderService {
   }
   
   async dexOrderGetSell() {
-    const order = await this._dexOrderRepository.find({
+    const orders = await this._dexOrderRepository.find({
       where: {
         status: DexOrderStatus.SELLING,
         isTokenForSale: true
@@ -690,9 +695,9 @@ export class DexOrderService {
       relations: ['wallet'],
     });
 
-    if (!order) {
+    if (!orders || orders.length === 0) {
       throw new Error(`not found.`);
     }
-    return order;
+    return orders;
   }
 }
