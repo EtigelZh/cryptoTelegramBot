@@ -32,6 +32,7 @@ import { FixDexOrdersStatusEnumTypo1727083802740 } from './1727083802740-fix-dex
 import { FixDexOrderChatId1730217434148 } from './1730217434148-fix-dex-order-chat-id';
 import { AddDexOrderIsAutoSellEnabled1729610353605 } from './1729610353605-add-dex-order-isAutoSellEnabled';
 import { AddTokenSymbol1733691778665 } from './1733691778665-add-token-symbol';
+import { AddTokenForSaleFlag1733765136692 } from './1733765136692-add-token-for-sale-flag';
 
 export const migrations = [
   Migrations1710903030686,
@@ -68,4 +69,5 @@ export const migrations = [
   FixDexOrderChatId1730217434148,
   AddDexOrderIsAutoSellEnabled1729610353605,
   AddTokenSymbol1733691778665,
+  AddTokenForSaleFlag1733765136692
 ];

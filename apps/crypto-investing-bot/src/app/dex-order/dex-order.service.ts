@@ -99,14 +99,22 @@ export class DexOrderService {
         buyOrders.push(order);
       } else if (
         order.status === DexOrderStatus.SELLING &&
-        order.targetSellingPrice <= tokenEconomics.ethPerToken
+        order.targetSellingPrice <= tokenEconomics.ethPerToken &&
+        !order.isTokenForSale
       ) {
+        order.isTokenForSale = true;
         sellOrders.push(order);
+        this._dexOrderRepository.update(order.id, { isTokenForSale: true })
+      } else if (
+        order.status === DexOrderStatus.SELLING &&
+        order.isTokenForSale
+      ) {
+        sellOrders.push(order)
       } else {
         messageOrders.push(order);
       }
     }
-
+    
     await Promise.allSettled([
       this.handleTokenPriceChangeBuyOrders(tokenEconomics, buyOrders),
       this.handleTokenPriceChangeSellOrders(tokenEconomics, sellOrders),
@@ -673,7 +681,7 @@ export class DexOrderService {
       );
     }
   }
-  
+
   async dexOrderGetThanThreeDays(): Promise<number[]> {
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
