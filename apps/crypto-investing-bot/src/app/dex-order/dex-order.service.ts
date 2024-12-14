@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DexOrderEntity } from './dex-order.entity';
-import { In, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { DexOrderCompletedReason, DexOrderStatus } from './dex-order.models';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
@@ -673,5 +673,19 @@ export class DexOrderService {
       );
     }
   }
+  
+  async dexOrderGetThanThreeDays(): Promise<number[]> {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        createdAt: LessThan(threeDaysAgo),
+        status: DexOrderStatus.BUYING
+      },
+      relations: ['wallet']
+    });
+
+    return orders.map(order => order.messageDexOrderId);
+  }
 }

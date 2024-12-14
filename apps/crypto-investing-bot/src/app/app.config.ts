@@ -94,7 +94,7 @@ export class AppConfig {
   minioAccessKey: string = process.env.MINIO_ACCESS_KEY || '';
   minioSecretKey: string = process.env.MINIO_SECRET_KEY || '';
   telegramBotToken: string = process.env.TELEGRAM_BOT_TOKEN || '';
-  telegramDexReporterBotToken: string = process.env.TELEGRAM_DEX_REPORTER_BOT_TOKEN || '';
+  telegramDexReporterBotToken: string = process.env.TELEGRAM_DEX_REPORTER_BOT_TOKEN || '7324085561:AAEVXt2eJPtZtTX2IDrNP_X4sw1pKuLaBQ0';
   etherscanApiKey: string = process.env.ETHERSCAN_API_KEY || '';
   coinmarketCupApiKey: string = process.env.COINMARKETCUP_API_KEY || '';
   zerionApiKey: string = process.env.ZERION_API_KEY || '';
