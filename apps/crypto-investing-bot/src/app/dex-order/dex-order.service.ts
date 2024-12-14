@@ -93,11 +93,6 @@ export class DexOrderService {
 
     for (const order of orders) {
       if (
-        order.isTokenForSale
-      ) {
-        sellOrders.push(order)
-      }
-      if (
         order.status === DexOrderStatus.BUYING &&
         order.targetBuyingPrice >= tokenEconomics.ethPerToken
       ) {
@@ -110,11 +105,15 @@ export class DexOrderService {
         if (
           !order.isTokenForSale
         ) {
-          order.isTokenForSale = true
-          await this._dexOrderRepository.save(order);
+          this._dexOrderRepository.update(order.id, { isTokenForSale: true })
         }
       } else {
         messageOrders.push(order);
+      }
+      if (
+        order.isTokenForSale
+      ) {
+        sellOrders.push(order)
       }
     }
     
