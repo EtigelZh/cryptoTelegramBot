@@ -88,7 +88,7 @@ export class DexOrderService {
     });
 
     const buyOrders: DexOrderEntity[] = [];
-    let sellOrders: DexOrderEntity[] = [];
+    const sellOrders: DexOrderEntity[] = [];
     const messageOrders: DexOrderEntity[] = [];
 
     for (const order of orders) {
@@ -100,20 +100,19 @@ export class DexOrderService {
       } else if (
         // Добавить проверку на флаг
         order.status === DexOrderStatus.SELLING &&
-        order.targetSellingPrice <= tokenEconomics.ethPerToken
+        order.targetSellingPrice <= tokenEconomics.ethPerToken &&
+        !order.isTokenForSale
       ) {
-        if (
-          !order.isTokenForSale
-        ) {
-          this._dexOrderRepository.update(order.id, { isTokenForSale: true })
-        }
-      } else {
-        messageOrders.push(order);
-      }
-      if (
+        order.isTokenForSale = true;
+        sellOrders.push(order);
+        this._dexOrderRepository.update(order.id, { isTokenForSale: true })
+      } else if (
+        order.status === DexOrderStatus.SELLING &&
         order.isTokenForSale
       ) {
         sellOrders.push(order)
+      } else {
+        messageOrders.push(order);
       }
     }
     
