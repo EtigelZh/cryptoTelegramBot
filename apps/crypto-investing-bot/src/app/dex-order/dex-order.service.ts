@@ -299,7 +299,7 @@ export class DexOrderService {
               callback_data: `dexOrderChangePercent_${order.id}`,
             },
             {
-              text: 'sell token',
+              text: 'Sell token',
               callback_data: `dexOrderSellToken_${order.id}`,
             },
           ]);
@@ -697,10 +697,10 @@ export class DexOrderService {
     if (!order) {
       throw new Error(`Order with ID ${dexOrderId} not found.`);
     }
-    order.targetSellingPrice = 0;
+    order.isTokenForSale = true;
     await this._dexOrderRepository.save(order);
   }
-  
+
   async dexOrderGetThanThreeDays(): Promise<number[]> {
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
