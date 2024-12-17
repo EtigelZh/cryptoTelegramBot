@@ -47,13 +47,17 @@ export class TelegramConsumer {
       extra?: unknown;
     }>
   ) {
-    return await this.bot.telegram.editMessageText(
-      job.data.chatId,
-      job.data.messageId,
-      job.data.inlineMessageId || null,
-      job.data.message,
-      job.data.extra
-    );
+    try {
+      return await this.bot.telegram.editMessageText(
+        job.data.chatId,
+        job.data.messageId,
+        job.data.inlineMessageId || null,
+        job.data.message,
+        job.data.extra
+      );
+    } catch (e) {
+      Logger.error(`Error editing message: ${inspect(e)}`);
+    }
   }
 
   @Process({

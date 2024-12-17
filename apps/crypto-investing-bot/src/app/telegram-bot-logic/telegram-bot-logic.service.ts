@@ -26,6 +26,7 @@ import { TokenPriceHistoryService } from '../token-price-history/token-price-his
 import { DexOrderService } from '../dex-order/dex-order.service';
 import { DexWalletsService } from '../dex-wallets/dex-wallets.service';
 import { TELEGRAF_DEX_REPORTER } from '../telegram-dex-reporter/telegram-dex-reporter.constants';
+import { TelegramDexReporterJobApiService } from '../telegram-dex-reporter/telegram-dex-reporter-job-api.service';
 
 const walletHashRegex = /(0x[A-Za-z\d]{30,42}){1,}/gm;
 const example =
@@ -55,6 +56,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     private _dexOrderService: DexOrderService,
     private _dexWalletsSevice: DexWalletsService,
     @Inject(TELEGRAF_DEX_REPORTER) private _telegramDexReporter: Telegraf,
+    private readonly _telegramDexReporterJobApiService: TelegramDexReporterJobApiService,
   ) {}
 
   onModuleInit() {
@@ -867,5 +869,14 @@ export class TelegramBotLogicService implements OnModuleInit {
 
   private isAdminUser(userId: string | number): boolean {
     return this._appConfig.adminChatIds.includes(String(userId));
+  }
+  @Cron('0 0 10 * * *', {
+    timeZone: 'Europe/Moscow',
+  })
+  async sendDexOrderMoreTreedays() {
+    const orders = await this._dexOrderService.dexOrderGetThanThreeDays()
+    for (const order of orders) {
+      await this._telegramDexReporterJobApiService.sendMessage(this._appConfig.generalChatId, 'Лимитная заявка висит уже более 3 дней', { reply_to_message_id: order })
+    }
   }
 }

@@ -76,6 +76,10 @@ export class DexOrderEntity {
     @Column({ default: true })
     isAutoSellEnabled: boolean;
   
+    /** Флаг, указывающий, пытаемся ли мы сейчас продать этот токен */
+    @Column({ default: false })
+    isTokenForSale: boolean;
+
     @CreateDateColumn()
     createdAt: Date;
     @UpdateDateColumn()

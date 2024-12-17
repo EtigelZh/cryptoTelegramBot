@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DexOrderEntity } from './dex-order.entity';
-import { In, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { DexOrderCompletedReason, DexOrderStatus } from './dex-order.models';
 import { DexTransactionEntity } from '../dex-transactions/dex-transaction.entity';
 import { DexTransactionService } from '../dex-transactions/dex-transactions.service';
@@ -99,14 +99,22 @@ export class DexOrderService {
         buyOrders.push(order);
       } else if (
         order.status === DexOrderStatus.SELLING &&
-        order.targetSellingPrice <= tokenEconomics.ethPerToken
+        order.targetSellingPrice <= tokenEconomics.ethPerToken &&
+        !order.isTokenForSale
       ) {
+        order.isTokenForSale = true;
         sellOrders.push(order);
+        this._dexOrderRepository.update(order.id, { isTokenForSale: true })
+      } else if (
+        order.status === DexOrderStatus.SELLING &&
+        order.isTokenForSale
+      ) {
+        sellOrders.push(order)
       } else {
         messageOrders.push(order);
       }
     }
-
+    
     await Promise.allSettled([
       this.handleTokenPriceChangeBuyOrders(tokenEconomics, buyOrders),
       this.handleTokenPriceChangeSellOrders(tokenEconomics, sellOrders),
@@ -691,5 +699,20 @@ export class DexOrderService {
     }
     order.targetSellingPrice = 0;
     await this._dexOrderRepository.save(order);
+  }
+  
+  async dexOrderGetThanThreeDays(): Promise<number[]> {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        createdAt: LessThan(threeDaysAgo),
+        status: DexOrderStatus.BUYING
+      },
+      relations: ['wallet']
+    });
+
+    return orders.map(order => order.messageDexOrderId);
   }
 }
