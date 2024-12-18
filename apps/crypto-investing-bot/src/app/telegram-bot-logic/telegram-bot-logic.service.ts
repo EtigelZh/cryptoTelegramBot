@@ -859,10 +859,14 @@ export class TelegramBotLogicService implements OnModuleInit {
   @Cron('0 0 10 * * *', {
     timeZone: 'Europe/Moscow',
   })
-  async sendDexOrderMoreTreedays() {
-    const orders = await this._dexOrderService.dexOrderGetThanThreeDays()
-    for (const order of orders) {
-      await this._telegramDexReporterJobApiService.sendMessage(this._appConfig.generalChatId, 'Лимитная заявка висит уже более 3 дней', { reply_to_message_id: order })
+  async sendDexOrderMoreDays() {
+    const ordersBuying = await this._dexOrderService.dexOrderGetThanThreeDays()
+    const ordersSelling = await this._dexOrderService.dexOrderSellingGetThanFiveDays()
+    for (const order of ordersBuying) {
+      await this._telegramDexReporterJobApiService.sendMessage(this._appConfig.generalChatId, 'Лимитная заявка висит, в статусе BUYING, уже более 3 дней', { reply_to_message_id: order })
+    }
+    for (const orderSelling of ordersSelling) {
+      await this._telegramDexReporterJobApiService.sendMessage(this._appConfig.generalChatId, 'Лимитная заявка висит, в статусе SELLING, уже более 5 дней', { reply_to_message_id: orderSelling })
     }
   }
 }
