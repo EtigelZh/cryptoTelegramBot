@@ -99,6 +99,7 @@ export class TelegramBotLogicService implements OnModuleInit {
     this._telegramDexReporter.action(/dexOrderChangePercent_(\d+)/, (ctx) => this.handleChangePercentButton(ctx));
     this._telegramDexReporter.action(/isStopAutoSellEnabled_(\d+)/, (ctx) => this.handleStopAutoBuyButton(ctx));
     this._telegramDexReporter.action(/isStartAutoSellEnabled_(\d+)/, (ctx) => this.handleStartAutoBuyButton(ctx));
+    this._telegramDexReporter.action(/dexOrderSellToken_(\d+)/, (ctx) => this.handleSellTokenButton(ctx));
     // this._bot.action(/dexOrderManualStop_(\d+)/, (ctx) => this.handleStop(ctx));
   }
 
@@ -706,6 +707,19 @@ export class TelegramBotLogicService implements OnModuleInit {
     // Устанавливаем состояние пользователя на 'awaiting_new_price'
     const idDexOrder = ctx.match[1]; // Извлекаем idDexOrder
     this._dexOrderService.dexOrderStartAutoSell(idDexOrder);
+  }
+
+  private async handleSellTokenButton(ctx): Promise<void> {
+    const userId = ctx.chat?.id;
+    if (!this.isAdminUser(ctx.from?.id)) {
+      await this._telegramJobApiService.sendMessage(
+        userId,
+        'Работа бота доступна только для избранных.'
+      );
+      return;
+    }
+    console.log('---------------------------------')
+    await this._dexOrderService.dexOrderSellTokenButton(ctx.match[1])
   }
 
   private async handleGetChatIdCommand(ctx): Promise<void> {
