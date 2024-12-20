@@ -715,4 +715,19 @@ export class DexOrderService {
 
     return orders.map(order => order.messageDexOrderId);
   }
+
+  async dexOrderSellingGetThanFiveDays(): Promise<number[]> {
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+
+    const orders = await this._dexOrderRepository.find({
+      where: {
+        createdAt: LessThan(fiveDaysAgo),
+        status: DexOrderStatus.SELLING
+      },
+      relations: ['wallet']
+    });
+
+    return orders.map(order => order.messageDexOrderId);
+  }
 }
