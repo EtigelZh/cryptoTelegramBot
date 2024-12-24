@@ -153,6 +153,7 @@ export class DexOrderService {
         );
         order.status = DexOrderStatus.SELLING;
         order.buyingTransactions = [mockBuyingTransaction];
+        await this._telegramDexReporterJobApiService.sendMessage(this._appConfig.generalChatId, 'Токен куплен', { reply_to_message_id: order.messageDexOrderId })
         return this._dexOrderRepository.save(order);
       })
     );
@@ -198,6 +199,7 @@ export class DexOrderService {
         
         const savedOrder = await this._dexOrderRepository.save(order);
         const messageText = await messageDexOrder(tokenEconomics, savedOrder);
+        await this._telegramDexReporterJobApiService.sendMessage(this._appConfig.generalChatId, 'Токен продан', { reply_to_message_id: order.messageDexOrderId })
         this._telegramDexReporterJobApiService
           .createOrUpdateLastMessage(
             order.messageDexOrderId,
