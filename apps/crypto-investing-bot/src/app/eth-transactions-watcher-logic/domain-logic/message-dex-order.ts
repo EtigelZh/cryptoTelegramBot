@@ -61,7 +61,7 @@ export async function messageDexOrder(
   const result = await messageEconomics(tokenEconomics, order);
   const dextoolsLink = `https://www.dextools.io/app/ru/ether/pair-explorer/${tokenEconomics.tokenAddress}`;
   const updatedAt = new Date().toLocaleString();
-  let messageText =
+  let messageText = `№ ${order.id}\n` +
     `[${tokenEconomics.tokenSymbol}](${dextoolsLink}) 🚀 ${smartRound(
       result.percentChange
     )}% status: ${result.statusDexOrder}\n` +
