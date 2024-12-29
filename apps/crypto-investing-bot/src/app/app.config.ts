@@ -115,6 +115,8 @@ export class AppConfig {
   isWebsocketTransfersWatcherEnabled: boolean = process.env.IS_WEBSOCKET_TRANSFERS_WATCHER_ENABLED === 'true';
   isWebsocketSwapsWatcherEnabled: boolean = process.env.IS_WEBSOCKET_SWAPS_WATCHER_ENABLED === 'true';
 
+  minAutoSellingPriceDropPercent: number = +(process.env.MIN_AUTO_SELLING_PRICE_DROP_PERCENT || -10);
+
   cacheTTL: number = +(process.env.CACHE_TTL || 60_000 * 60 * 24);
   maxWalletsToUpdate: number = +(process.env.MAX_WALLETS_TO_UPDATE || 5);
 

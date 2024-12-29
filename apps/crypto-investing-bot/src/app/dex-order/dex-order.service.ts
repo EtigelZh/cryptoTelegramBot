@@ -409,7 +409,20 @@ export class DexOrderService {
     const results = await Promise.allSettled(
       orders.map(async (order) => {
         if (order.isAutoSellEnabled) {
-          order.targetSellingPrice = tokenEconomics.economics.ethPerToken;
+          // если цена упала более чем на 10% от цены покупки
+          const priceDropPercent = Math.round((tokenEconomics.economics.ethPerToken - order.targetBuyingPrice) / order.targetBuyingPrice * 100);
+          if (priceDropPercent > this._appConfig.minAutoSellingPriceDropPercent) {
+            await this._telegramDexReporterJobApiService.sendMessage(this._appConfig.generalChatId, `Кошелек вышел раньше. Установлена новая целевая цена продажи ${tokenEconomics.economics.ethPerToken} ${priceDropPercent}%`, { reply_to_message_id: order.messageDexOrderId })
+        
+            order.targetSellingPrice = tokenEconomics.economics.ethPerToken;
+          } else {
+            // Продаем руками
+            Logger.warn(`Price drop percent is ${priceDropPercent} for order ${order.id}`);
+            await this._telegramDexReporterJobApiService.sendMessage(this._appConfig.generalChatId, `Кошелек вышел по сильно низкой цене ${priceDropPercent} - нужна ручная продажа`, { reply_to_message_id: order.messageDexOrderId })
+        
+            return order;
+          }
+          
           const savedOrder = await this._dexOrderRepository.save(order);
           return savedOrder;
         }
